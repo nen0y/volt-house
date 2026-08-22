@@ -14,20 +14,18 @@ const Footer = dynamic(() => import("@/components/Footer"));
 
 export default function Home() {
   return (
-    <>
+    <Providers>
       <Navbar />
       <main className="bg-gray-100">
         <Hero />
         <TrustBar />
         <Benefits />
-        <Providers>
-          <Products initialData={products} />
-        </Providers>
+        <Products initialData={products} />
         <HowItWorks />
         <Testimonials testimonials={testimonials} />
         <Contact />
       </main>
       <Footer />
-    </>
+    </Providers>
   );
 }

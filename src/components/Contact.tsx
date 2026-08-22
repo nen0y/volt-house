@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import PhoneInput from "./PhoneInput";
 
 export default function Contact() {
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
     name: "",
-    email: "",
     phone: "",
     interest: "full-system",
     message: "",
@@ -22,10 +22,10 @@ export default function Contact() {
             </svg>
           </div>
           <h3 className="text-[22px] font-bold text-gray-900 mb-[8px]">
-            We&apos;ll be in touch!
+            Ми зв&apos;яжемося з вами!
           </h3>
           <p className="text-[14px] text-gray-500">
-            Thanks, {form.name.split(" ")[0]}! An energy expert will contact you within 24 hours.
+            Дякуємо, {form.name.split(" ")[0]}! Наш енергетичний експерт зв&apos;яжеться з вами протягом 24 годин.
           </p>
         </div>
       </section>
@@ -39,17 +39,17 @@ export default function Contact() {
     <section id="contact" className="bg-white py-[56px]">
       <div className="max-w-[640px] mx-auto px-[24px]">
         <h2 className="text-[22px] font-bold text-gray-900 mb-[4px]">
-          Get a Free Quote
+          Отримати безкоштовну консультацію
         </h2>
         <p className="text-[14px] text-gray-500 mb-[32px]">
-          No pressure. Our experts will design a system tailored to your home and budget.
+          Без зобов&apos;язань. Наші експерти розроблять систему під ваш дім та бюджет.
         </p>
 
         <form onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }} className="space-y-[16px]">
           <div className="grid sm:grid-cols-2 gap-[16px]">
             <div>
               <label className="block text-[12px] font-semibold text-gray-700 mb-[6px] uppercase tracking-wide">
-                Full Name *
+                Повне ім&apos;я *
               </label>
               <input
                 type="text"
@@ -57,64 +57,48 @@ export default function Contact() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className={inputClass}
-                placeholder="John Smith"
+                placeholder="Іван Петренко"
               />
             </div>
             <div>
               <label className="block text-[12px] font-semibold text-gray-700 mb-[6px] uppercase tracking-wide">
-                Phone
+                Телефон
               </label>
-              <input
-                type="tel"
+              <PhoneInput
                 value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                onChange={(val) => setForm({ ...form, phone: val })}
                 className={inputClass}
-                placeholder="(555) 000-0000"
               />
             </div>
           </div>
 
           <div>
             <label className="block text-[12px] font-semibold text-gray-700 mb-[6px] uppercase tracking-wide">
-              Email *
-            </label>
-            <input
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className={inputClass}
-              placeholder="john@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[12px] font-semibold text-gray-700 mb-[6px] uppercase tracking-wide">
-              I&apos;m interested in
+              Мене цікавить
             </label>
             <select
               value={form.interest}
               onChange={(e) => setForm({ ...form, interest: e.target.value })}
               className={inputClass}
             >
-              <option value="full-system">Complete Solar + Battery System</option>
-              <option value="battery-only">Battery Backup Only</option>
-              <option value="solar-only">Solar Panels Only</option>
-              <option value="inverter">Inverter Upgrade</option>
-              <option value="consultation">Just a Consultation</option>
+              <option value="full-system">Повна сонячна + акумуляторна система</option>
+              <option value="battery-only">Тільки резервний акумулятор</option>
+              <option value="solar-only">Тільки сонячні панелі</option>
+              <option value="inverter">Оновлення інвертора</option>
+              <option value="consultation">Просто консультація</option>
             </select>
           </div>
 
           <div>
             <label className="block text-[12px] font-semibold text-gray-700 mb-[6px] uppercase tracking-wide">
-              Message
+              Повідомлення
             </label>
             <textarea
               rows={3}
               value={form.message}
               onChange={(e) => setForm({ ...form, message: e.target.value })}
               className={`${inputClass} resize-none`}
-              placeholder="Tell us about your home and energy needs..."
+              placeholder="Розкажіть про ваш дім та потреби в електроенергії..."
             />
           </div>
 
@@ -122,11 +106,11 @@ export default function Contact() {
             type="submit"
             className="w-full py-[12px] rounded-[6px] bg-blue-600 text-white text-[15px] font-semibold hover:bg-blue-700 transition-colors"
           >
-            Get My Free Quote
+            Отримати безкоштовну консультацію
           </button>
 
           <p className="text-[11px] text-gray-400 text-center">
-            No spam ever. We respect your privacy.
+            Жодного спаму. Ми поважаємо вашу конфіденційність.
           </p>
         </form>
       </div>

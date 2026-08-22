@@ -1,10 +1,20 @@
+"use client";
+
+import Link from "next/link";
+import { useCart } from "@/context/CartContext";
+import { products } from "@/lib/data";
+
 export default function Hero() {
+  const { add } = useCart();
+
   return (
     <section className="pt-[112px] pb-[0px] bg-gray-100">
       <div className="max-w-[1280px] mx-auto px-[24px] pb-[24px]">
-        {/* Cinematic banner */}
-        <div className="relative rounded-[8px] overflow-hidden h-[500px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700">
-          {/* Subtle grid overlay */}
+        {/* Whole banner is a link to the product page */}
+        <Link
+          href="/products/inv-5kw"
+          className="relative rounded-[8px] overflow-hidden h-[500px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 block"
+        >
           <div
             className="absolute inset-0 opacity-[0.05]"
             style={{
@@ -13,8 +23,6 @@ export default function Hero() {
               backgroundSize: "50px 50px",
             }}
           />
-
-          {/* Right side decorative power system illustration */}
           <div className="absolute right-[5%] top-1/2 -translate-y-1/2 opacity-20">
             <svg viewBox="0 0 300 300" fill="none" className="w-[400px] h-[400px]">
               <rect x="60" y="80" width="180" height="140" rx="12" fill="white" />
@@ -26,24 +34,30 @@ export default function Hero() {
             </svg>
           </div>
 
-          {/* Text overlay bottom-left */}
           <div className="absolute bottom-0 left-0 right-0 p-[40px]">
-            <p className="text-gray-400 text-[13px] mb-[8px] font-medium uppercase tracking-wider">Featured</p>
+            <p className="text-gray-400 text-[13px] mb-[8px] font-medium uppercase tracking-wider">
+              Хіт продажів
+            </p>
             <h1 className="text-white text-[36px] font-bold leading-tight mb-[6px]">
-              VoltMax 5kW Hybrid Inverter
+              VoltMax 5kW Гібридний Інвертор
             </h1>
             <p className="text-gray-300 text-[14px] mb-[6px]">
-              Keep Your Home Powered Through Any Outage
+              Забезпечте свій дім електроенергією під час будь-якого відключення
             </p>
-            <p className="text-gray-400 text-[12px] mb-[24px]">From: $1,299 incl. VAT</p>
-            <a
-              href="#products"
-              className="inline-block bg-white text-gray-900 text-[14px] font-medium rounded-full px-[28px] py-[10px] hover:bg-gray-100 transition-colors"
+            <p className="text-gray-400 text-[12px] mb-[24px]">Від: $1,299 з ПДВ</p>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const p = products.find((p) => p.id === "inv-5kw");
+                if (p) add(p);
+              }}
+              className="inline-block bg-white text-gray-900 text-[14px] font-medium rounded-full px-[28px] py-[10px] hover:bg-gray-100 transition-colors cursor-pointer"
             >
-              Buy Now
-            </a>
+              Купити
+            </button>
           </div>
-        </div>
+        </Link>
       </div>
     </section>
   );

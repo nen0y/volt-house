@@ -1,6 +1,6 @@
 const categories = [
   {
-    label: "Hybrid Inverters",
+    label: "Гібридні інвертори",
     icon: (
       <svg viewBox="0 0 48 48" fill="none" className="w-[40px] h-[40px]">
         <rect x="4" y="12" width="40" height="28" rx="4" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" />
@@ -11,7 +11,7 @@ const categories = [
     ),
   },
   {
-    label: "LiFePO4 Batteries",
+    label: "Акумулятори LiFePO4",
     icon: (
       <svg viewBox="0 0 48 48" fill="none" className="w-[40px] h-[40px]">
         <rect x="4" y="10" width="36" height="28" rx="4" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" />
@@ -22,7 +22,7 @@ const categories = [
     ),
   },
   {
-    label: "Solar Panels",
+    label: "Сонячні панелі",
     icon: (
       <svg viewBox="0 0 48 48" fill="none" className="w-[40px] h-[40px]">
         <rect x="4" y="10" width="40" height="28" rx="3" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" />
@@ -40,7 +40,7 @@ const categories = [
     ),
   },
   {
-    label: "MPPT Controllers",
+    label: "MPPT Контролери",
     icon: (
       <svg viewBox="0 0 48 48" fill="none" className="w-[40px] h-[40px]">
         <rect x="6" y="8" width="36" height="32" rx="4" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" />
@@ -51,7 +51,7 @@ const categories = [
     ),
   },
   {
-    label: "Off-Grid Systems",
+    label: "Автономні системи",
     icon: (
       <svg viewBox="0 0 48 48" fill="none" className="w-[40px] h-[40px]">
         <path d="M24 4L6 18v26h12V30h12v14h12V18L24 4z" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" strokeLinejoin="round" />
@@ -60,7 +60,7 @@ const categories = [
     ),
   },
   {
-    label: "Grid-Tie Inverters",
+    label: "Мережеві інвертори",
     icon: (
       <svg viewBox="0 0 48 48" fill="none" className="w-[40px] h-[40px]">
         <rect x="8" y="10" width="32" height="28" rx="4" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" />
@@ -69,7 +69,7 @@ const categories = [
     ),
   },
   {
-    label: "Monitoring",
+    label: "Моніторинг",
     icon: (
       <svg viewBox="0 0 48 48" fill="none" className="w-[40px] h-[40px]">
         <rect x="6" y="8" width="36" height="26" rx="3" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" />
@@ -80,7 +80,7 @@ const categories = [
     ),
   },
   {
-    label: "Accessories",
+    label: "Аксесуари",
     icon: (
       <svg viewBox="0 0 48 48" fill="none" className="w-[40px] h-[40px]">
         <circle cx="24" cy="24" r="16" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" />

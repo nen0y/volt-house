@@ -20,10 +20,10 @@ export default function Testimonials({ testimonials }: { testimonials: Testimoni
     <section id="reviews" className="bg-gray-100 py-[56px]">
       <div className="max-w-[1280px] mx-auto px-[24px]">
         <h2 className="text-[22px] font-bold text-gray-900 mb-[8px]">
-          Customer Reviews
+          Відгуки клієнтів
         </h2>
         <p className="text-[14px] text-gray-500 mb-[32px]">
-          Over 5,000 families trust VoltHouse for energy independence.
+          Реальні відгуки клієнтів, які обрали VoltHouse для захисту від відключень.
         </p>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-[12px]">

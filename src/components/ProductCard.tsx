@@ -1,3 +1,7 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useCart } from "@/context/CartContext";
 import type { Product } from "@/types";
 
 const categoryIcon = {
@@ -37,46 +41,50 @@ const categoryIcon = {
 };
 
 export default function ProductCard({ product }: { product: Product }) {
+  const router = useRouter();
+  const { add } = useCart();
   const savings = product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
 
   return (
-    <div className="group relative bg-white rounded-[6px] border border-gray-100 overflow-hidden hover:border-gray-200 hover:shadow-md transition-[border-color,box-shadow] duration-200">
-      {/* Discount badge */}
+    <div
+      onClick={() => router.push(`/products/${product.id}`)}
+      className="group relative bg-white rounded-[6px] border border-gray-100 overflow-hidden hover:border-gray-200 hover:shadow-md transition-[border-color,box-shadow] duration-200 cursor-pointer"
+    >
       {savings && (
         <div className="absolute top-[10px] right-[10px] z-10 bg-blue-600 text-white text-[10px] font-bold px-[8px] py-[3px] rounded-full">
           -{savings}%
         </div>
       )}
 
-      {/* Image area */}
       <div className="bg-gray-50 h-[200px] flex items-center justify-center">
         {categoryIcon[product.category]}
       </div>
 
-      {/* Content */}
       <div className="p-[14px]">
-        <h3 className="text-[14px] font-medium text-gray-900 mb-[8px] leading-snug line-clamp-2">
+        <h3 className="text-[14px] font-medium text-gray-900 mb-[8px] leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
           {product.name}
         </h3>
-
         <div>
           {product.originalPrice && (
             <span className="text-[11px] text-gray-400 line-through mr-[6px]">
               ${product.originalPrice.toLocaleString()}
             </span>
           )}
-          <span className="text-[11px] text-gray-500">From: </span>
+          <span className="text-[11px] text-gray-500">Від: </span>
           <span className="text-[16px] font-bold text-gray-900">
             ${product.price.toLocaleString()}
           </span>
-          <span className="text-[10px] text-gray-400 ml-[4px]">incl. VAT</span>
+          <span className="text-[10px] text-gray-400 ml-[4px]">з ПДВ</span>
         </div>
       </div>
 
-      {/* Blue cart button on hover */}
-      <button className="absolute bottom-[14px] right-[14px] w-[32px] h-[32px] rounded-full bg-blue-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-sm">
+      <button
+        onClick={(e) => { e.stopPropagation(); add(product); }}
+        className="absolute bottom-[14px] right-[14px] w-[32px] h-[32px] rounded-full bg-blue-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-sm cursor-pointer"
+        aria-label="Додати в кошик"
+      >
         <svg viewBox="0 0 16 16" fill="none" className="w-[14px] h-[14px]">
           <path d="M1 1h2l2 8h8l1.5-5H5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           <circle cx="7" cy="13" r="1" fill="white" />

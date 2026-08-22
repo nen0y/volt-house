@@ -1,23 +1,23 @@
 const steps = [
   {
     step: "01",
-    title: "Free Energy Audit",
-    desc: "Share your monthly electricity usage and roof details. Our engineers design a custom system for your home.",
+    title: "Безкоштовний енергоаудит",
+    desc: "Поділіться вашим місячним споживанням електроенергії та даними про дах. Наші інженери розроблять індивідуальну систему для вашого дому.",
   },
   {
     step: "02",
-    title: "System Design",
-    desc: "We match you with the right inverter, battery capacity, and panel count based on your goals.",
+    title: "Проектування системи",
+    desc: "Ми підберемо оптимальний інвертор, ємність акумулятора та кількість панелей відповідно до ваших потреб.",
   },
   {
     step: "03",
-    title: "Order & Delivery",
-    desc: "Order online with 0% APR financing. Components ship from US warehouses in 3–5 business days.",
+    title: "Замовлення та доставка",
+    desc: "Замовляйте онлайн з можливістю розстрочки. Компоненти відправляються зі складів в Україні протягом 3–5 робочих днів.",
   },
   {
     step: "04",
-    title: "Professional Install",
-    desc: "NABCEP-certified installers handle mounting, wiring, permits, and utility interconnection.",
+    title: "Професійний монтаж",
+    desc: "Сертифіковані монтажники займаються встановленням, підключенням та узгодженням з постачальником електроенергії.",
   },
 ];
 
@@ -26,10 +26,10 @@ export default function HowItWorks() {
     <section id="how-it-works" className="bg-white py-[56px]">
       <div className="max-w-[1280px] mx-auto px-[24px]">
         <h2 className="text-[22px] font-bold text-gray-900 mb-[8px]">
-          How It Works
+          Як це працює
         </h2>
         <p className="text-[14px] text-gray-500 mb-[40px]">
-          From order to power in as little as 2 weeks.
+          Від замовлення до підключення — всього за 2 тижні.
         </p>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-[24px]">

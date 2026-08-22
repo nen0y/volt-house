@@ -10,9 +10,9 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "VoltHouse — Backup Power Systems",
+  title: "VoltHouse — Системи резервного живлення",
   description:
-    "Premium inverters, batteries, and solar panels for reliable backup power at home and business.",
+    "Преміум інвертори, акумулятори та сонячні панелі для надійного резервного живлення вдома та для бізнесу.",
 };
 
 export const viewport = {
@@ -26,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
+    <html lang="uk" className={`${geistSans.variable} h-full antialiased`}>
       <head>
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
