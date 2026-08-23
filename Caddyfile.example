@@ -1,0 +1,32 @@
+# ── HTTPS for production ──────────────────────────────────────────────────────
+# Caddy terminates TLS (automatic Let's Encrypt certificate) and proxies to the
+# frontend. Copy this to `Caddyfile`, replace the domain, add the `caddy` service
+# below to docker-compose.yml, and REMOVE the `ports: ["3000:3000"]` from `front`
+# (so only Caddy is public on 80/443).
+#
+# volthouse.example.com {
+#     encode gzip
+#     reverse_proxy front:3000
+# }
+#
+# ── docker-compose.yml addition ──
+#   caddy:
+#     image: caddy:2-alpine
+#     restart: unless-stopped
+#     ports:
+#       - "80:80"
+#       - "443:443"
+#     volumes:
+#       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+#       - caddy_data:/data
+#       - caddy_config:/config
+#     depends_on:
+#       - front
+# volumes:
+#   caddy_data:
+#   caddy_config:
+
+volthouse.example.com {
+    encode gzip
+    reverse_proxy front:3000
+}

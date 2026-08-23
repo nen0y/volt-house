@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../prisma";
 import { signToken, requireAdmin, AuthedRequest } from "../middleware/auth";
+import { authLimiter } from "../middleware/rateLimit";
 
 export const authRouter = Router();
 
@@ -11,7 +12,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", authLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Некоректні дані" });
 

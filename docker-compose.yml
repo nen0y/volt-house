@@ -1,0 +1,48 @@
+# One command brings up the whole stack:  docker compose up -d --build
+#   • back  — API + admin panel + SQLite database (data on the `backdata` volume)
+#   • front — Next.js storefront, proxies /api, /uploads and /admin to `back`
+services:
+  back:
+    build: ./back
+    container_name: volthouse-back
+    restart: unless-stopped
+    # Secrets/config come from back/.env (optional — sensible defaults apply if absent)
+    env_file:
+      - path: ./back/.env
+        required: false
+    environment:
+      DATABASE_URL: file:/app/data/volthouse.db
+      UPLOAD_DIR: /app/data/uploads
+      PORT: 4000
+    volumes:
+      - backdata:/app/data
+    # No public port — the backend is reachable only inside the Docker network;
+    # the frontend proxies /api, /uploads and /admin to it. (Add `ports: ["4000:4000"]`
+    # temporarily if you need to hit the API/admin directly for debugging.)
+    expose:
+      - "4000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  front:
+    build:
+      context: ./front
+      args:
+        BACKEND_URL: http://back:4000
+        # Set SITE_URL=https://your-domain (env or root .env) before building for production
+        NEXT_PUBLIC_SITE_URL: ${SITE_URL:-http://localhost:3000}
+    container_name: volthouse-front
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://back:4000
+    depends_on:
+      back:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+volumes:
+  backdata:

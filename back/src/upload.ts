@@ -21,14 +21,15 @@ const storage = multer.diskStorage({
   },
 });
 
-const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/avif"];
+// SVG is intentionally excluded — it can embed scripts (stored-XSS risk).
+const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
 
 export const upload = multer({
   storage,
   limits: { fileSize: 8 * 1024 * 1024, files: 10 }, // 8MB each, up to 10 files
   fileFilter: (_req, file, cb) => {
     if (ALLOWED.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("Дозволені лише зображення (jpg, png, webp, gif, svg, avif)"));
+    else cb(new Error("Дозволені лише зображення (jpg, png, webp, gif, avif)"));
   },
 });
 

@@ -36,13 +36,36 @@
     $("login").style.display = "none";
     $("app").style.display = "block";
     $("who").textContent = email;
+    loadSeoSetting();
   }
   function logout() {
     token = null;
     localStorage.removeItem(TOKEN_KEY);
     $("app").style.display = "none";
     $("login").style.display = "flex";
+    $("noindexWrap").style.display = "none";
   }
+
+  // ── SEO / indexing toggle (checkbox in the topbar) ──────────────────────────
+  async function loadSeoSetting() {
+    const cb = $("noindexToggle");
+    try {
+      const seo = await api("/api/settings/seo");
+      cb.checked = seo.indexable === false; // checked = closed from indexing
+      $("noindexWrap").style.display = "flex";
+    } catch {
+      $("noindexWrap").style.display = "none";
+    }
+  }
+  $("noindexToggle").addEventListener("change", async () => {
+    const cb = $("noindexToggle");
+    try {
+      await api("/api/settings/seo", { method: "PUT", body: JSON.stringify({ indexable: !cb.checked }) });
+    } catch (err) {
+      alert(err.message);
+      cb.checked = !cb.checked; // revert on failure
+    }
+  });
 
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();

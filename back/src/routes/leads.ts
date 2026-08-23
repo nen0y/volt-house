@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAdmin } from "../middleware/auth";
 import { sendLeadTelegram } from "../telegram";
+import { leadsLimiter } from "../middleware/rateLimit";
 import { parseItems } from "../json";
 
 export const leadsRouter = Router();
@@ -30,8 +31,8 @@ const leadSchema = z.object({
   total: z.number().optional(),
 });
 
-// POST /api/leads — public. Saves the lead and emails the administrator.
-leadsRouter.post("/", async (req, res) => {
+// POST /api/leads — public. Saves the lead and notifies the administrator.
+leadsRouter.post("/", leadsLimiter, async (req, res) => {
   const parsed = leadSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Некоректні дані", details: parsed.error.flatten() });

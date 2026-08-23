@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import dynamic from "next/dynamic";
+import { SITE_TITLE, SITE_DESCRIPTION } from "@/lib/seo";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import CategoriesBlock from "@/components/CategoriesBlock";
@@ -10,6 +12,13 @@ import { testimonials } from "@/lib/data";
 
 const Contact = dynamic(() => import("@/components/Contact"));
 const Footer = dynamic(() => import("@/components/Footer"));
+
+export const metadata: Metadata = {
+  title: { absolute: SITE_TITLE },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: { url: "/", title: SITE_TITLE, description: SITE_DESCRIPTION },
+};
 
 export default function Home() {
   return (

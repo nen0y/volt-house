@@ -6,8 +6,15 @@ import { products } from "@/lib/data";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Всі товари — VoltHouse",
-  description: "Інвертори, акумулятори та сонячні панелі для резервного живлення.",
+  title: "Каталог товарів",
+  description:
+    "Каталог VoltHouse: інвертори, акумулятори LiFePO4, сонячні панелі та портативні зарядні станції для резервного живлення дому й бізнесу.",
+  alternates: { canonical: "/products" },
+  openGraph: {
+    url: "/products",
+    title: "Каталог товарів — VoltHouse",
+    description: "Інвертори, акумулятори, сонячні панелі та зарядні станції для резервного живлення.",
+  },
 };
 
 export default async function AllProductsPage({
