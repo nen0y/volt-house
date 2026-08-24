@@ -1,0 +1,50 @@
+"use client";
+
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { fetchCategories } from "@/lib/api";
+import { FALLBACK_CATEGORIES } from "@/types";
+
+export default function CategoriesBlock() {
+  const { data } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
+
+  const categories = (data ?? FALLBACK_CATEGORIES).filter((c) => c.enabled);
+  if (categories.length === 0) return null;
+
+  return (
+    <section className="bg-gray-100 py-[32px]">
+      <div className="max-w-[1280px] mx-auto px-[24px]">
+        <div className="flex items-center justify-between mb-[16px]">
+          <h2 className="text-[22px] font-bold text-gray-900">Категорії</h2>
+          <Link href="/products" className="text-[13px] font-medium text-blue-600 hover:text-blue-700 transition-colors">
+            Усі товари →
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-[12px]">
+          {categories.map((c) => (
+            <Link
+              key={c.key}
+              href={`/products?category=${c.key}`}
+              className="group bg-white rounded-[10px] border border-gray-100 p-[24px] hover:border-blue-200 hover:shadow-md transition-all flex flex-col"
+            >
+              <span className="text-[32px] mb-[12px] leading-none">{c.icon}</span>
+              <h3 className="text-[15px] font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                {c.label}
+              </h3>
+              {c.description && (
+                <p className="text-[12px] text-gray-400 mt-[4px] leading-relaxed">{c.description}</p>
+              )}
+              <span className="mt-[16px] text-[13px] font-medium text-blue-600 inline-flex items-center gap-[4px]">
+                Переглянути
+                <svg viewBox="0 0 16 16" fill="none" className="w-[12px] h-[12px]">
+                  <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

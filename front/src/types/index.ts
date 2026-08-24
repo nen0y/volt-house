@@ -1,0 +1,109 @@
+// Built-in categories ship by default, but categories are editable in the admin,
+// so a product's category is just a string key.
+export type ProductCategory = "inverter" | "battery" | "solar" | "station";
+
+export interface Category {
+  key: string;
+  label: string;
+  labelSingular: string;
+  description: string;
+  icon: string;
+  sortOrder: number;
+  enabled: boolean;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  originalPrice?: number;
+  power?: string;
+  capacity?: string;
+  efficiency?: string;
+  warranty: string;
+  badge?: string;
+  features: string[];
+  image: string;
+  images?: string[]; // uploaded image URLs ("/uploads/..."); empty → category SVG fallback
+}
+
+export type HomeSectionMode = "products" | "category" | "cta";
+
+export interface HomeSection {
+  id: string;
+  title: string;
+  subtitle: string;
+  mode: HomeSectionMode;
+  category: string;
+  productIds: string[];
+  ctaLabel: string;
+  ctaHref: string;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+export interface Testimonial {
+  id: string;
+  name: string;
+  location: string;
+  rating: number;
+  text: string;
+  avatar: string;
+  product: string;
+}
+
+export interface ContentBlock {
+  key: string;
+  heading: string;
+  subheading: string;
+  body: string;
+  productIds: string[];
+  enabled: boolean;
+  sortOrder: number;
+}
+
+export type ContentMap = Record<string, ContentBlock>;
+
+export interface CalcAppliance {
+  id: string;
+  name: string;
+  watts: number;
+  icon: string;
+  group: "essential" | "kitchen" | "heavy";
+}
+
+export interface CalcRecommendation {
+  autonomyHours: number;
+  powerReservePct: number;
+  inverterCategory: string;
+  batteryCategory: string;
+  stationCategory: string;
+}
+
+export interface CalculatorData {
+  appliances: CalcAppliance[];
+  recommendation: CalcRecommendation;
+}
+
+// Fallback category metadata (used until /api/categories responds, or if it is down)
+export const CATEGORY_LABELS: Record<string, string> = {
+  inverter: "Інвертори",
+  battery: "Акумулятори",
+  solar: "Сонячні панелі",
+  station: "Зарядні станції",
+};
+
+export const CATEGORY_LABEL_SINGULAR: Record<string, string> = {
+  inverter: "Інвертор",
+  battery: "Акумулятор",
+  solar: "Сонячна панель",
+  station: "Зарядна станція",
+};
+
+export const FALLBACK_CATEGORIES: Category[] = [
+  { key: "inverter", label: "Інвертори",       labelSingular: "Інвертор",        description: "Гібридні та мережеві інвертори", icon: "⚡",  sortOrder: 0, enabled: true },
+  { key: "battery",  label: "Акумулятори",     labelSingular: "Акумулятор",      description: "LiFePO4 акумуляторні системи",  icon: "🔋", sortOrder: 1, enabled: true },
+  { key: "solar",    label: "Сонячні панелі",  labelSingular: "Сонячна панель",  description: "Монокристалічні панелі",        icon: "☀️", sortOrder: 2, enabled: true },
+  { key: "station",  label: "Зарядні станції", labelSingular: "Зарядна станція", description: "Портативні зарядні станції",     icon: "🔌", sortOrder: 3, enabled: true },
+];
