@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import SearchModal from "./SearchModal";
 import CartDrawer from "./CartDrawer";
 import PowerCalculatorModal from "./PowerCalculatorModal";
@@ -52,14 +53,15 @@ export default function Navbar() {
         >
           <div className="max-w-[1280px] mx-auto px-[24px] h-[64px] flex items-center justify-between gap-[32px]">
             {/* Logo → home */}
-            <Link href="/" className="flex items-center gap-[8px] shrink-0">
-              <svg viewBox="0 0 32 32" fill="none" className="w-[28px] h-[28px]">
-                <rect width="32" height="32" rx="6" fill="#2563eb" />
-                <path d="M18 4L9 18h7l-2 10 10-14h-7L18 4z" fill="white" />
-              </svg>
-              <span className="text-[18px] font-black text-gray-900 tracking-tight leading-none">
-                VOLT<span className="font-light">HOUSE</span>
-              </span>
+            <Link href="/" className="flex items-center shrink-0" aria-label="E-Kit — на головну">
+              <Image
+                src="/brand/e-kit-logo.svg"
+                alt="E-Kit"
+                width={160}
+                height={56}
+                priority
+                className="w-[116px] sm:w-[132px] h-auto"
+              />
             </Link>
 
             {/* Desktop nav */}
@@ -79,7 +81,7 @@ export default function Navbar() {
             <div className="hidden lg:flex items-center gap-[8px] shrink-0">
               <button
                 onClick={() => setConsultOpen(true)}
-                className="flex items-center gap-[6px] border border-blue-600 text-blue-600 hover:bg-blue-50 text-[13px] font-semibold px-[14px] py-[8px] rounded-full transition-colors cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-[6px] border border-amber-500 text-gray-900 hover:bg-amber-50 text-[13px] font-semibold px-[14px] py-[8px] rounded-full transition-colors cursor-pointer whitespace-nowrap"
               >
                 <svg viewBox="0 0 16 16" fill="none" className="w-[13px] h-[13px]">
                   <path d="M3 3.5c0 5 4.5 9.5 9.5 9.5l1-2.2-2.6-1-1 1a7 7 0 01-3.2-3.2l1-1L6.7 3.5H4.5A1.5 1.5 0 003 3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
@@ -88,7 +90,7 @@ export default function Navbar() {
               </button>
               <button
                 onClick={() => setCalcOpen(true)}
-                className="flex items-center gap-[6px] bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold px-[16px] py-[8px] rounded-full transition-colors cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-[6px] bg-[#FFC107] hover:bg-amber-400 text-gray-950 text-[13px] font-semibold px-[16px] py-[8px] rounded-full transition-colors cursor-pointer whitespace-nowrap"
               >
                 <svg viewBox="0 0 16 16" fill="none" className="w-[13px] h-[13px]">
                   <rect x="2" y="1" width="12" height="14" rx="2" stroke="white" strokeWidth="1.4" />
@@ -122,7 +124,7 @@ export default function Navbar() {
                   <path d="M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 {count > 0 && (
-                  <span className="absolute -top-[6px] -right-[6px] bg-blue-600 text-white text-[9px] font-bold w-[16px] h-[16px] rounded-full flex items-center justify-center">
+                  <span className="absolute -top-[6px] -right-[6px] bg-[#FFC107] text-gray-950 text-[9px] font-bold w-[16px] h-[16px] rounded-full flex items-center justify-center">
                     {count > 9 ? "9+" : count}
                   </span>
                 )}

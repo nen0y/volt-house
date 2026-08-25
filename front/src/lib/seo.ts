@@ -1,10 +1,10 @@
 import type { Product } from "@/types";
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
-export const SITE_NAME = "VoltHouse";
-export const SITE_TITLE = "VoltHouse — Системи резервного живлення";
+export const SITE_NAME = "E-Kit";
+export const SITE_TITLE = "E-Kit — сонячна енергетика та резервне живлення";
 export const SITE_DESCRIPTION =
-  "Преміум інвертори, акумулятори LiFePO4, сонячні панелі та портативні зарядні станції для надійного резервного живлення вдома та для бізнесу. Безкоштовна консультація та підбір системи під ваш дім.";
+  "E-Kit — інвертори, акумулятори LiFePO4, сонячні панелі та зарядні станції для надійного резервного живлення дому й бізнесу. Консультація та підбір системи під ваші потреби.";
 
 export const SITE_KEYWORDS = [
   "інвертор",
@@ -17,7 +17,9 @@ export const SITE_KEYWORDS = [
   "безперебійне живлення",
   "сонячна електростанція",
   "накопичувач енергії",
-  "VoltHouse",
+  "E-Kit",
+  "E Kit",
+  "E-Kit Україна",
 ];
 
 /** Absolute URL on the public site. */
@@ -38,7 +40,7 @@ export function organizationSchema() {
     "@type": "Organization",
     name: SITE_NAME,
     url: SITE_URL,
-    logo: abs("/opengraph-image"),
+    logo: abs("/brand/e-kit-logo.svg"),
     description: SITE_DESCRIPTION,
     areaServed: "UA",
   };

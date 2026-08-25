@@ -35,7 +35,7 @@ export default function Testimonials({ testimonials }: { testimonials: Testimoni
           Відгуки клієнтів
         </h2>
         <p className="text-[14px] text-gray-500 mb-[32px]">
-          Реальні відгуки клієнтів, які обрали VoltHouse для захисту від відключень.
+          Реальні відгуки клієнтів, які обрали E-Kit для захисту від відключень.
         </p>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-[12px]">

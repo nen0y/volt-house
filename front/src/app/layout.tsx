@@ -57,14 +57,18 @@ export const metadata: Metadata = {
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
   },
-  icons: { icon: "/favicon.ico" },
+  icons: {
+    icon: [{ url: "/brand/e-kit-symbol.svg", type: "image/svg+xml" }],
+    shortcut: "/brand/e-kit-symbol.svg",
+    apple: "/brand/e-kit-symbol.svg",
+  },
   formatDetection: { telephone: true, address: false, email: false },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#2563eb",
+  themeColor: "#FFC107",
 };
 
 export default function RootLayout({

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { products as localProducts } from "@/lib/data";
 import { getProductServer, getProductsServer } from "@/lib/server-api";
-import { abs, productSchema, breadcrumbSchema, SITE_DESCRIPTION } from "@/lib/seo";
+import { abs, productSchema, breadcrumbSchema, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 import Providers from "@/components/Providers";
 import Navbar from "@/components/Navbar";
 import ProductDetail from "@/components/ProductDetail";
@@ -40,7 +40,7 @@ export async function generateMetadata({
     openGraph: {
       type: "website",
       url: `/products/${product.id}`,
-      title: `${product.name} — VoltHouse`,
+      title: `${product.name} — ${SITE_NAME}`,
       description,
       images: [{ url: image }],
     },
