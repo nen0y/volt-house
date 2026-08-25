@@ -7,7 +7,6 @@ import CategoriesBlock from "@/components/CategoriesBlock";
 import HomeSections from "@/components/HomeSections";
 import HowItWorks from "@/components/HowItWorks";
 import Testimonials from "@/components/Testimonials";
-import Providers from "@/components/Providers";
 import { testimonials } from "@/lib/data";
 
 const Contact = dynamic(() => import("@/components/Contact"));
@@ -22,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <Providers>
+    <>
       <Navbar />
       <main className="bg-gray-100">
         <Hero />
@@ -33,6 +32,6 @@ export default function Home() {
         <Contact />
       </main>
       <Footer />
-    </Providers>
+    </>
   );
 }

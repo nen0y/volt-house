@@ -234,7 +234,7 @@ function RecommendationCard({
 
       <button
         onClick={() => onAdd(items)}
-        className="w-full py-[11px] rounded-[8px] bg-gray-950 text-white text-[14px] font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
+        className="w-full py-[11px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[14px] font-semibold hover:bg-amber-400 transition-colors cursor-pointer"
       >
         Додати в кошик
       </button>
@@ -449,9 +449,9 @@ export default function PowerCalculatorModal({
             {totalWatts > 0 && (
               <div>
                 {added ? (
-                  <div className="bg-green-50 rounded-[10px] p-[20px] text-center">
+                  <div className="bg-gray-100 border border-amber-200 rounded-[10px] p-[20px] text-center">
                     <p className="text-[22px] mb-[6px]">✓</p>
-                    <p className="text-[14px] font-semibold text-green-700">Додано до кошика!</p>
+                    <p className="text-[14px] font-semibold text-gray-800">Додано до кошика!</p>
                   </div>
                 ) : (
                   <RecommendationCard

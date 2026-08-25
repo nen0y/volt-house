@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { products as localProducts } from "@/lib/data";
 import { getProductServer, getProductsServer } from "@/lib/server-api";
 import { abs, productSchema, breadcrumbSchema, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
-import Providers from "@/components/Providers";
 import Navbar from "@/components/Navbar";
 import ProductDetail from "@/components/ProductDetail";
 import Footer from "@/components/Footer";
@@ -63,7 +62,7 @@ export default async function ProductPage({
     .slice(0, 3);
 
   return (
-    <Providers>
+    <>
       <JsonLd data={productSchema(product)} />
       <JsonLd
         data={breadcrumbSchema([
@@ -77,6 +76,6 @@ export default async function ProductPage({
         <ProductDetail product={product} related={related} />
       </main>
       <Footer />
-    </Providers>
+    </>
   );
 }

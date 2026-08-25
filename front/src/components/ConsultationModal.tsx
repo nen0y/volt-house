@@ -72,7 +72,7 @@ export default function ConsultationModal({
             </p>
             <button
               onClick={onClose}
-              className="w-full py-[12px] rounded-[8px] bg-gray-950 text-white text-[15px] font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
+              className="w-full py-[12px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-amber-400 transition-colors cursor-pointer"
             >
               Закрити
             </button>
@@ -131,7 +131,7 @@ export default function ConsultationModal({
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-[13px] rounded-[8px] bg-gray-950 text-white text-[15px] font-semibold hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-60"
+                className="w-full py-[13px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-amber-400 transition-colors cursor-pointer disabled:opacity-60"
               >
                 {submitting ? "Надсилаємо…" : "Замовити дзвінок"}
               </button>

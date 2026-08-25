@@ -131,7 +131,7 @@ export default function Contact() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-[12px] rounded-[6px] bg-gray-950 text-white text-[15px] font-semibold hover:bg-gray-800 transition-colors disabled:opacity-60"
+            className="w-full py-[12px] rounded-[6px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-amber-400 transition-colors disabled:opacity-60"
           >
             {submitting ? "Надсилаємо…" : "Отримати безкоштовну консультацію"}
           </button>

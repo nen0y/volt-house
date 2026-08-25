@@ -250,8 +250,8 @@ export default function ProductDetail({
               onClick={handleAdd}
               className={`flex-1 py-[14px] rounded-[8px] text-[15px] font-semibold transition-colors cursor-pointer ${
                 added
-                  ? "bg-green-500 text-white"
-                  : "bg-gray-950 text-white hover:bg-gray-800 shadow-sm"
+                  ? "bg-gray-800 text-white ring-2 ring-amber-300"
+                  : "bg-[#FFC107] text-gray-950 hover:bg-amber-400 shadow-sm"
               }`}
             >
               {added ? "✓ Додано до кошика" : "Додати в кошик"}

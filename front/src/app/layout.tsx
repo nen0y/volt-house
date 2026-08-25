@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import JsonLd from "@/components/JsonLd";
+import Providers from "@/components/Providers";
 import {
   SITE_URL,
   SITE_NAME,
@@ -84,7 +85,7 @@ export default function RootLayout({
         <JsonLd data={websiteSchema()} />
       </head>
       <body className="min-h-full flex flex-col bg-white text-slate-900">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -19,7 +19,7 @@ function CatalogButton({ href, label }: { href: string; label: string }) {
     <div className="flex justify-center mt-[24px]">
       <Link
         href={href}
-        className="inline-flex items-center gap-[8px] bg-gray-950 text-white text-[14px] font-semibold rounded-full px-[28px] py-[12px] hover:bg-gray-800 transition-colors"
+        className="inline-flex items-center gap-[8px] bg-[#FFC107] text-gray-950 text-[14px] font-semibold rounded-full px-[28px] py-[12px] hover:bg-amber-400 transition-colors"
       >
         {label}
         <svg viewBox="0 0 16 16" fill="none" className="w-[14px] h-[14px]">
