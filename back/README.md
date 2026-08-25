@@ -4,8 +4,8 @@ REST API + admin panel for the VoltHouse storefront (the Next.js app in `../fron
 
 Repo layout: the git repository root contains `front/` (Next.js storefront) and `back/` (this API).
 
-- **Stack:** Node.js + Express + TypeScript, Prisma ORM, SQLite, JWT auth
-- **Runs in Docker** (single container via `docker compose`)
+- **Stack:** Node.js + Express + TypeScript, Prisma ORM, PostgreSQL, JWT auth
+- **Runs in Docker** together with PostgreSQL via `docker compose`
 - Serves the product catalogue & testimonials to the frontend
 - Receives all **заявки** (orders / consultations / callbacks), stores them, and **sends them to the admin's Telegram group**
 - Ships with a built-in **admin panel** and a **seeder**

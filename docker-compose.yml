@@ -1,7 +1,23 @@
 # One command brings up the whole stack:  docker compose up -d --build
-#   • back  — API + admin panel + SQLite database (data on the `backdata` volume)
+#   • back  — API + admin panel; PostgreSQL stores structured data
 #   • front — Next.js storefront, proxies /api, /uploads and /admin to `back`
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: e-kit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: e_kit
+      POSTGRES_USER: e_kit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-e-kit-local-change-me}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U e_kit -d e_kit"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   back:
     build: ./back
     container_name: volthouse-back
@@ -11,7 +27,8 @@ services:
       - path: ./back/.env
         required: false
     environment:
-      DATABASE_URL: file:/app/data/volthouse.db
+      DATABASE_URL: postgresql://e_kit:${POSTGRES_PASSWORD:-e-kit-local-change-me}@postgres:5432/e_kit?schema=public
+      LEGACY_SQLITE_URL: file:/app/data/volthouse.db
       UPLOAD_DIR: /app/data/uploads
       PORT: 4000
     volumes:
@@ -21,6 +38,9 @@ services:
     # temporarily if you need to hit the API/admin directly for debugging.)
     expose:
       - "4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1"]
       interval: 10s
@@ -46,3 +66,4 @@ services:
 
 volumes:
   backdata:
+  pgdata:

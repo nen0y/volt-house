@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { fetchHomeSections, fetchProducts } from "@/lib/api";
+import { fetchCategories, fetchHomeSections, fetchProducts } from "@/lib/api";
+import { FALLBACK_CATEGORIES } from "@/types";
 import ProductCard from "./ProductCard";
 import ConsultationModal from "./ConsultationModal";
 import type { HomeSection, Product } from "@/types";
@@ -33,13 +34,23 @@ function CatalogButton({ href, label }: { href: string; label: string }) {
 export default function HomeSections() {
   const { data: sections } = useQuery({ queryKey: ["home-sections"], queryFn: fetchHomeSections });
   const { data: products } = useQuery({ queryKey: ["products"], queryFn: () => fetchProducts() });
+  const { data: categoryData } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
   const [callbackOpen, setCallbackOpen] = useState(false);
 
   const all = products ?? [];
   const list = (sections ?? []).filter((s) => s.enabled);
+  const categories = categoryData ?? FALLBACK_CATEGORIES;
+
+  const categoryKeys = (key: string) => {
+    const keys = [key];
+    for (let i = 0; i < keys.length; i++) {
+      categories.filter((c) => c.parentKey === keys[i]).forEach((c) => keys.push(c.key));
+    }
+    return keys;
+  };
 
   const productsFor = (s: HomeSection): Product[] => {
-    if (s.mode === "category") return all.filter((p) => p.category === s.category);
+    if (s.mode === "category") return all.filter((p) => categoryKeys(s.category).includes(p.category));
     return s.productIds
       .map((id) => all.find((p) => p.id === id))
       .filter((p): p is Product => Boolean(p));

@@ -30,6 +30,12 @@ const categoryLabel: Record<string, string> = {
   battery: "Акумулятор",
   solar: "Сонячна панель",
   station: "Зарядна станція",
+  kits: "Комплект",
+  "inverter-hybrid": "Гібридний інвертор",
+  "inverter-grid": "Мережевий інвертор",
+  "battery-lifepo4": "LiFePO4 акумулятор",
+  "solar-mono": "Монокристалічна панель",
+  "station-portable": "Портативна станція",
 };
 
 // ── JSON-LD builders ─────────────────────────────────────────────────────────

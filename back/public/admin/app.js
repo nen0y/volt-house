@@ -127,6 +127,23 @@
 
   // ── CRM kanban ────────────────────────────────────────────────────────────
   $("refreshCrm").addEventListener("click", loadCrm);
+  $("addCrmClient").addEventListener("click", openNewCrmClient);
+
+  function openNewCrmClient() {
+    openModal(`<h3>Новий клієнт</h3>
+      <div class="grid2"><div class="field"><label>Ім’я *</label><input id="new_client_name"></div><div class="field"><label>Телефон *</label><input id="new_client_phone"></div></div>
+      <div class="grid2"><div class="field"><label>Email</label><input id="new_client_email" type="email"></div><div class="field"><label>Тип звернення</label><select id="new_client_type"><option value="consultation">Консультація</option><option value="order">Замовлення</option><option value="callback">Зворотний дзвінок</option></select></div></div>
+      <div class="field"><label>Що цікавить</label><input id="new_client_interest" placeholder="Наприклад: комплект для будинку"></div>
+      <div class="field"><label>Етап</label><select id="new_client_status">${CRM_STATUSES.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("")}</select></div>
+      <div class="field"><label>Нотатки менеджера</label><textarea id="new_client_notes" rows="4"></textarea></div>
+      <div class="error" id="new_client_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="new_client_cancel">Скасувати</button><button class="btn" id="new_client_save">Додати</button></div>`);
+    $("new_client_cancel").addEventListener("click", closeModal);
+    $("new_client_save").addEventListener("click", async () => {
+      const body = { type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), status: $("new_client_status").value, notes: $("new_client_notes").value };
+      try { await api("/api/leads/admin", { method: "POST", body: JSON.stringify(body) }); closeModal(); loadCrm(); }
+      catch (err) { $("new_client_error").textContent = err.message; }
+    });
+  }
 
   function normalizeLeadStatus(status) {
     if (status === "in_progress") return "contacted";
@@ -292,7 +309,7 @@
           return `<td class="price-cell ${isBest ? "best" : ""} ${isUnavailable ? "unavailable" : ""}"><input type="number" min="0" placeholder="—" value="${row ? row.price : ""}" data-price-product="${esc(product.id)}" data-price-supplier="${esc(supplier.id)}">
             ${isUnavailable ? `<span class="unavail-label">Немає в наявності</span>` : ""}${isBest ? `<span class="best-label">✓ Найкраща ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
         }).join("");
-        return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.category)} · роздріб ${money(product.retailPrice)}</div></td>${cells}</tr>`;
+        return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.categoryLabel || "Без категорії")} · роздріб ${money(product.retailPrice)}</div></td>${cells}</tr>`;
       }).join("");
       $("pricingBody").innerHTML = `<div class="matrix-wrap"><table class="price-matrix"><thead><tr><th>Товар</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
       document.querySelectorAll("[data-price-product]").forEach((input) => input.addEventListener("change", async () => {
@@ -409,7 +426,7 @@
         ? `<table><thead><tr><th>Назва</th><th>Категорія</th><th>Ціна</th><th>Характеристики</th><th>Гарантія</th><th></th></tr></thead><tbody>${
             products.map((p) => `<tr>
               <td><strong>${esc(p.name)}</strong>${p.badge ? ` <span class="badge b-order" style="margin-left:4px">${esc(p.badge)}</span>` : ""}</td>
-              <td><span class="pcard cat">${esc(p.category)}</span></td>
+              <td><span class="pcard cat">${esc((categoryCache.find((c) => c.key === p.category) || {}).label || "Без категорії")}</span></td>
               <td class="nowrap pcard price">${money(p.price)}${p.originalPrice ? ` <span class="muted" style="text-decoration:line-through;font-weight:400;font-size:12px">${money(p.originalPrice)}</span>` : ""}</td>
               <td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency].filter(Boolean).map(esc).join(" · ") || "—"}</td>
               <td class="nowrap" style="font-size:12px">${esc(p.warranty)}</td>
@@ -502,7 +519,7 @@
             return keys
               .map((k) => {
                 const c = categoryCache.find((x) => x.key === k);
-                return `<option value="${esc(k)}" ${k === p.category ? "selected" : ""}>${esc(c ? c.label : k)}</option>`;
+                return `<option value="${esc(k)}" ${k === p.category ? "selected" : ""}>${c && c.parentKey ? "↳ " : ""}${esc(c ? c.label : k)}</option>`;
               })
               .join("");
           })()}
@@ -672,8 +689,9 @@
         ? cats
             .map(
               (c) => `<div class="pcard">
-        <div class="cat">${esc(c.key)}${c.enabled ? "" : " · прихована"}</div>
-        <h4>${esc(c.icon)} ${esc(c.label)}</h4>
+        <div class="cat">${c.parentKey ? "Підкатегорія" : "Категорія"} · ${esc(c.key)}${c.enabled ? "" : " · прихована"}</div>
+        <h4>${c.parentKey ? "↳ " : ""}${esc(c.icon)} ${esc(c.label)}</h4>
+        ${c.parentKey ? `<div class="muted" style="font-size:11px">Батьківська: ${esc((cats.find((x) => x.key === c.parentKey) || {}).label || c.parentKey)}</div>` : ""}
         <div class="muted" style="font-size:12px;margin-top:4px">${esc(c.description || "")}</div>
         <div class="muted" style="font-size:12px;margin-top:6px">Товарів: <b>${
           productCache.filter((p) => p.category === c.key).length
@@ -712,7 +730,7 @@
 
   function categoryModal(c) {
     const isNew = !c;
-    c = c || { key: "", label: "", labelSingular: "", description: "", icon: "📦", sortOrder: 0, enabled: true };
+    c = c || { key: "", label: "", labelSingular: "", description: "", icon: "📦", sortOrder: 0, enabled: true, parentKey: null };
     openModal(`
       <h3>${isNew ? "Нова категорія" : "Редагувати категорію"}</h3>
       <div class="grid2">
@@ -726,6 +744,10 @@
         <div class="field"><label>Назва (однина)</label><input id="cat_labelSingular" value="${esc(c.labelSingular || "")}" placeholder="Генератор" /></div>
       </div>
       <div class="field"><label>Опис</label><input id="cat_description" value="${esc(c.description || "")}" /></div>
+      <div class="field"><label>Батьківська категорія</label><select id="cat_parentKey">
+        <option value="">— Основна категорія —</option>
+        ${categoryCache.filter((x) => !x.parentKey && x.key !== c.key).map((x) => `<option value="${esc(x.key)}" ${x.key === c.parentKey ? "selected" : ""}>${esc(x.label)}</option>`).join("")}
+      </select></div>
       <div class="grid2">
         <div class="field"><label>Порядок</label><input id="cat_sortOrder" type="number" value="${esc(c.sortOrder)}" /></div>
         <div class="field"><label>Показувати на сайті</label><select id="cat_enabled">
@@ -749,6 +771,7 @@
         icon: $("cat_icon").value.trim() || "📦",
         sortOrder: Number($("cat_sortOrder").value) || 0,
         enabled: $("cat_enabled").value === "true",
+        parentKey: $("cat_parentKey").value || null,
       };
       try {
         await api("/api/categories", { method: "POST", body: JSON.stringify(body) });
@@ -850,7 +873,7 @@
       .map((c) => `<option value="${esc(c.key)}" ${c.key === s.category ? "selected" : ""}>${esc(c.label)} (${esc(c.key)})</option>`)
       .join("");
     const prodOptions = productCache
-      .map((p) => `<option value="${esc(p.id)}" ${s.productIds.includes(p.id) ? "selected" : ""}>${esc(p.name)} (${esc(p.category)})</option>`)
+      .map((p) => `<option value="${esc(p.id)}" ${s.productIds.includes(p.id) ? "selected" : ""}>${esc(p.name)} (${esc((categoryCache.find((c) => c.key === p.category) || {}).label || "Без категорії")})</option>`)
       .join("");
     openModal(`
       <h3>${isNew ? "Новий блок" : "Редагувати блок"}</h3>
@@ -939,7 +962,7 @@
       .map(
         (p) =>
           `<option value="${esc(p.id)}" ${b.productIds.includes(p.id) ? "selected" : ""}>${esc(p.name)} (${esc(
-            p.category
+            (categoryCache.find((c) => c.key === p.category) || {}).label || "Без категорії"
           )})</option>`
       )
       .join("");

@@ -49,6 +49,15 @@ jobs:
           set -euo pipefail
           cd /opt/e-kit
 
+          mkdir -p backups
+          BACKUP_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          if docker container inspect volthouse-back >/dev/null 2>&1; then
+            docker cp volthouse-back:/app/data/volthouse.db "backups/volthouse-before-postgres-${BACKUP_STAMP}.db" 2>/dev/null || true
+          fi
+          if docker container inspect e-kit-postgres >/dev/null 2>&1; then
+            docker exec e-kit-postgres pg_dump -U e_kit -d e_kit > "backups/e-kit-postgres-${BACKUP_STAMP}.sql"
+          fi
+
           git fetch origin main
           git checkout main
           git pull --ff-only origin main

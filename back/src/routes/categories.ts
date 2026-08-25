@@ -14,6 +14,7 @@ function toDto(c: any) {
     icon: c.icon,
     sortOrder: c.sortOrder,
     enabled: c.enabled,
+    parentKey: c.parentKey ?? null,
   };
 }
 
@@ -36,6 +37,7 @@ const schema = z.object({
   icon: z.string().optional(),
   sortOrder: z.number().int().optional(),
   enabled: z.boolean().optional(),
+  parentKey: z.string().nullable().optional(),
 });
 
 // POST /api/categories  (admin) — create/upsert
@@ -50,6 +52,7 @@ categoriesRouter.post("/", requireAdmin, async (req, res) => {
     icon: d.icon ?? "📦",
     sortOrder: d.sortOrder ?? 0,
     enabled: d.enabled ?? true,
+    parentKey: d.parentKey || null,
   };
   const saved = await prisma.category.upsert({
     where: { key: d.key },

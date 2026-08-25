@@ -14,11 +14,6 @@ import {
 async function main() {
   console.log("[seed] Starting…");
 
-  // ── Remove legacy placeholder products ───────────────────────────────────
-  const legacyIds = ["inv-5kw", "inv-10kw", "bat-10kwh", "bat-20kwh", "sol-400w", "sol-550w", "sta-1kwh", "sta-2kwh"];
-  const { count: legacyDeleted } = await prisma.product.deleteMany({ where: { id: { in: legacyIds } } });
-  if (legacyDeleted > 0) console.log(`[seed] Removed ${legacyDeleted} legacy products`);
-
   // ── Products ──────────────────────────────────────────────────────────────
   let order = 0;
   for (const p of products) {
@@ -39,7 +34,7 @@ async function main() {
     await prisma.product.upsert({
       where: { id: p.id },
       create: { id: p.id, ...data },
-      update: data,
+      update: {}, // preserve storefront edits and migrated production data
     });
   }
   console.log(`[seed] Products: ${products.length} upserted`);
@@ -56,6 +51,7 @@ async function main() {
         labelSingular: c.labelSingular,
         description: c.description,
         icon: c.icon,
+        parentKey: c.parentKey ?? null,
         sortOrder: so,
       },
       update: {}, // keep admin edits; only create if missing
@@ -78,7 +74,7 @@ async function main() {
     await prisma.testimonial.upsert({
       where: { id: t.id },
       create: { id: t.id, ...data },
-      update: data,
+      update: {}, // preserve migrated/admin-edited reviews
     });
   }
   console.log(`[seed] Testimonials: ${testimonials.length} upserted`);

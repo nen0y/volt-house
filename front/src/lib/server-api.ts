@@ -6,7 +6,7 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
 
 export async function getProductsServer(): Promise<Product[]> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/products`, { next: { revalidate: 60 } });
+    const res = await fetch(`${BACKEND_URL}/api/products`, { next: { revalidate: 60 }, signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length) return data as Product[];
@@ -19,7 +19,7 @@ export async function getProductsServer(): Promise<Product[]> {
 
 export async function getSeoServer(): Promise<{ indexable: boolean }> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/settings/seo`, { next: { revalidate: 30 } });
+    const res = await fetch(`${BACKEND_URL}/api/settings/seo`, { next: { revalidate: 30 }, signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const data = await res.json();
       if (typeof data?.indexable === "boolean") return { indexable: data.indexable };
@@ -34,6 +34,7 @@ export async function getProductServer(id: string): Promise<Product | null> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/products/${encodeURIComponent(id)}`, {
       next: { revalidate: 60 },
+      signal: AbortSignal.timeout(3000),
     });
     if (res.ok) return (await res.json()) as Product;
     if (res.status === 404) return null;

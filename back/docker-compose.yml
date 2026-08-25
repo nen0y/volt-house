@@ -1,11 +1,26 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: e_kit
+      POSTGRES_USER: e_kit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-e-kit-local-change-me}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U e_kit -d e_kit"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   backend:
     build: .
     container_name: volthouse-backend
     restart: unless-stopped
     environment:
-      # SQLite database file lives on a named volume so data survives restarts
-      DATABASE_URL: file:/app/data/volthouse.db
+      DATABASE_URL: postgresql://e_kit:${POSTGRES_PASSWORD:-e-kit-local-change-me}@postgres:5432/e_kit?schema=public
+      LEGACY_SQLITE_URL: file:/app/data/volthouse.db
       PORT: 4000
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-omelyazuk@gmail.com}
@@ -19,6 +34,10 @@ services:
       - "4000:4000"
     volumes:
       - dbdata:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   dbdata:
+  pgdata:

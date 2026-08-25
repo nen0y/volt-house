@@ -12,9 +12,9 @@ RUN npm install
 
 # Build
 COPY . .
-RUN npx prisma generate && npm run build
+RUN npx prisma generate && npx prisma generate --schema prisma/sqlite-legacy.prisma && npm run build
 
-# SQLite data directory (mounted as a volume in docker-compose)
+# Uploaded media and the read-only legacy SQLite backup stay in this volume.
 RUN mkdir -p /app/data
 
 EXPOSE 4000

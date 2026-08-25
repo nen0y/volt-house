@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -119,6 +119,11 @@ model Category {
   icon          String  @default("📦") // emoji shown on the storefront tile
   sortOrder     Int     @default(0)
   enabled       Boolean @default(true)
+  parentKey     String?
+  parent        Category?  @relation("CategoryTree", fields: [parentKey], references: [key], onDelete: SetNull)
+  children      Category[] @relation("CategoryTree")
+
+  @@index([parentKey])
 }
 
 // Editable marketing/text blocks. `productIds` (JSON array) lets a block show products.

@@ -91,10 +91,11 @@ crmRouter.delete("/prices", async (req, res) => {
 });
 
 crmRouter.get("/price-matrix", async (_req, res) => {
-  const [products, suppliers, prices] = await Promise.all([
+  const [products, suppliers, prices, categories] = await Promise.all([
     prisma.product.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
     prisma.supplier.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.supplierPrice.findMany(),
+    prisma.category.findMany({ select: { key: true, label: true } }),
   ]);
 
   const bestByProduct: Record<string, number> = {};
@@ -105,7 +106,13 @@ crmRouter.get("/price-matrix", async (_req, res) => {
   }
 
   res.json({
-    products: products.map((p) => ({ id: p.id, name: p.name, category: p.category, retailPrice: p.price })),
+    products: products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      categoryLabel: categories.find((c) => c.key === p.category)?.label || "Без категорії",
+      retailPrice: p.price,
+    })),
     suppliers: suppliers.map((s) => ({ id: s.id, name: s.name })),
     prices,
     bestByProduct,

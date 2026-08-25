@@ -97,6 +97,33 @@ leadsRouter.get("/stats", requireAdmin, async (_req, res) => {
   res.json({ total, orders, consultations, callbacks, new: fresh });
 });
 
+const manualLeadSchema = leadSchema.extend({
+  status: z.enum(["new", "contacted", "proposal", "won", "lost"]).default("new"),
+  notes: z.string().max(5000).default(""),
+});
+
+// POST /api/leads/admin — create a client manually in CRM.
+leadsRouter.post("/admin", requireAdmin, async (req, res) => {
+  const parsed = manualLeadSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Некоректні дані", details: parsed.error.flatten() });
+  const d = parsed.data;
+  const lead = await prisma.lead.create({
+    data: {
+      type: d.type,
+      name: d.name,
+      phone: d.phone,
+      email: d.email || null,
+      interest: d.interest || null,
+      message: d.message || null,
+      items: d.items?.length ? JSON.stringify(d.items) : null,
+      total: d.total ?? null,
+      status: d.status,
+      notes: d.notes,
+    },
+  });
+  res.status(201).json(toDto(lead));
+});
+
 const statusSchema = z.object({
   status: z.enum(["new", "contacted", "proposal", "won", "lost", "in_progress", "done"]).optional(),
   notes: z.string().max(5000).optional(),

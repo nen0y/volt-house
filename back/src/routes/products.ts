@@ -29,7 +29,17 @@ function toDto(p: any) {
 // GET /api/products?category=inverter
 productsRouter.get("/", async (req, res) => {
   const category = typeof req.query.category === "string" ? req.query.category : undefined;
-  const where = category && category !== "all" ? { category } : {};
+  let categoryKeys: string[] = [];
+  if (category && category !== "all") {
+    const categories = await prisma.category.findMany({ select: { key: true, parentKey: true } });
+    categoryKeys = [category];
+    for (let i = 0; i < categoryKeys.length; i++) {
+      categories.filter((c) => c.parentKey === categoryKeys[i]).forEach((c) => {
+        if (!categoryKeys.includes(c.key)) categoryKeys.push(c.key);
+      });
+    }
+  }
+  const where = categoryKeys.length ? { category: { in: categoryKeys } } : {};
   const rows = await prisma.product.findMany({
     where,
     orderBy: [{ sortOrder: "asc" }, { price: "asc" }],

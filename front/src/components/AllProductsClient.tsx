@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchProducts, fetchCategories } from "@/lib/api";
 import { FALLBACK_CATEGORIES } from "@/types";
@@ -26,17 +26,27 @@ export default function AllProductsClient({
   const { data: catData } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
   const categories = (catData ?? FALLBACK_CATEGORIES).filter((c) => c.enabled);
 
-  const filters = [{ key: "all", label: "Всі товари" }, ...categories.map((c) => ({ key: c.key, label: c.label }))];
+  const filters = [{ key: "all", label: "Всі товари", depth: 0 }, ...categories.map((c) => ({ key: c.key, label: c.label, depth: c.parentKey ? 1 : 0 }))];
+
+  const categoryKeys = useCallback((key: string) => {
+    const keys = [key];
+    for (let i = 0; i < keys.length; i++) {
+      categories.filter((c) => c.parentKey === keys[i]).forEach((c) => {
+        if (!keys.includes(c.key)) keys.push(c.key);
+      });
+    }
+    return keys;
+  }, [categories]);
 
   const [filter, setFilter] = useState<string>(initialCategory || "all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("default");
 
   const count = (key: string) =>
-    key === "all" ? all.length : all.filter((p) => p.category === key).length;
+    key === "all" ? all.length : all.filter((p) => categoryKeys(key).includes(p.category)).length;
 
   const visible = useMemo(() => {
-    let list = filter === "all" ? all : all.filter((p) => p.category === filter);
+    let list = filter === "all" ? all : all.filter((p) => categoryKeys(filter).includes(p.category));
     const q = query.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -48,7 +58,7 @@ export default function AllProductsClient({
     if (sort === "price-asc") list = [...list].sort((a, b) => a.price - b.price);
     if (sort === "price-desc") list = [...list].sort((a, b) => b.price - a.price);
     return list;
-  }, [all, filter, query, sort]);
+  }, [all, categoryKeys, filter, query, sort]);
 
   const activeLabel = filters.find((f) => f.key === filter)?.label ?? "Товари";
 
@@ -98,7 +108,7 @@ export default function AllProductsClient({
                 : "bg-white border border-gray-200 text-gray-700 hover:border-gray-300"
             }`}
           >
-            {f.label}
+            {f.depth ? `↳ ${f.label}` : f.label}
             <span
               className={`text-[11px] font-bold px-[6px] py-[1px] rounded-full ${
                 filter === f.key ? "bg-gray-950 text-[#FFC107]" : "bg-gray-100 text-gray-500"

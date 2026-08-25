@@ -9,6 +9,7 @@ export default function CategoriesBlock() {
   const { data } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
 
   const categories = (data ?? FALLBACK_CATEGORIES).filter((c) => c.enabled);
+  const roots = categories.filter((c) => !c.parentKey);
   if (categories.length === 0) return null;
 
   return (
@@ -21,8 +22,8 @@ export default function CategoriesBlock() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-[12px]">
-          {categories.map((c) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-[12px]">
+          {roots.map((c) => (
             <Link
               key={c.key}
               href={`/products?category=${c.key}`}
@@ -34,6 +35,15 @@ export default function CategoriesBlock() {
               </h3>
               {c.description && (
                 <p className="text-[12px] text-gray-400 mt-[4px] leading-relaxed">{c.description}</p>
+              )}
+              {categories.some((child) => child.parentKey === c.key) && (
+                <div className="mt-[12px] flex flex-wrap gap-[5px]">
+                  {categories.filter((child) => child.parentKey === c.key).map((child) => (
+                    <span key={child.key} className="text-[10px] text-gray-600 bg-gray-100 rounded-full px-[7px] py-[3px]">
+                      {child.label}
+                    </span>
+                  ))}
+                </div>
               )}
               <span className="mt-[16px] text-[13px] font-medium text-amber-700 inline-flex items-center gap-[4px]">
                 Переглянути

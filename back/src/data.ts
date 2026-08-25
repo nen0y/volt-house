@@ -1,7 +1,7 @@
 // Basic catalogue data used by the seeder. Mirrors the storefront's initial data
 // so the API serves the exact products/testimonials the frontend expects.
 
-export type ProductCategory = "inverter" | "battery" | "solar" | "station";
+export type ProductCategory = "inverter" | "battery" | "solar" | "station" | "kits";
 
 export interface SeedProduct {
   id: string;
@@ -77,6 +77,7 @@ export interface SeedCategory {
   labelSingular: string;
   description: string;
   icon: string;
+  parentKey?: string;
 }
 
 export const categories: SeedCategory[] = [
@@ -84,6 +85,12 @@ export const categories: SeedCategory[] = [
   { key: "battery",  label: "Акумулятори",     labelSingular: "Акумулятор",      description: "LiFePO4 акумуляторні системи",  icon: "🔋" },
   { key: "solar",    label: "Сонячні панелі",  labelSingular: "Сонячна панель",  description: "Монокристалічні панелі",        icon: "☀️" },
   { key: "station",  label: "Зарядні станції", labelSingular: "Зарядна станція", description: "Портативні зарядні станції",     icon: "🔌" },
+  { key: "kits", label: "Комплекти", labelSingular: "Комплект", description: "Готові системи резервного та сонячного живлення", icon: "🏠" },
+  { key: "inverter-hybrid", label: "Гібридні інвертори", labelSingular: "Гібридний інвертор", description: "Для мережі, акумуляторів і сонячних панелей", icon: "⚡", parentKey: "inverter" },
+  { key: "inverter-grid", label: "Мережеві інвертори", labelSingular: "Мережевий інвертор", description: "Для мережевих сонячних станцій", icon: "🔌", parentKey: "inverter" },
+  { key: "battery-lifepo4", label: "LiFePO4 акумулятори", labelSingular: "LiFePO4 акумулятор", description: "Безпечні довговічні акумулятори", icon: "🔋", parentKey: "battery" },
+  { key: "solar-mono", label: "Монокристалічні панелі", labelSingular: "Монокристалічна панель", description: "Ефективні панелі для дому та бізнесу", icon: "☀️", parentKey: "solar" },
+  { key: "station-portable", label: "Портативні станції", labelSingular: "Портативна станція", description: "Мобільне резервне живлення", icon: "🔌", parentKey: "station" },
 ];
 
 // ── Power-calculator appliances ───────────────────────────────────────────────
