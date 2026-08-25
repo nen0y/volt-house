@@ -234,7 +234,7 @@ function RecommendationCard({
 
       <button
         onClick={() => onAdd(items)}
-        className="w-full py-[11px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[14px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer"
+        className="w-full py-[11px] rounded-[8px] bg-gray-950 text-white text-[14px] font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
       >
         Додати в кошик
       </button>
@@ -374,12 +374,12 @@ export default function PowerCalculatorModal({
                         >
                           <span
                             className={`absolute top-[8px] right-[8px] w-[16px] h-[16px] rounded-full border flex items-center justify-center transition-colors ${
-                              isSelected ? "bg-[#FFC107] border-[#FFC107]" : "border-gray-300"
+                              isSelected ? "bg-gray-950 border-gray-950" : "border-gray-300"
                             }`}
                           >
                             {isSelected && (
                               <svg viewBox="0 0 10 10" fill="none" className="w-[8px] h-[8px]">
-                                <path d="M2 5l2.5 2.5L8 3" stroke="#111111" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M2 5l2.5 2.5L8 3" stroke="#FFC107" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                             )}
                           </span>

@@ -94,7 +94,7 @@ export default function AllProductsClient({
             onClick={() => setFilter(f.key)}
             className={`flex items-center gap-[6px] px-[16px] py-[8px] rounded-full text-[13px] font-medium transition-colors cursor-pointer ${
               filter === f.key
-                ? "bg-[#FFC107] text-gray-950"
+                ? "bg-gray-950 text-white"
                 : "bg-white border border-gray-200 text-gray-700 hover:border-gray-300"
             }`}
           >

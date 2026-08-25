@@ -19,7 +19,7 @@ function CatalogButton({ href, label }: { href: string; label: string }) {
     <div className="flex justify-center mt-[24px]">
       <Link
         href={href}
-        className="inline-flex items-center gap-[8px] bg-[#FFC107] text-gray-950 text-[14px] font-semibold rounded-full px-[28px] py-[12px] hover:bg-[#e5ad00] transition-colors"
+        className="inline-flex items-center gap-[8px] bg-gray-950 text-white text-[14px] font-semibold rounded-full px-[28px] py-[12px] hover:bg-gray-800 transition-colors"
       >
         {label}
         <svg viewBox="0 0 16 16" fill="none" className="w-[14px] h-[14px]">
@@ -55,18 +55,18 @@ export default function HomeSections() {
         // ── CTA band ──
         if (s.mode === "cta") {
           return (
-            <section key={s.id} className="bg-[#FFC107] py-[44px]">
+            <section key={s.id} className="bg-gray-950 py-[44px]">
               <div className="max-w-[1280px] mx-auto px-[24px] text-center">
-                {s.title && <h2 className="text-[24px] font-bold text-gray-950 mb-[8px]">{s.title}</h2>}
+                {s.title && <h2 className="text-[24px] font-bold text-white mb-[8px]">{s.title}</h2>}
                 {s.subtitle && (
-                  <p className="text-[14px] text-gray-800 mb-[24px] max-w-[600px] mx-auto leading-relaxed">
+                  <p className="text-[14px] text-gray-300 mb-[24px] max-w-[600px] mx-auto leading-relaxed">
                     {s.subtitle}
                   </p>
                 )}
                 <div className="flex items-center justify-center gap-[12px] flex-wrap">
                   <button
                     onClick={() => setCallbackOpen(true)}
-                    className="bg-gray-950 text-[#FFC107] text-[14px] font-semibold rounded-full px-[28px] py-[12px] hover:bg-gray-800 transition-colors cursor-pointer"
+                    className="bg-[#FFC107] text-gray-950 text-[14px] font-semibold rounded-full px-[28px] py-[12px] hover:bg-amber-400 transition-colors cursor-pointer"
                   >
                     {s.ctaLabel || "Замовити дзвінок"}
                   </button>

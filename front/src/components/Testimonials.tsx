@@ -49,7 +49,7 @@ export default function Testimonials({ testimonials }: { testimonials: Testimoni
                 &ldquo;{t.text}&rdquo;
               </p>
               <div className="border-t border-gray-100 pt-[12px] flex items-center gap-[10px]">
-                <div className="w-[36px] h-[36px] rounded-full bg-[#FFC107] text-gray-950 text-[12px] font-bold flex items-center justify-center shrink-0">
+                <div className="w-[36px] h-[36px] rounded-full bg-gray-950 text-[#FFC107] text-[12px] font-bold flex items-center justify-center shrink-0">
                   {t.avatar}
                 </div>
                 <div>

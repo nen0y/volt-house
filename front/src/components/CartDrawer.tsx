@@ -116,7 +116,7 @@ export default function CartDrawer({
               {step === "success" && "Замовлення прийнято"}
             </h2>
             {step === "cart" && count > 0 && (
-              <span className="bg-[#FFC107] text-gray-950 text-[11px] font-bold px-[8px] py-[2px] rounded-full">
+              <span className="bg-amber-100 text-amber-900 text-[11px] font-bold px-[8px] py-[2px] rounded-full">
                 {count}
               </span>
             )}
@@ -212,7 +212,7 @@ export default function CartDrawer({
                 </div>
                 <button
                   onClick={() => setStep("checkout")}
-                  className="w-full py-[13px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer"
+                  className="w-full py-[13px] rounded-[8px] bg-gray-950 text-white text-[15px] font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
                 >
                   Оформити замовлення
                 </button>
@@ -297,7 +297,7 @@ export default function CartDrawer({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-[13px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer disabled:opacity-60"
+                  className="w-full py-[13px] rounded-[8px] bg-gray-950 text-white text-[15px] font-semibold hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-60"
                 >
                   {submitting ? "Оформлюємо…" : "Підтвердити замовлення"}
                 </button>
@@ -332,7 +332,7 @@ export default function CartDrawer({
             </div>
             <button
               onClick={handleClose}
-              className="mt-[8px] w-full py-[13px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer"
+              className="mt-[8px] w-full py-[13px] rounded-[8px] bg-gray-950 text-white text-[15px] font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
             >
               Закрити
             </button>

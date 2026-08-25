@@ -81,7 +81,7 @@ export default function Navbar() {
             <div className="hidden lg:flex items-center gap-[8px] shrink-0">
               <button
                 onClick={() => setConsultOpen(true)}
-                className="flex items-center gap-[6px] border border-amber-500 text-gray-900 hover:bg-amber-50 text-[13px] font-semibold px-[14px] py-[8px] rounded-full transition-colors cursor-pointer whitespace-nowrap"
+                className="flex items-center gap-[6px] border border-gray-300 text-gray-800 hover:border-gray-400 hover:bg-gray-50 text-[13px] font-semibold px-[14px] py-[8px] rounded-full transition-colors cursor-pointer whitespace-nowrap"
               >
                 <svg viewBox="0 0 16 16" fill="none" className="w-[13px] h-[13px]">
                   <path d="M3 3.5c0 5 4.5 9.5 9.5 9.5l1-2.2-2.6-1-1 1a7 7 0 01-3.2-3.2l1-1L6.7 3.5H4.5A1.5 1.5 0 003 3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
@@ -93,8 +93,8 @@ export default function Navbar() {
                 className="flex items-center gap-[6px] bg-[#FFC107] hover:bg-amber-400 text-gray-950 text-[13px] font-semibold px-[16px] py-[8px] rounded-full transition-colors cursor-pointer whitespace-nowrap"
               >
                 <svg viewBox="0 0 16 16" fill="none" className="w-[13px] h-[13px]">
-                  <rect x="2" y="1" width="12" height="14" rx="2" stroke="white" strokeWidth="1.4" />
-                  <path d="M5 5h6M5 8h6M5 11h3" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
+                  <rect x="2" y="1" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M5 5h6M5 8h6M5 11h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                 </svg>
                 Підібрати систему
               </button>
@@ -161,13 +161,13 @@ export default function Navbar() {
               ))}
               <button
                 onClick={() => { setMenuOpen(false); setCalcOpen(true); }}
-                className="flex items-center gap-[8px] text-[15px] font-semibold text-amber-700 cursor-pointer text-left"
+                className="flex items-center gap-[8px] text-[15px] font-semibold text-gray-900 cursor-pointer text-left"
               >
                 ⚡ Підібрати систему
               </button>
               <button
                 onClick={() => { setMenuOpen(false); setConsultOpen(true); }}
-                className="flex items-center gap-[8px] text-[15px] font-semibold text-amber-700 cursor-pointer text-left"
+                className="flex items-center gap-[8px] text-[15px] font-semibold text-gray-900 cursor-pointer text-left"
               >
                 📞 Зворотний дзвінок
               </button>

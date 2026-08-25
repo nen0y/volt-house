@@ -75,7 +75,7 @@ export default function ProductCard({ product }: { product: Product }) {
       className="group relative bg-white rounded-[6px] border border-gray-100 overflow-hidden hover:border-gray-200 hover:shadow-md transition-[border-color,box-shadow] duration-200 cursor-pointer"
     >
       {savings && (
-        <div className="absolute top-[10px] right-[10px] z-10 bg-[#FFC107] text-gray-950 text-[10px] font-bold px-[8px] py-[3px] rounded-full">
+        <div className="absolute top-[10px] right-[10px] z-10 bg-amber-100 text-amber-900 text-[10px] font-bold px-[8px] py-[3px] rounded-full">
           -{savings}%
         </div>
       )}
@@ -109,7 +109,7 @@ export default function ProductCard({ product }: { product: Product }) {
 
       <button
         onClick={(e) => { e.stopPropagation(); add(product); }}
-        className="absolute bottom-[14px] right-[14px] w-[32px] h-[32px] rounded-full bg-[#FFC107] text-gray-950 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-sm cursor-pointer"
+        className="absolute bottom-[14px] right-[14px] w-[32px] h-[32px] rounded-full bg-gray-950 text-[#FFC107] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-sm cursor-pointer"
         aria-label="Додати в кошик"
       >
         <svg viewBox="0 0 16 16" fill="none" className="w-[14px] h-[14px]">

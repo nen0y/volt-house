@@ -165,7 +165,7 @@ export default function ProductDetail({
               {catLabel}
             </span>
             {product.badge && (
-              <span className="text-[12px] font-bold text-gray-950 bg-[#FFC107] px-[10px] py-[3px] rounded-full">
+              <span className="text-[12px] font-bold text-amber-900 bg-amber-100 px-[10px] py-[3px] rounded-full">
                 {product.badge}
               </span>
             )}
@@ -251,7 +251,7 @@ export default function ProductDetail({
               className={`flex-1 py-[14px] rounded-[8px] text-[15px] font-semibold transition-colors cursor-pointer ${
                 added
                   ? "bg-green-500 text-white"
-                  : "bg-[#FFC107] text-gray-950 hover:bg-[#e5ad00]"
+                  : "bg-gray-950 text-white hover:bg-gray-800 shadow-sm"
               }`}
             >
               {added ? "✓ Додано до кошика" : "Додати в кошик"}
