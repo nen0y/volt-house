@@ -50,7 +50,7 @@ export default function OpengraphImage() {
           </div>
         </div>
 
-        <div style={{ fontSize: "26px", color: "#FFC107" }}>E-Kit · енергія для незалежності</div>
+        <div style={{ fontSize: "26px", color: "#FFC107" }}>e-kit.com.ua · енергія для незалежності</div>
       </div>
     ),
     { ...size }

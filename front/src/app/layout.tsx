@@ -52,11 +52,13 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     url: SITE_URL,
     locale: "uk_UA",
+    images: [{ url: "/opengraph-image?brand=e-kit-v2", width: 1200, height: 630, alt: SITE_TITLE }],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
+    images: ["/opengraph-image?brand=e-kit-v2"],
   },
   icons: {
     icon: [{ url: "/brand/e-kit-symbol.svg", type: "image/svg+xml" }],

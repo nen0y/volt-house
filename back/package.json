@@ -1,8 +1,8 @@
 {
-  "name": "volthouse-backend",
+  "name": "e-kit-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "VoltHouse store backend — REST API, admin panel, email notifications",
+  "description": "E-Kit store backend — REST API, admin panel and CRM",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

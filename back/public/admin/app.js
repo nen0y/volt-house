@@ -1,4 +1,4 @@
-/* VoltHouse admin panel — vanilla JS SPA */
+/* E-Kit admin panel — vanilla JS SPA */
 (function () {
   const API = ""; // same origin
   const TOKEN_KEY = "vh_admin_token";

@@ -1,4 +1,4 @@
-// VoltHouse backend — data model (SQLite: portable, no external DB server)
+// E-Kit backend — PostgreSQL data model
 generator client {
   provider = "prisma-client-js"
 }

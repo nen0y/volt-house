@@ -16,7 +16,12 @@ export const metadata: Metadata = {
   title: { absolute: SITE_TITLE },
   description: SITE_DESCRIPTION,
   alternates: { canonical: "/" },
-  openGraph: { url: "/", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  openGraph: {
+    url: "/",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [{ url: "/opengraph-image?brand=e-kit-v2", width: 1200, height: 630, alt: SITE_TITLE }],
+  },
 };
 
 export default function Home() {

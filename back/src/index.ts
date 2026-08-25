@@ -58,7 +58,7 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 
 // ── Health ──────────────────────────────────────────────────────────────────
-app.get("/health", (_req, res) => res.json({ ok: true, service: "volthouse-backend" }));
+app.get("/health", (_req, res) => res.json({ ok: true, service: "e-kit-backend" }));
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 // ── API routes ────────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ if (WEAK_SECRETS.includes(env.JWT_SECRET) || env.JWT_SECRET.length < 24) {
 }
 
 const server = app.listen(env.PORT, () => {
-  console.log(`\n🔌 VoltHouse API running on http://localhost:${env.PORT}`);
+  console.log(`\n🔌 E-Kit API running on http://localhost:${env.PORT}`);
   console.log(`   Admin panel:  http://localhost:${env.PORT}/admin`);
   console.log(`   Admin login:  ${env.ADMIN_EMAIL}`);
   console.log(
