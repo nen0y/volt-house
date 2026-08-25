@@ -48,6 +48,8 @@
     $("app").style.display = "block";
     $("who").textContent = email;
     loadSeoSetting();
+    const savedTab = new URL(location.href).searchParams.get("tab") || "crm";
+    activateTab(savedTab);
   }
   function logout() {
     token = null;
@@ -89,7 +91,6 @@
       token = data.token;
       localStorage.setItem(TOKEN_KEY, token);
       showApp(data.admin.email);
-      loadCrm();
     } catch (err) {
       $("loginError").textContent = err.message;
     }
@@ -97,25 +98,31 @@
   $("logout").addEventListener("click", logout);
 
   // ── tabs ──────────────────────────────────────────────────────────────────
+  const ALL_TABS = ["crm", "leads", "suppliers", "pricing", "products", "categories", "home", "testimonials", "content", "calculator"];
+
+  function activateTab(tab) {
+    if (!ALL_TABS.includes(tab)) tab = "crm";
+    document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
+    const btn = document.querySelector(`.tab[data-tab="${tab}"]`);
+    if (btn) btn.classList.add("active");
+    ALL_TABS.forEach((t) => { $("tab-" + t).style.display = t === tab ? "block" : "none"; });
+    const url = new URL(location.href);
+    url.searchParams.set("tab", tab);
+    history.replaceState(null, "", url);
+    if (tab === "crm") loadCrm();
+    if (tab === "leads") loadLeads();
+    if (tab === "suppliers") loadSuppliers();
+    if (tab === "pricing") loadPricing();
+    if (tab === "products") loadProducts();
+    if (tab === "categories") loadCategories();
+    if (tab === "home") loadHomeSections();
+    if (tab === "testimonials") loadTestimonials();
+    if (tab === "content") loadContent();
+    if (tab === "calculator") loadCalculator();
+  }
+
   document.querySelectorAll(".tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      const tab = btn.dataset.tab;
-      ["crm", "leads", "suppliers", "pricing", "products", "categories", "home", "testimonials", "content", "calculator"].forEach((t) => {
-        $("tab-" + t).style.display = t === tab ? "block" : "none";
-      });
-      if (tab === "crm") loadCrm();
-      if (tab === "leads") loadLeads();
-      if (tab === "suppliers") loadSuppliers();
-      if (tab === "pricing") loadPricing();
-      if (tab === "products") loadProducts();
-      if (tab === "categories") loadCategories();
-      if (tab === "home") loadHomeSections();
-      if (tab === "testimonials") loadTestimonials();
-      if (tab === "content") loadContent();
-      if (tab === "calculator") loadCalculator();
-    });
+    btn.addEventListener("click", () => activateTab(btn.dataset.tab));
   });
 
   // ── CRM kanban ────────────────────────────────────────────────────────────
@@ -220,12 +227,19 @@
   async function loadSuppliers() {
     try {
       supplierCache = await api("/api/crm/suppliers");
-      $("suppliersBody").innerHTML = supplierCache.length ? supplierCache.map((s) => `<article class="supplier-card ${s.active ? "" : "inactive"}">
-        <div style="display:flex;justify-content:space-between;gap:10px"><h3>${esc(s.name)}</h3><span class="badge ${s.active ? "s-done" : ""}">${s.active ? "Активний" : "Вимкнений"}</span></div>
-        <div class="supplier-meta">${s.contactName ? `${esc(s.contactName)}<br>` : ""}${s.phone ? `<a href="tel:${esc(s.phone)}">${esc(s.phone)}</a><br>` : ""}${s.email ? `${esc(s.email)}<br>` : ""}${s.website ? `<a href="${esc(s.website)}" target="_blank" rel="noopener">${esc(s.website)}</a>` : ""}</div>
-        <div class="items">Цін у матриці: <b>${s._count ? s._count.prices : 0}</b></div>
-        <div class="acts"><button class="btn-sm btn-ghost" data-edit-supplier="${esc(s.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-supplier="${esc(s.id)}">Видалити</button></div>
-      </article>`).join("") : `<div class="empty">Додайте першого постачальника</div>`;
+      $("suppliersBody").innerHTML = supplierCache.length
+        ? `<table><thead><tr><th>Назва</th><th>Контакт</th><th>Телефон / Email</th><th>Сайт</th><th>Цін</th><th>Статус</th><th></th></tr></thead><tbody>${
+            supplierCache.map((s) => `<tr class="${s.active ? "" : "supplier-inactive"}">
+              <td><strong>${esc(s.name)}</strong></td>
+              <td class="supplier-meta">${esc(s.contactName || "—")}</td>
+              <td class="supplier-meta">${s.phone ? `<a href="tel:${esc(s.phone)}">${esc(s.phone)}</a>` : ""}${s.phone && s.email ? "<br>" : ""}${s.email ? esc(s.email) : ""}${!s.phone && !s.email ? "—" : ""}</td>
+              <td class="supplier-meta">${s.website ? `<a href="${esc(s.website)}" target="_blank" rel="noopener">${esc(s.website)}</a>` : "—"}</td>
+              <td>${s._count ? s._count.prices : 0}</td>
+              <td><span class="badge ${s.active ? "s-done" : "s-new"}">${s.active ? "Активний" : "Вимкнений"}</span></td>
+              <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-supplier="${esc(s.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-supplier="${esc(s.id)}">Видалити</button></div></td>
+            </tr>`).join("")
+          }</tbody></table>`
+        : `<div class="empty">Додайте першого постачальника</div>`;
       document.querySelectorAll("[data-edit-supplier]").forEach((b) => b.addEventListener("click", () => supplierModal(supplierCache.find((s) => s.id === b.dataset.editSupplier))));
       document.querySelectorAll("[data-del-supplier]").forEach((b) => b.addEventListener("click", async () => {
         if (!confirm("Видалити постачальника та всі його ціни?")) return;
@@ -272,10 +286,11 @@
       const rows = data.products.map((product) => {
         const cells = data.suppliers.map((supplier) => {
           const row = priceMap.get(`${product.id}:${supplier.id}`);
-          const isBest = row && data.bestByProduct[product.id] === row.price && row.availability !== "unavailable";
-          const margin = row && product.retailPrice > 0 ? Math.round(((product.retailPrice - row.price) / product.retailPrice) * 100) : null;
-          return `<td class="price-cell ${isBest ? "best" : ""}"><input type="number" min="0" placeholder="—" value="${row ? row.price : ""}" data-price-product="${esc(product.id)}" data-price-supplier="${esc(supplier.id)}">
-            ${isBest ? `<span class="best-label">✓ Найкраща ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
+          const isUnavailable = row && (row.availability === "unavailable" || row.price === 0);
+          const isBest = row && !isUnavailable && data.bestByProduct[product.id] === row.price;
+          const margin = row && !isUnavailable && product.retailPrice > 0 ? Math.round(((product.retailPrice - row.price) / product.retailPrice) * 100) : null;
+          return `<td class="price-cell ${isBest ? "best" : ""} ${isUnavailable ? "unavailable" : ""}"><input type="number" min="0" placeholder="—" value="${row ? row.price : ""}" data-price-product="${esc(product.id)}" data-price-supplier="${esc(supplier.id)}">
+            ${isUnavailable ? `<span class="unavail-label">Немає в наявності</span>` : ""}${isBest ? `<span class="best-label">✓ Найкраща ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
         }).join("");
         return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.category)} · роздріб ${money(product.retailPrice)}</div></td>${cells}</tr>`;
       }).join("");
@@ -286,7 +301,9 @@
           if (input.value === "") {
             await api("/api/crm/prices", { method: "DELETE", body: JSON.stringify({ productId: input.dataset.priceProduct, supplierId: input.dataset.priceSupplier }) });
           } else {
-            await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.priceProduct, supplierId: input.dataset.priceSupplier, price: Number(input.value), currency: "USD", availability: "in_stock", minOrderQty: 1 }) });
+            const price = Number(input.value);
+            const availability = price === 0 ? "unavailable" : "in_stock";
+            await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.priceProduct, supplierId: input.dataset.priceSupplier, price, currency: "USD", availability, minOrderQty: 1 }) });
           }
           loadPricing();
         } catch (err) { input.disabled = false; alert(err.message); }
@@ -389,25 +406,16 @@
       productCache = products;
       categoryCache = cats;
       $("productsBody").innerHTML = products.length
-        ? products
-            .map(
-              (p) => `<div class="pcard">
-        <div class="cat">${esc(p.category)}</div>
-        <h4>${esc(p.name)}</h4>
-        <div class="price">${money(p.price)} ${
-                p.originalPrice ? `<span class="muted" style="text-decoration:line-through;font-weight:400">${money(p.originalPrice)}</span>` : ""
-              }</div>
-        <div class="muted" style="font-size:12px;margin-top:4px">${[p.power, p.capacity, p.efficiency, p.warranty]
-          .filter(Boolean)
-          .map(esc)
-          .join(" · ")}</div>
-        <div class="acts">
-          <button class="btn-sm btn-ghost" data-edit-product='${esc(JSON.stringify(p))}'>Редагувати</button>
-          <button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button>
-        </div>
-      </div>`
-            )
-            .join("")
+        ? `<table><thead><tr><th>Назва</th><th>Категорія</th><th>Ціна</th><th>Характеристики</th><th>Гарантія</th><th></th></tr></thead><tbody>${
+            products.map((p) => `<tr>
+              <td><strong>${esc(p.name)}</strong>${p.badge ? ` <span class="badge b-order" style="margin-left:4px">${esc(p.badge)}</span>` : ""}</td>
+              <td><span class="pcard cat">${esc(p.category)}</span></td>
+              <td class="nowrap pcard price">${money(p.price)}${p.originalPrice ? ` <span class="muted" style="text-decoration:line-through;font-weight:400;font-size:12px">${money(p.originalPrice)}</span>` : ""}</td>
+              <td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency].filter(Boolean).map(esc).join(" · ") || "—"}</td>
+              <td class="nowrap" style="font-size:12px">${esc(p.warranty)}</td>
+              <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-product='${esc(JSON.stringify(p))}'>Редагувати</button><button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button></div></td>
+            </tr>`).join("")
+          }</tbody></table>`
         : `<div class="empty">Товарів немає</div>`;
 
       document.querySelectorAll("[data-edit-product]").forEach((b) =>
@@ -1127,7 +1135,6 @@
     try {
       const me = await api("/api/auth/me");
       showApp(me.admin.email);
-      loadCrm();
     } catch {
       logout();
     }

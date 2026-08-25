@@ -99,7 +99,7 @@ crmRouter.get("/price-matrix", async (_req, res) => {
 
   const bestByProduct: Record<string, number> = {};
   for (const row of prices) {
-    if (row.availability === "unavailable") continue;
+    if (row.availability === "unavailable" || row.price === 0) continue;
     const current = bestByProduct[row.productId];
     if (current === undefined || row.price < current) bestByProduct[row.productId] = row.price;
   }

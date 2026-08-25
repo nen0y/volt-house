@@ -27,6 +27,9 @@ export default function Home() {
         <Hero />
         <CategoriesBlock />
         <HomeSections />
+        <div className="max-w-[1280px] mx-auto px-[24px]">
+          <div className="border-t border-gray-300" />
+        </div>
         <HowItWorks />
         <Testimonials testimonials={testimonials} />
         <Contact />

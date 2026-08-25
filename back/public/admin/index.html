@@ -73,7 +73,7 @@
     .muted { color: var(--slate-400); }
     .nowrap { white-space: nowrap; }
 
-    .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+    .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; line-height: 1; }
     .b-order { background: #eff6ff; color: var(--blue); }
     .b-consultation { background: #f5f3ff; color: #7c3aed; }
     .b-callback { background: #ecfdf5; color: var(--green); }
@@ -93,6 +93,7 @@
     .pcard .price { font-weight: 800; font-size: 16px; }
     .pcard .cat { font-size: 11px; color: var(--slate-400); text-transform: uppercase; letter-spacing: .04em; }
     .pcard .acts { margin-top: 12px; display: flex; gap: 6px; }
+    .admin-table-wrap { background: #fff; border: 1px solid var(--slate-200); border-radius: 10px; overflow: hidden; }
 
     /* Modal */
     .modal-bg { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: none;
@@ -146,11 +147,8 @@
     .lead-card .lead-actions { display: flex; gap: 6px; margin-top: 10px; }
 
     /* Procurement */
-    .supplier-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
-    .supplier-card { background: #fff; border: 1px solid var(--slate-200); border-radius: 10px; padding: 17px; }
-    .supplier-card.inactive { opacity: .58; }
-    .supplier-card h3 { font-size: 16px; margin-bottom: 8px; }
-    .supplier-meta { min-height: 60px; color: var(--slate-500); font-size: 13px; line-height: 1.6; }
+    .supplier-inactive { opacity: .6; }
+    .supplier-meta { color: var(--slate-500); font-size: 12px; line-height: 1.5; }
     .matrix-wrap { overflow: auto; border-radius: 10px; border: 1px solid var(--slate-200); background: #fff; }
     .price-matrix { min-width: 880px; }
     .price-matrix th { position: sticky; top: 0; z-index: 2; }
@@ -158,8 +156,11 @@
     .price-matrix th:first-child { z-index: 3; background: var(--slate-50); }
     .price-cell { min-width: 145px; }
     .price-cell.best { background: #ecfdf5; box-shadow: inset 0 0 0 2px #86efac; }
+    .price-cell.unavailable { background: #fef2f2; box-shadow: inset 0 0 0 2px #fca5a5; }
+    .price-cell.unavailable input { color: #b91c1c; }
     .price-cell input { width: 92px; padding: 7px 8px; border: 1px solid var(--slate-200); border-radius: 6px; }
     .best-label { display: block; color: #15803d; font-size: 10px; font-weight: 800; margin-top: 4px; }
+    .unavail-label { display: block; color: #b91c1c; font-size: 10px; font-weight: 700; margin-top: 4px; }
     .margin-label { display: block; color: var(--slate-400); font-size: 10px; margin-top: 3px; }
 
     @media (max-width: 760px) {
@@ -272,7 +273,7 @@
           <div><h1>Постачальники</h1><p>Контакти, умови та кількість доданих цін.</p></div>
           <button class="btn btn-sm" id="addSupplier">+ Додати постачальника</button>
         </div>
-        <div class="supplier-grid" id="suppliersBody"></div>
+        <div class="admin-table-wrap" id="suppliersBody"></div>
       </section>
 
       <!-- Price matrix -->
@@ -291,7 +292,7 @@
           <div class="spacer"></div>
           <button class="btn btn-sm" id="addProduct">+ Додати товар</button>
         </div>
-        <div class="grid-products" id="productsBody"></div>
+        <div class="admin-table-wrap" id="productsBody"></div>
       </section>
 
       <!-- Testimonials -->

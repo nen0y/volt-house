@@ -112,7 +112,7 @@ export default function ProductDetail({
           Головна
         </Link>
         <span>/</span>
-        <Link href="/#products" className="hover:text-gray-600 transition-colors">
+        <Link href="/products" className="hover:text-gray-600 transition-colors">
           Товари
         </Link>
         <span>/</span>
