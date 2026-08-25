@@ -8,7 +8,7 @@ function Stars({ count }: { count: number }) {
   return (
     <div className="flex gap-[2px]">
       {Array.from({ length: count }).map((_, i) => (
-        <svg key={i} viewBox="0 0 16 16" fill="none" className="w-[14px] h-[14px] text-blue-500">
+        <svg key={i} viewBox="0 0 16 16" fill="none" className="w-[14px] h-[14px] text-amber-400">
           <path
             d="M8 1l1.85 3.75L14 5.5l-3 2.92.71 4.13L8 10.5l-3.71 1.95.71-4.13L2 5.5l4.15-.75L8 1z"
             fill="currentColor"
@@ -49,7 +49,7 @@ export default function Testimonials({ testimonials }: { testimonials: Testimoni
                 &ldquo;{t.text}&rdquo;
               </p>
               <div className="border-t border-gray-100 pt-[12px] flex items-center gap-[10px]">
-                <div className="w-[36px] h-[36px] rounded-full bg-blue-600 text-white text-[12px] font-bold flex items-center justify-center shrink-0">
+                <div className="w-[36px] h-[36px] rounded-full bg-[#FFC107] text-gray-950 text-[12px] font-bold flex items-center justify-center shrink-0">
                   {t.avatar}
                 </div>
                 <div>

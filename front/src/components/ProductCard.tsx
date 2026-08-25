@@ -19,7 +19,7 @@ const categoryIcon: Record<string, ReactNode> = {
   inverter: (
     <svg viewBox="0 0 80 80" fill="none" className="w-[80px] h-[80px]">
       <rect x="8" y="20" width="64" height="44" rx="6" fill="#dde1e7" stroke="#b0b8c4" strokeWidth="1.5" />
-      <path d="M24 48l10-14 8 10 8-8" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M24 48l10-14 8 10 8-8" stroke="#FFC107" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
       <rect x="20" y="12" width="40" height="8" rx="4" fill="#b0b8c4" />
       <circle cx="56" cy="28" r="5" fill="#22c55e" />
     </svg>
@@ -75,7 +75,7 @@ export default function ProductCard({ product }: { product: Product }) {
       className="group relative bg-white rounded-[6px] border border-gray-100 overflow-hidden hover:border-gray-200 hover:shadow-md transition-[border-color,box-shadow] duration-200 cursor-pointer"
     >
       {savings && (
-        <div className="absolute top-[10px] right-[10px] z-10 bg-blue-600 text-white text-[10px] font-bold px-[8px] py-[3px] rounded-full">
+        <div className="absolute top-[10px] right-[10px] z-10 bg-[#FFC107] text-gray-950 text-[10px] font-bold px-[8px] py-[3px] rounded-full">
           -{savings}%
         </div>
       )}
@@ -90,7 +90,7 @@ export default function ProductCard({ product }: { product: Product }) {
       </div>
 
       <div className="p-[14px]">
-        <h3 className="text-[14px] font-medium text-gray-900 mb-[8px] leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
+        <h3 className="text-[14px] font-medium text-gray-900 mb-[8px] leading-snug line-clamp-2 group-hover:text-amber-700 transition-colors">
           {product.name}
         </h3>
         <div>
@@ -109,7 +109,7 @@ export default function ProductCard({ product }: { product: Product }) {
 
       <button
         onClick={(e) => { e.stopPropagation(); add(product); }}
-        className="absolute bottom-[14px] right-[14px] w-[32px] h-[32px] rounded-full bg-blue-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-sm cursor-pointer"
+        className="absolute bottom-[14px] right-[14px] w-[32px] h-[32px] rounded-full bg-[#FFC107] text-gray-950 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-sm cursor-pointer"
         aria-label="Додати в кошик"
       >
         <svg viewBox="0 0 16 16" fill="none" className="w-[14px] h-[14px]">

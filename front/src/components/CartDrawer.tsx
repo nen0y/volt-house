@@ -15,7 +15,7 @@ const categoryIcon: Record<string, string> = {
 type Step = "cart" | "checkout" | "success";
 
 const inputClass =
-  "w-full px-[14px] py-[10px] rounded-[6px] border border-gray-200 bg-white text-[14px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors placeholder:text-gray-400";
+  "w-full px-[14px] py-[10px] rounded-[6px] border border-gray-200 bg-white text-[14px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors placeholder:text-gray-400";
 
 export default function CartDrawer({
   isOpen,
@@ -116,7 +116,7 @@ export default function CartDrawer({
               {step === "success" && "Замовлення прийнято"}
             </h2>
             {step === "cart" && count > 0 && (
-              <span className="bg-blue-600 text-white text-[11px] font-bold px-[8px] py-[2px] rounded-full">
+              <span className="bg-[#FFC107] text-gray-950 text-[11px] font-bold px-[8px] py-[2px] rounded-full">
                 {count}
               </span>
             )}
@@ -149,7 +149,7 @@ export default function CartDrawer({
                   </div>
                   <button
                     onClick={handleClose}
-                    className="mt-[8px] text-[13px] font-medium text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                    className="mt-[8px] text-[13px] font-medium text-amber-700 hover:text-amber-800 transition-colors cursor-pointer"
                   >
                     Продовжити покупки →
                   </button>
@@ -212,7 +212,7 @@ export default function CartDrawer({
                 </div>
                 <button
                   onClick={() => setStep("checkout")}
-                  className="w-full py-[13px] rounded-[8px] bg-blue-600 text-white text-[15px] font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
+                  className="w-full py-[13px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer"
                 >
                   Оформити замовлення
                 </button>
@@ -297,7 +297,7 @@ export default function CartDrawer({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-[13px] rounded-[8px] bg-blue-600 text-white text-[15px] font-semibold hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60"
+                  className="w-full py-[13px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer disabled:opacity-60"
                 >
                   {submitting ? "Оформлюємо…" : "Підтвердити замовлення"}
                 </button>
@@ -332,7 +332,7 @@ export default function CartDrawer({
             </div>
             <button
               onClick={handleClose}
-              className="mt-[8px] w-full py-[13px] rounded-[8px] bg-blue-600 text-white text-[15px] font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
+              className="mt-[8px] w-full py-[13px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer"
             >
               Закрити
             </button>

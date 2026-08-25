@@ -5,7 +5,7 @@ import PhoneInput from "./PhoneInput";
 import { submitLead } from "@/lib/api";
 
 const inputClass =
-  "w-full px-[14px] py-[10px] rounded-[6px] border border-gray-200 bg-white text-[14px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors placeholder:text-gray-400";
+  "w-full px-[14px] py-[10px] rounded-[6px] border border-gray-200 bg-white text-[14px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors placeholder:text-gray-400";
 
 export default function ConsultationModal({
   isOpen,
@@ -72,7 +72,7 @@ export default function ConsultationModal({
             </p>
             <button
               onClick={onClose}
-              className="w-full py-[12px] rounded-[8px] bg-blue-600 text-white text-[15px] font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
+              className="w-full py-[12px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer"
             >
               Закрити
             </button>
@@ -131,7 +131,7 @@ export default function ConsultationModal({
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-[13px] rounded-[8px] bg-blue-600 text-white text-[15px] font-semibold hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60"
+                className="w-full py-[13px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer disabled:opacity-60"
               >
                 {submitting ? "Надсилаємо…" : "Замовити дзвінок"}
               </button>

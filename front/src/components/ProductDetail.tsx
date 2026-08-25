@@ -29,7 +29,7 @@ const categoryIllustration: Record<string, React.ReactNode> = {
   inverter: (
     <svg viewBox="0 0 160 160" fill="none" className="w-[140px] h-[140px]">
       <rect x="16" y="40" width="128" height="88" rx="10" fill="#dde1e7" stroke="#b0b8c4" strokeWidth="2" />
-      <path d="M48 96l20-28 16 20 16-16" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M48 96l20-28 16 20 16-16" stroke="#FFC107" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
       <rect x="40" y="24" width="80" height="16" rx="6" fill="#b0b8c4" />
       <circle cx="112" cy="56" r="10" fill="#22c55e" />
     </svg>
@@ -140,7 +140,7 @@ export default function ProductDetail({
                       key={img}
                       onClick={() => setImgIdx(i)}
                       className={`w-[56px] h-[56px] rounded-[6px] overflow-hidden border transition-colors ${
-                        i === imgIdx ? "border-blue-500" : "border-gray-200 hover:border-gray-300"
+                        i === imgIdx ? "border-amber-400" : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -161,11 +161,11 @@ export default function ProductDetail({
         <div className="flex flex-col">
           {/* Category + badge */}
           <div className="flex items-center gap-[10px] mb-[12px]">
-            <span className="text-[12px] font-medium text-blue-600 bg-blue-50 px-[10px] py-[3px] rounded-full">
+            <span className="text-[12px] font-medium text-amber-800 bg-amber-50 px-[10px] py-[3px] rounded-full">
               {catLabel}
             </span>
             {product.badge && (
-              <span className="text-[12px] font-bold text-white bg-blue-600 px-[10px] py-[3px] rounded-full">
+              <span className="text-[12px] font-bold text-gray-950 bg-[#FFC107] px-[10px] py-[3px] rounded-full">
                 {product.badge}
               </span>
             )}
@@ -228,7 +228,7 @@ export default function ProductDetail({
                   <svg
                     viewBox="0 0 16 16"
                     fill="none"
-                    className="w-[16px] h-[16px] text-blue-500 mt-[2px] shrink-0"
+                    className="w-[16px] h-[16px] text-amber-500 mt-[2px] shrink-0"
                   >
                     <path
                       d="M3 8l3.5 3.5L13 4.5"
@@ -251,7 +251,7 @@ export default function ProductDetail({
               className={`flex-1 py-[14px] rounded-[8px] text-[15px] font-semibold transition-colors cursor-pointer ${
                 added
                   ? "bg-green-500 text-white"
-                  : "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-[#FFC107] text-gray-950 hover:bg-[#e5ad00]"
               }`}
             >
               {added ? "✓ Додано до кошика" : "Додати в кошик"}

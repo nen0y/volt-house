@@ -72,13 +72,13 @@ export default function AllProductsClient({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Пошук товарів…"
-            className="w-full pl-[36px] pr-[14px] py-[10px] rounded-[8px] border border-gray-200 bg-white text-[14px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-[36px] pr-[14px] py-[10px] rounded-[8px] border border-gray-200 bg-white text-[14px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
           />
         </div>
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}
-          className="px-[14px] py-[10px] rounded-[8px] border border-gray-200 bg-white text-[14px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-[14px] py-[10px] rounded-[8px] border border-gray-200 bg-white text-[14px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
         >
           <option value="default">За замовчуванням</option>
           <option value="price-asc">Ціна: спочатку дешевші</option>
@@ -94,14 +94,14 @@ export default function AllProductsClient({
             onClick={() => setFilter(f.key)}
             className={`flex items-center gap-[6px] px-[16px] py-[8px] rounded-full text-[13px] font-medium transition-colors cursor-pointer ${
               filter === f.key
-                ? "bg-blue-600 text-white"
+                ? "bg-[#FFC107] text-gray-950"
                 : "bg-white border border-gray-200 text-gray-700 hover:border-gray-300"
             }`}
           >
             {f.label}
             <span
               className={`text-[11px] font-bold px-[6px] py-[1px] rounded-full ${
-                filter === f.key ? "bg-blue-500 text-blue-100" : "bg-gray-100 text-gray-500"
+                filter === f.key ? "bg-gray-950 text-[#FFC107]" : "bg-gray-100 text-gray-500"
               }`}
             >
               {count(f.key)}

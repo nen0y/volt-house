@@ -161,13 +161,13 @@ export default function Navbar() {
               ))}
               <button
                 onClick={() => { setMenuOpen(false); setCalcOpen(true); }}
-                className="flex items-center gap-[8px] text-[15px] font-semibold text-blue-600 cursor-pointer text-left"
+                className="flex items-center gap-[8px] text-[15px] font-semibold text-amber-700 cursor-pointer text-left"
               >
                 ⚡ Підібрати систему
               </button>
               <button
                 onClick={() => { setMenuOpen(false); setConsultOpen(true); }}
-                className="flex items-center gap-[8px] text-[15px] font-semibold text-blue-600 cursor-pointer text-left"
+                className="flex items-center gap-[8px] text-[15px] font-semibold text-amber-700 cursor-pointer text-left"
               >
                 📞 Зворотний дзвінок
               </button>

@@ -203,7 +203,7 @@ function RecommendationCard({
                   {quantity > 1 && <span className="text-slate-400"> × {quantity}</span>}
                 </p>
                 {p.badge && (
-                  <span className="text-[10px] text-blue-400 font-medium">{p.badge}</span>
+                  <span className="text-[10px] text-amber-600 font-medium">{p.badge}</span>
                 )}
               </div>
             </div>
@@ -234,7 +234,7 @@ function RecommendationCard({
 
       <button
         onClick={() => onAdd(items)}
-        className="w-full py-[11px] rounded-[8px] bg-blue-600 text-white text-[14px] font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
+        className="w-full py-[11px] rounded-[8px] bg-[#FFC107] text-gray-950 text-[14px] font-semibold hover:bg-[#e5ad00] transition-colors cursor-pointer"
       >
         Додати в кошик
       </button>
@@ -368,24 +368,24 @@ export default function PowerCalculatorModal({
                           onClick={() => toggle(a.id)}
                           className={`relative flex flex-col items-start gap-[6px] rounded-[8px] border p-[12px] text-left transition-all duration-150 cursor-pointer ${
                             isSelected
-                              ? "border-blue-500 bg-blue-50 shadow-sm"
+                              ? "border-amber-400 bg-amber-50 shadow-sm"
                               : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
                           }`}
                         >
                           <span
                             className={`absolute top-[8px] right-[8px] w-[16px] h-[16px] rounded-full border flex items-center justify-center transition-colors ${
-                              isSelected ? "bg-blue-600 border-blue-600" : "border-gray-300"
+                              isSelected ? "bg-[#FFC107] border-[#FFC107]" : "border-gray-300"
                             }`}
                           >
                             {isSelected && (
                               <svg viewBox="0 0 10 10" fill="none" className="w-[8px] h-[8px]">
-                                <path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M2 5l2.5 2.5L8 3" stroke="#111111" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                             )}
                           </span>
 
                           <span className="text-[22px] leading-none">{a.icon}</span>
-                          <span className={`text-[13px] font-medium leading-tight pr-[18px] ${isSelected ? "text-blue-700" : "text-gray-800"}`}>
+                          <span className={`text-[13px] font-medium leading-tight pr-[18px] ${isSelected ? "text-amber-800" : "text-gray-800"}`}>
                             {a.name}
                           </span>
                           <span className="text-[11px] text-gray-400 font-medium">{a.watts} Вт</span>

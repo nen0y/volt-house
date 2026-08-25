@@ -46,7 +46,7 @@ export default function Contact() {
     return (
       <section id="contact" className="bg-white py-[56px]">
         <div className="max-w-[560px] mx-auto px-[24px] text-center">
-          <div className="w-[56px] h-[56px] rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-[16px]">
+          <div className="w-[56px] h-[56px] rounded-full bg-amber-50 text-amber-700 flex items-center justify-center mx-auto mb-[16px]">
             <svg viewBox="0 0 24 24" fill="none" className="w-[28px] h-[28px]">
               <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -63,7 +63,7 @@ export default function Contact() {
   }
 
   const inputClass =
-    "w-full px-[14px] py-[10px] rounded-[6px] border border-gray-200 bg-white text-[14px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors placeholder:text-gray-400";
+    "w-full px-[14px] py-[10px] rounded-[6px] border border-gray-200 bg-white text-[14px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-colors placeholder:text-gray-400";
 
   return (
     <section id="contact" className="bg-white py-[56px]">
@@ -131,7 +131,7 @@ export default function Contact() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-[12px] rounded-[6px] bg-blue-600 text-white text-[15px] font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60"
+            className="w-full py-[12px] rounded-[6px] bg-[#FFC107] text-gray-950 text-[15px] font-semibold hover:bg-[#e5ad00] transition-colors disabled:opacity-60"
           >
             {submitting ? "Надсилаємо…" : "Отримати безкоштовну консультацію"}
           </button>
