@@ -6,6 +6,7 @@
   let productCache = []; // products list reused by content/calculator pickers
   let contentCache = {};
   let categoryCache = []; // categories reused by the product form
+  let brandCache = [];
   let homeCache = []; // home sections
   let supplierCache = [];
   let crmLeadCache = [];
@@ -98,7 +99,7 @@
   $("logout").addEventListener("click", logout);
 
   // ── tabs ──────────────────────────────────────────────────────────────────
-  const ALL_TABS = ["crm", "leads", "suppliers", "pricing", "products", "categories", "home", "testimonials", "content", "calculator"];
+  const ALL_TABS = ["crm", "leads", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator"];
 
   function activateTab(tab) {
     if (!ALL_TABS.includes(tab)) tab = "crm";
@@ -114,6 +115,7 @@
     if (tab === "suppliers") loadSuppliers();
     if (tab === "pricing") loadPricing();
     if (tab === "products") loadProducts();
+    if (tab === "brands") loadBrands();
     if (tab === "categories") loadCategories();
     if (tab === "home") loadHomeSections();
     if (tab === "testimonials") loadTestimonials();
@@ -309,7 +311,7 @@
           return `<td class="price-cell ${isBest ? "best" : ""} ${isUnavailable ? "unavailable" : ""}"><input type="number" min="0" placeholder="—" value="${row ? row.price : ""}" data-price-product="${esc(product.id)}" data-price-supplier="${esc(supplier.id)}">
             ${isUnavailable ? `<span class="unavail-label">Немає в наявності</span>` : ""}${isBest ? `<span class="best-label">✓ Найкраща ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
         }).join("");
-        return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.categoryLabel || "Без категорії")} · роздріб ${money(product.retailPrice)}</div></td>${cells}</tr>`;
+        return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.categoryLabel || "Без категорії")} · ${esc(product.brandLabel || "Без бренду")} · роздріб ${money(product.retailPrice)}</div></td>${cells}</tr>`;
       }).join("");
       $("pricingBody").innerHTML = `<div class="matrix-wrap"><table class="price-matrix"><thead><tr><th>Товар</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
       document.querySelectorAll("[data-price-product]").forEach((input) => input.addEventListener("change", async () => {
@@ -417,15 +419,48 @@
   }
 
   // ── products ────────────────────────────────────────────────────────────────
+  async function loadBrands() {
+    try {
+      brandCache = await api("/api/brands?all=1");
+      $("brandsBody").innerHTML = brandCache.length ? `<table><thead><tr><th>Бренд</th><th>Країна</th><th>Товарів</th><th>Статус</th><th></th></tr></thead><tbody>${brandCache.map((b) => `<tr>
+        <td><strong>${esc(b.name)}</strong><div class="muted">${esc(b.slug)}${b.description ? ` · ${esc(b.description).slice(0, 100)}` : ""}</div></td>
+        <td>${esc(b.country || "—")}</td><td>${b._count?.products || 0}</td><td>${b.enabled ? "Активний" : "Прихований"}</td>
+        <td><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-brand="${esc(b.slug)}">Редагувати</button><button class="btn-sm btn-danger" data-del-brand="${esc(b.slug)}">Видалити</button></div></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Брендів ще немає</div>`;
+      document.querySelectorAll("[data-edit-brand]").forEach((el) => el.addEventListener("click", () => brandModal(brandCache.find((b) => b.slug === el.dataset.editBrand))));
+      document.querySelectorAll("[data-del-brand]").forEach((el) => el.addEventListener("click", async () => {
+        if (!confirm("Видалити бренд? У товарах поле бренду стане порожнім.")) return;
+        try { await api("/api/brands/" + el.dataset.delBrand, { method: "DELETE" }); loadBrands(); } catch (err) { alert(err.message); }
+      }));
+    } catch (err) { $("brandsBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  }
+
+  function brandModal(brand) {
+    const isNew = !brand; const b = brand || { slug: "", name: "", country: "", logo: "", description: "", enabled: true };
+    openModal(`<h3>${isNew ? "Новий бренд" : "Редагувати бренд"}</h3>
+      <div class="grid2"><div class="field"><label>Slug *</label><input id="brand_slug" value="${esc(b.slug)}" ${isNew ? "" : "readonly"}></div><div class="field"><label>Назва *</label><input id="brand_name" value="${esc(b.name)}"></div></div>
+      <div class="grid2"><div class="field"><label>Країна</label><input id="brand_country" value="${esc(b.country)}"></div><div class="field"><label>Логотип (URL)</label><input id="brand_logo" value="${esc(b.logo)}"></div></div>
+      <div class="field"><label>Опис</label><textarea id="brand_description" rows="4">${esc(b.description)}</textarea></div>
+      <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none"><input id="brand_enabled" type="checkbox" ${b.enabled ? "checked" : ""} style="width:auto"> Показувати на сайті</label></div>
+      <div class="error" id="brand_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="brand_cancel">Скасувати</button><button class="btn" id="brand_save">Зберегти</button></div>`);
+    $("brand_cancel").addEventListener("click", closeModal);
+    $("brand_save").addEventListener("click", async () => {
+      const body = { slug: $("brand_slug").value.trim(), name: $("brand_name").value.trim(), country: $("brand_country").value.trim(), logo: $("brand_logo").value.trim(), description: $("brand_description").value.trim(), enabled: $("brand_enabled").checked };
+      try { await api(isNew ? "/api/brands" : "/api/brands/" + b.slug, { method: isNew ? "POST" : "PUT", body: JSON.stringify(body) }); closeModal(); loadBrands(); } catch (err) { $("brand_error").textContent = err.message; }
+    });
+  }
+  $("addBrand").addEventListener("click", () => brandModal(null));
+
   async function loadProducts() {
     try {
-      const [products, cats] = await Promise.all([api("/api/products"), api("/api/categories?all=1")]);
+      const [products, cats, brands] = await Promise.all([api("/api/products"), api("/api/categories?all=1"), api("/api/brands?all=1")]);
       productCache = products;
       categoryCache = cats;
+      brandCache = brands;
       $("productsBody").innerHTML = products.length
-        ? `<table><thead><tr><th>Назва</th><th>Категорія</th><th>Ціна</th><th>Характеристики</th><th>Гарантія</th><th></th></tr></thead><tbody>${
+        ? `<table><thead><tr><th>Назва</th><th>Бренд</th><th>Категорія</th><th>Ціна</th><th>Характеристики</th><th>Гарантія</th><th></th></tr></thead><tbody>${
             products.map((p) => `<tr>
               <td><strong>${esc(p.name)}</strong>${p.badge ? ` <span class="badge b-order" style="margin-left:4px">${esc(p.badge)}</span>` : ""}</td>
+              <td>${esc(p.brand?.name || "—")}</td>
               <td><span class="pcard cat">${esc((categoryCache.find((c) => c.key === p.category) || {}).label || "Без категорії")}</span></td>
               <td class="nowrap pcard price">${money(p.price)}${p.originalPrice ? ` <span class="muted" style="text-decoration:line-through;font-weight:400;font-size:12px">${money(p.originalPrice)}</span>` : ""}</td>
               <td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency].filter(Boolean).map(esc).join(" · ") || "—"}</td>
@@ -524,8 +559,9 @@
               .join("");
           })()}
         </select></div>
-        <div class="field"><label>Гарантія</label><input id="m_warranty" value="${esc(p.warranty)}" /></div>
+        <div class="field"><label>Бренд</label><select id="m_brand"><option value="">Без бренду</option>${brandCache.map((b) => `<option value="${esc(b.slug)}" ${b.slug === p.brandSlug ? "selected" : ""}>${esc(b.name)}</option>`).join("")}</select></div>
       </div>
+      <div class="field"><label>Гарантія</label><input id="m_warranty" value="${esc(p.warranty)}" /></div>
       <div class="grid2">
         <div class="field"><label>Ціна ($)</label><input id="m_price" type="number" value="${esc(p.price)}" /></div>
         <div class="field"><label>Стара ціна ($)</label><input id="m_originalPrice" type="number" value="${esc(p.originalPrice ?? "")}" /></div>
@@ -585,6 +621,7 @@
         id: $("m_id").value.trim(),
         name: $("m_name").value.trim(),
         category: $("m_category").value,
+        brandSlug: $("m_brand").value || null,
         price: num($("m_price").value) || 0,
         originalPrice: num($("m_originalPrice").value),
         power: $("m_power").value.trim() || null,

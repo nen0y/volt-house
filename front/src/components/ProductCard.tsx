@@ -90,6 +90,7 @@ export default function ProductCard({ product }: { product: Product }) {
       </div>
 
       <div className="p-[14px]">
+        {product.brand && <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 mb-[4px]">{product.brand.name}</div>}
         <h3 className="text-[14px] font-medium text-gray-900 mb-[8px] leading-snug line-clamp-2 group-hover:text-amber-700 transition-colors">
           {product.name}
         </h3>

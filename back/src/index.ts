@@ -14,6 +14,7 @@ import { categoriesRouter } from "./routes/categories";
 import { homeRouter } from "./routes/home";
 import { settingsRouter } from "./routes/settings";
 import { crmRouter } from "./routes/crm";
+import { brandsRouter } from "./routes/brands";
 import { ensureUploadDir, uploadDir } from "./upload";
 
 const app = express();
@@ -68,6 +69,7 @@ app.use("/api/leads", leadsRouter);
 app.use("/api/content", contentRouter);
 app.use("/api/calculator", calculatorRouter);
 app.use("/api/categories", categoriesRouter);
+app.use("/api/brands", brandsRouter);
 app.use("/api/home-sections", homeRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/crm", crmRouter);

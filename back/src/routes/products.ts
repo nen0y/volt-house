@@ -13,6 +13,8 @@ function toDto(p: any) {
     id: p.id,
     name: p.name,
     category: p.category,
+    brandSlug: p.brandSlug ?? undefined,
+    brand: p.brand ? { slug: p.brand.slug, name: p.brand.name, logo: p.brand.logo, country: p.brand.country } : undefined,
     price: p.price,
     originalPrice: p.originalPrice ?? undefined,
     power: p.power ?? undefined,
@@ -42,6 +44,7 @@ productsRouter.get("/", async (req, res) => {
   const where = categoryKeys.length ? { category: { in: categoryKeys } } : {};
   const rows = await prisma.product.findMany({
     where,
+    include: { brand: true },
     orderBy: [{ sortOrder: "asc" }, { price: "asc" }],
   });
   res.json(rows.map(toDto));
@@ -49,7 +52,7 @@ productsRouter.get("/", async (req, res) => {
 
 // GET /api/products/:id
 productsRouter.get("/:id", async (req, res) => {
-  const p = await prisma.product.findUnique({ where: { id: req.params.id } });
+  const p = await prisma.product.findUnique({ where: { id: req.params.id }, include: { brand: true } });
   if (!p) return res.status(404).json({ error: "Товар не знайдено" });
   res.json(toDto(p));
 });
@@ -58,6 +61,7 @@ const productSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   category: z.string().min(1),
+  brandSlug: z.string().nullable().optional(),
   price: z.number().int().nonnegative(),
   originalPrice: z.number().int().nonnegative().nullish(),
   power: z.string().nullish(),
@@ -78,6 +82,7 @@ productsRouter.post("/", requireAdmin, async (req, res) => {
   const data = {
     name: d.name,
     category: d.category,
+    brandSlug: d.brandSlug || null,
     price: d.price,
     originalPrice: d.originalPrice ?? null,
     power: d.power ?? null,
@@ -94,7 +99,8 @@ productsRouter.post("/", requireAdmin, async (req, res) => {
     create: { id: d.id, ...data },
     update: data,
   });
-  res.status(201).json(toDto(saved));
+  const result = await prisma.product.findUnique({ where: { id: saved.id }, include: { brand: true } });
+  res.status(201).json(toDto(result));
 });
 
 // PUT /api/products/:id  (admin)
@@ -112,7 +118,8 @@ productsRouter.put("/:id", requireAdmin, async (req, res) => {
     where: { id: req.params.id },
     data: data as any,
   });
-  res.json(toDto(saved));
+  const result = await prisma.product.findUnique({ where: { id: saved.id }, include: { brand: true } });
+  res.json(toDto(result));
 });
 
 // DELETE /api/products/:id  (admin)

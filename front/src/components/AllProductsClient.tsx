@@ -39,6 +39,7 @@ export default function AllProductsClient({
   }, [categories]);
 
   const [filter, setFilter] = useState<string>(initialCategory || "all");
+  const [brand, setBrand] = useState("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("default");
 
@@ -47,6 +48,7 @@ export default function AllProductsClient({
 
   const visible = useMemo(() => {
     let list = filter === "all" ? all : all.filter((p) => categoryKeys(filter).includes(p.category));
+    if (brand !== "all") list = list.filter((p) => p.brandSlug === brand);
     const q = query.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -58,7 +60,9 @@ export default function AllProductsClient({
     if (sort === "price-asc") list = [...list].sort((a, b) => a.price - b.price);
     if (sort === "price-desc") list = [...list].sort((a, b) => b.price - a.price);
     return list;
-  }, [all, categoryKeys, filter, query, sort]);
+  }, [all, brand, categoryKeys, filter, query, sort]);
+
+  const brands = useMemo(() => Array.from(new Map(all.filter((p) => p.brand).map((p) => [p.brand!.slug, p.brand!])).values()).sort((a, b) => a.name.localeCompare(b.name, "uk")), [all]);
 
   const activeLabel = filters.find((f) => f.key === filter)?.label ?? "Товари";
 
@@ -85,6 +89,14 @@ export default function AllProductsClient({
             className="w-full pl-[36px] pr-[14px] py-[10px] rounded-[8px] border border-gray-200 bg-white text-[14px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
           />
         </div>
+        <select
+          value={brand}
+          onChange={(e) => setBrand(e.target.value)}
+          className="px-[14px] py-[10px] rounded-[8px] border border-gray-200 bg-white text-[14px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+        >
+          <option value="all">Усі бренди</option>
+          {brands.map((b) => <option key={b.slug} value={b.slug}>{b.name}</option>)}
+        </select>
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}

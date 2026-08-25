@@ -167,6 +167,7 @@ export default function ProductDetail({
         <div className="flex flex-col">
           {/* Category + badge */}
           <div className="flex items-center gap-[10px] mb-[12px]">
+            {product.brand && <span className="text-[12px] font-semibold text-gray-700 bg-gray-100 px-[10px] py-[3px] rounded-full">{product.brand.name}</span>}
             <span className="text-[12px] font-medium text-amber-800 bg-amber-50 px-[10px] py-[3px] rounded-full">
               {catLabel}
             </span>

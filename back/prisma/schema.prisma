@@ -25,7 +25,23 @@ model Product {
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  brandSlug     String?
+  brand         Brand?   @relation(fields: [brandSlug], references: [slug], onDelete: SetNull)
   supplierPrices SupplierPrice[]
+
+  @@index([brandSlug])
+}
+
+model Brand {
+  slug        String    @id
+  name        String    @unique
+  logo        String    @default("")
+  description String    @default("")
+  country     String    @default("")
+  enabled     Boolean   @default(true)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // Editable homepage sections (a mini page-builder). Each section renders a

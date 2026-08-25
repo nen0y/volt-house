@@ -17,6 +17,8 @@ export interface Product {
   id: string;
   name: string;
   category: string;
+  brandSlug?: string;
+  brand?: { slug: string; name: string; logo?: string; country?: string };
   price: number;
   originalPrice?: number;
   power?: string;

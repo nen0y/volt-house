@@ -92,7 +92,7 @@ crmRouter.delete("/prices", async (req, res) => {
 
 crmRouter.get("/price-matrix", async (_req, res) => {
   const [products, suppliers, prices, categories] = await Promise.all([
-    prisma.product.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
+    prisma.product.findMany({ include: { brand: true }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
     prisma.supplier.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.supplierPrice.findMany(),
     prisma.category.findMany({ select: { key: true, label: true } }),
@@ -111,6 +111,7 @@ crmRouter.get("/price-matrix", async (_req, res) => {
       name: p.name,
       category: p.category,
       categoryLabel: categories.find((c) => c.key === p.category)?.label || "Без категорії",
+      brandLabel: p.brand?.name || "Без бренду",
       retailPrice: p.price,
     })),
     suppliers: suppliers.map((s) => ({ id: s.id, name: s.name })),

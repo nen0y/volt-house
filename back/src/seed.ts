@@ -167,6 +167,18 @@ async function main() {
   }
   console.log(`[seed] Suppliers: ${supplierNames.length} ensured`);
 
+  await prisma.brand.upsert({
+    where: { slug: "deye" },
+    create: {
+      slug: "deye",
+      name: "Deye",
+      country: "Китай",
+      description: "Інвертори, акумулятори та системи накопичення енергії Deye.",
+    },
+    update: {},
+  });
+  console.log("[seed] Brand Deye ensured");
+
   // ── Deye products ─────────────────────────────────────────────────────────
   // Auto-generated from base.xlsx. Retail price = min supplier price + 20% markup.
   const deyeProducts: Array<{
@@ -267,6 +279,7 @@ async function main() {
     const data = {
       name: p.name,
       category: p.category,
+      brandSlug: "deye",
       price: retailPrice,
       warranty: "1 рік",
       features: JSON.stringify([p.model]),
@@ -287,6 +300,7 @@ async function main() {
       deyePrices++;
     }
   }
+  await prisma.product.updateMany({ where: { id: { startsWith: "deye-" } }, data: { brandSlug: "deye" } });
   console.log(`[seed] Deye products: ${deyeCreated} upserted, ${deyePrices} supplier prices linked`);
 
   // ── Admin user ────────────────────────────────────────────────────────────

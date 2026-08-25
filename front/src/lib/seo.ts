@@ -74,7 +74,7 @@ export function productSchema(product: Product) {
     image: images.length ? images : [abs("/opengraph-image")],
     sku: product.id,
     category: categoryLabel[product.category] || product.category,
-    brand: { "@type": "Brand", name: SITE_NAME },
+    brand: { "@type": "Brand", name: product.brand?.name || SITE_NAME },
     offers: {
       "@type": "Offer",
       price: product.price,
