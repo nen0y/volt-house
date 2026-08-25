@@ -25,6 +25,7 @@ model Product {
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  supplierPrices SupplierPrice[]
 }
 
 // Editable homepage sections (a mini page-builder). Each section renders a
@@ -65,8 +66,41 @@ model Lead {
   message   String?
   items     String? // JSON-encoded [{ id, name, price, quantity }]
   total     Int?
-  status    String   @default("new") // new | in_progress | done
+  status    String   @default("new") // new | contacted | proposal | won | lost
+  notes     String   @default("")
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Supplier {
+  id          String          @id @default(cuid())
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  website     String?
+  notes       String          @default("")
+  active      Boolean         @default(true)
+  prices      SupplierPrice[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model SupplierPrice {
+  id           String   @id @default(cuid())
+  supplierId   String
+  productId    String
+  price        Int
+  currency     String   @default("USD")
+  availability String   @default("in_stock") // in_stock | preorder | unavailable
+  leadTimeDays Int?
+  minOrderQty  Int      @default(1)
+  supplier     Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([supplierId, productId])
+  @@index([productId])
 }
 
 model AdminUser {

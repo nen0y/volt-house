@@ -97,16 +97,21 @@ leadsRouter.get("/stats", requireAdmin, async (_req, res) => {
   res.json({ total, orders, consultations, callbacks, new: fresh });
 });
 
-const statusSchema = z.object({ status: z.enum(["new", "in_progress", "done"]) });
+const statusSchema = z.object({
+  status: z.enum(["new", "contacted", "proposal", "won", "lost", "in_progress", "done"]).optional(),
+  notes: z.string().max(5000).optional(),
+});
 
 // PATCH /api/leads/:id  (admin) — update status
 leadsRouter.patch("/:id", requireAdmin, async (req, res) => {
   const parsed = statusSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Некоректний статус" });
+  if (!parsed.success || (!parsed.data.status && parsed.data.notes === undefined)) {
+    return res.status(400).json({ error: "Некоректні дані" });
+  }
   try {
     const updated = await prisma.lead.update({
       where: { id: req.params.id },
-      data: { status: parsed.data.status },
+      data: parsed.data,
     });
     res.json(updated);
   } catch {

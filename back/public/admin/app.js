@@ -7,6 +7,8 @@
   let contentCache = {};
   let categoryCache = []; // categories reused by the product form
   let homeCache = []; // home sections
+  let supplierCache = [];
+  let crmLeadCache = [];
 
   // ── helpers ────────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -16,7 +18,16 @@
   const dt = (s) => new Date(s).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" });
 
   const TYPE_LABEL = { order: "Замовлення", consultation: "Консультація", callback: "Дзвінок" };
-  const STATUS_LABEL = { new: "Нова", in_progress: "В роботі", done: "Завершено" };
+  const STATUS_LABEL = {
+    new: "Необроблені",
+    contacted: "Зв’язались",
+    proposal: "Пропозиція",
+    won: "Успішно",
+    lost: "Втрачено",
+    in_progress: "Зв’язались",
+    done: "Успішно",
+  };
+  const CRM_STATUSES = ["new", "contacted", "proposal", "won", "lost"];
 
   async function api(path, opts = {}) {
     const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
@@ -78,7 +89,7 @@
       token = data.token;
       localStorage.setItem(TOKEN_KEY, token);
       showApp(data.admin.email);
-      loadLeads();
+      loadCrm();
     } catch (err) {
       $("loginError").textContent = err.message;
     }
@@ -91,10 +102,13 @@
       document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       const tab = btn.dataset.tab;
-      ["leads", "products", "categories", "home", "testimonials", "content", "calculator"].forEach((t) => {
+      ["crm", "leads", "suppliers", "pricing", "products", "categories", "home", "testimonials", "content", "calculator"].forEach((t) => {
         $("tab-" + t).style.display = t === tab ? "block" : "none";
       });
+      if (tab === "crm") loadCrm();
       if (tab === "leads") loadLeads();
+      if (tab === "suppliers") loadSuppliers();
+      if (tab === "pricing") loadPricing();
       if (tab === "products") loadProducts();
       if (tab === "categories") loadCategories();
       if (tab === "home") loadHomeSections();
@@ -103,6 +117,182 @@
       if (tab === "calculator") loadCalculator();
     });
   });
+
+  // ── CRM kanban ────────────────────────────────────────────────────────────
+  $("refreshCrm").addEventListener("click", loadCrm);
+
+  function normalizeLeadStatus(status) {
+    if (status === "in_progress") return "contacted";
+    if (status === "done") return "won";
+    return CRM_STATUSES.includes(status) ? status : "new";
+  }
+
+  async function loadCrm() {
+    try {
+      const leads = await api("/api/leads?type=all&status=all");
+      crmLeadCache = leads;
+      const counts = Object.fromEntries(CRM_STATUSES.map((s) => [s, 0]));
+      leads.forEach((l) => counts[normalizeLeadStatus(l.status)]++);
+      $("crmStats").innerHTML = [
+        ["Усього клієнтів", leads.length],
+        ["Необроблені", counts.new],
+        ["У роботі", counts.contacted + counts.proposal],
+        ["Успішні", counts.won],
+        ["Втрачено", counts.lost],
+      ].map(([label, value]) => `<div class="stat"><div class="n">${value}</div><div class="l">${label}</div></div>`).join("");
+      renderKanban(leads);
+    } catch (err) {
+      $("kanbanBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+    }
+  }
+
+  function renderKanban(leads) {
+    $("kanbanBody").innerHTML = CRM_STATUSES.map((status) => {
+      const rows = leads.filter((l) => normalizeLeadStatus(l.status) === status);
+      const cards = rows.map((l) => {
+        const details = l.interest || (l.items && l.items.length ? `${l.items.length} товар(и)` : TYPE_LABEL[l.type] || l.type);
+        return `<article class="lead-card" draggable="true" data-lead-id="${esc(l.id)}">
+          <span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span>
+          <h4>${esc(l.name)}</h4>
+          <div class="lead-meta"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br>${esc(details || "Без деталей")}<br>${dt(l.createdAt)}</div>
+          ${l.total != null ? `<div class="lead-total">${money(l.total)}</div>` : ""}
+          ${l.notes ? `<div class="items">${esc(l.notes).slice(0, 90)}</div>` : ""}
+          <div class="lead-actions"><button class="btn-sm btn-ghost" data-open-lead="${esc(l.id)}">Відкрити</button></div>
+        </article>`;
+      }).join("");
+      return `<div class="kanban-col" data-drop-status="${status}">
+        <div class="kanban-head"><span>${STATUS_LABEL[status]}</span><span class="kanban-count">${rows.length}</span></div>
+        <div class="kanban-list">${cards || `<div class="empty" style="padding:30px 5px">Немає клієнтів</div>`}</div>
+      </div>`;
+    }).join("");
+
+    document.querySelectorAll(".lead-card").forEach((card) => {
+      card.addEventListener("dragstart", () => card.classList.add("dragging"));
+      card.addEventListener("dragend", () => card.classList.remove("dragging"));
+    });
+    document.querySelectorAll("[data-drop-status]").forEach((col) => {
+      col.addEventListener("dragover", (e) => e.preventDefault());
+      col.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        const card = document.querySelector(".lead-card.dragging");
+        if (!card) return;
+        try {
+          await api("/api/leads/" + card.dataset.leadId, {
+            method: "PATCH",
+            body: JSON.stringify({ status: col.dataset.dropStatus }),
+          });
+          loadCrm();
+        } catch (err) { alert(err.message); }
+      });
+    });
+    document.querySelectorAll("[data-open-lead]").forEach((button) =>
+      button.addEventListener("click", () => openLead(crmLeadCache.find((l) => l.id === button.dataset.openLead)))
+    );
+  }
+
+  function openLead(lead) {
+    if (!lead) return;
+    const items = lead.items && lead.items.length
+      ? `<div class="items" style="margin-bottom:16px">${lead.items.map((it) => `<div>• ${esc(it.name)} × ${it.quantity} — ${money(it.price * it.quantity)}</div>`).join("")}</div>`
+      : "";
+    openModal(`<h3>${esc(lead.name)}</h3>
+      <div class="field"><label>Контакт</label><div><a href="tel:${esc(lead.phone)}">${esc(lead.phone)}</a>${lead.email ? ` · ${esc(lead.email)}` : ""}</div></div>
+      ${lead.interest ? `<div class="field"><label>Інтерес</label><div>${esc(lead.interest)}</div></div>` : ""}
+      ${lead.message ? `<div class="field"><label>Повідомлення</label><div>${esc(lead.message)}</div></div>` : ""}
+      ${items}
+      <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
+      <div class="field"><label>Нотатки менеджера</label><textarea id="crm_notes" rows="5" placeholder="Домовленості, наступний крок, бюджет…">${esc(lead.notes || "")}</textarea></div>
+      <div class="error" id="crm_error"></div>
+      <div class="modal-actions"><button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
+    $("crm_cancel").addEventListener("click", closeModal);
+    $("crm_save").addEventListener("click", async () => {
+      try {
+        await api("/api/leads/" + lead.id, { method: "PATCH", body: JSON.stringify({ status: $("crm_status").value, notes: $("crm_notes").value }) });
+        closeModal();
+        loadCrm();
+      } catch (err) { $("crm_error").textContent = err.message; }
+    });
+  }
+
+  // ── Suppliers ─────────────────────────────────────────────────────────────
+  $("addSupplier").addEventListener("click", () => supplierModal(null));
+
+  async function loadSuppliers() {
+    try {
+      supplierCache = await api("/api/crm/suppliers");
+      $("suppliersBody").innerHTML = supplierCache.length ? supplierCache.map((s) => `<article class="supplier-card ${s.active ? "" : "inactive"}">
+        <div style="display:flex;justify-content:space-between;gap:10px"><h3>${esc(s.name)}</h3><span class="badge ${s.active ? "s-done" : ""}">${s.active ? "Активний" : "Вимкнений"}</span></div>
+        <div class="supplier-meta">${s.contactName ? `${esc(s.contactName)}<br>` : ""}${s.phone ? `<a href="tel:${esc(s.phone)}">${esc(s.phone)}</a><br>` : ""}${s.email ? `${esc(s.email)}<br>` : ""}${s.website ? `<a href="${esc(s.website)}" target="_blank" rel="noopener">${esc(s.website)}</a>` : ""}</div>
+        <div class="items">Цін у матриці: <b>${s._count ? s._count.prices : 0}</b></div>
+        <div class="acts"><button class="btn-sm btn-ghost" data-edit-supplier="${esc(s.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-supplier="${esc(s.id)}">Видалити</button></div>
+      </article>`).join("") : `<div class="empty">Додайте першого постачальника</div>`;
+      document.querySelectorAll("[data-edit-supplier]").forEach((b) => b.addEventListener("click", () => supplierModal(supplierCache.find((s) => s.id === b.dataset.editSupplier))));
+      document.querySelectorAll("[data-del-supplier]").forEach((b) => b.addEventListener("click", async () => {
+        if (!confirm("Видалити постачальника та всі його ціни?")) return;
+        try { await api("/api/crm/suppliers/" + b.dataset.delSupplier, { method: "DELETE" }); loadSuppliers(); }
+        catch (err) { alert(err.message); }
+      }));
+    } catch (err) { $("suppliersBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  }
+
+  function supplierModal(supplier) {
+    const isNew = !supplier;
+    const s = supplier || { name: "", contactName: "", phone: "", email: "", website: "", notes: "", active: true };
+    openModal(`<h3>${isNew ? "Новий постачальник" : "Редагувати постачальника"}</h3>
+      <div class="field"><label>Назва *</label><input id="sup_name" value="${esc(s.name)}"></div>
+      <div class="grid2"><div class="field"><label>Контактна особа</label><input id="sup_contact" value="${esc(s.contactName || "")}"></div><div class="field"><label>Телефон</label><input id="sup_phone" value="${esc(s.phone || "")}"></div></div>
+      <div class="grid2"><div class="field"><label>Email</label><input id="sup_email" type="email" value="${esc(s.email || "")}"></div><div class="field"><label>Сайт</label><input id="sup_website" value="${esc(s.website || "")}"></div></div>
+      <div class="field"><label>Умови та нотатки</label><textarea id="sup_notes" rows="4">${esc(s.notes || "")}</textarea></div>
+      <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none"><input id="sup_active" type="checkbox" ${s.active ? "checked" : ""} style="width:auto"> Активний постачальник</label></div>
+      <div class="error" id="sup_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="sup_cancel">Скасувати</button><button class="btn" id="sup_save">Зберегти</button></div>`);
+    $("sup_cancel").addEventListener("click", closeModal);
+    $("sup_save").addEventListener("click", async () => {
+      const body = { name: $("sup_name").value.trim(), contactName: $("sup_contact").value.trim(), phone: $("sup_phone").value.trim(), email: $("sup_email").value.trim(), website: $("sup_website").value.trim(), notes: $("sup_notes").value, active: $("sup_active").checked };
+      try {
+        await api(isNew ? "/api/crm/suppliers" : "/api/crm/suppliers/" + s.id, { method: isNew ? "POST" : "PUT", body: JSON.stringify(body) });
+        closeModal(); loadSuppliers();
+      } catch (err) { $("sup_error").textContent = err.message; }
+    });
+  }
+
+  // ── Supplier price matrix ─────────────────────────────────────────────────
+  $("refreshPricing").addEventListener("click", loadPricing);
+
+  async function loadPricing() {
+    try {
+      const data = await api("/api/crm/price-matrix");
+      const covered = new Set(data.prices.map((p) => p.productId)).size;
+      $("pricingSummary").innerHTML = [["Товарів", data.products.length], ["Постачальників", data.suppliers.length], ["З цінами", covered]].map(([l, n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+      if (!data.suppliers.length) {
+        $("pricingBody").innerHTML = `<div class="card empty">Спочатку додайте постачальників</div>`;
+        return;
+      }
+      const priceMap = new Map(data.prices.map((p) => [`${p.productId}:${p.supplierId}`, p]));
+      const head = data.suppliers.map((s) => `<th>${esc(s.name)}</th>`).join("");
+      const rows = data.products.map((product) => {
+        const cells = data.suppliers.map((supplier) => {
+          const row = priceMap.get(`${product.id}:${supplier.id}`);
+          const isBest = row && data.bestByProduct[product.id] === row.price && row.availability !== "unavailable";
+          const margin = row && product.retailPrice > 0 ? Math.round(((product.retailPrice - row.price) / product.retailPrice) * 100) : null;
+          return `<td class="price-cell ${isBest ? "best" : ""}"><input type="number" min="0" placeholder="—" value="${row ? row.price : ""}" data-price-product="${esc(product.id)}" data-price-supplier="${esc(supplier.id)}">
+            ${isBest ? `<span class="best-label">✓ Найкраща ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
+        }).join("");
+        return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.category)} · роздріб ${money(product.retailPrice)}</div></td>${cells}</tr>`;
+      }).join("");
+      $("pricingBody").innerHTML = `<div class="matrix-wrap"><table class="price-matrix"><thead><tr><th>Товар</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      document.querySelectorAll("[data-price-product]").forEach((input) => input.addEventListener("change", async () => {
+        input.disabled = true;
+        try {
+          if (input.value === "") {
+            await api("/api/crm/prices", { method: "DELETE", body: JSON.stringify({ productId: input.dataset.priceProduct, supplierId: input.dataset.priceSupplier }) });
+          } else {
+            await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.priceProduct, supplierId: input.dataset.priceSupplier, price: Number(input.value), currency: "USD", availability: "in_stock", minOrderQty: 1 }) });
+          }
+          loadPricing();
+        } catch (err) { input.disabled = false; alert(err.message); }
+      }));
+    } catch (err) { $("pricingBody").innerHTML = `<div class="card empty">${esc(err.message)}</div>`; }
+  }
 
   // ── leads ─────────────────────────────────────────────────────────────────
   $("refreshLeads").addEventListener("click", loadLeads);
@@ -147,8 +337,9 @@
             l.items.map((it) => `<div>• ${esc(it.name)} × ${it.quantity} — ${money(it.price * it.quantity)}</div>`).join("") +
             `<div><strong>Разом: ${money(l.total)}</strong></div></div>`;
         }
-        const statusOpts = ["new", "in_progress", "done"]
-          .map((s) => `<option value="${s}" ${s === l.status ? "selected" : ""}>${STATUS_LABEL[s]}</option>`)
+        const normalizedStatus = l.status === "in_progress" ? "contacted" : l.status === "done" ? "won" : l.status;
+        const statusOpts = CRM_STATUSES
+          .map((s) => `<option value="${s}" ${s === normalizedStatus ? "selected" : ""}>${STATUS_LABEL[s]}</option>`)
           .join("");
         return `<tr>
           <td class="nowrap"><span class="badge b-${l.type}">${TYPE_LABEL[l.type] || l.type}</span></td>
@@ -936,7 +1127,7 @@
     try {
       const me = await api("/api/auth/me");
       showApp(me.admin.email);
-      loadLeads();
+      loadCrm();
     } catch {
       logout();
     }
