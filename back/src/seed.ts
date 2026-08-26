@@ -61,6 +61,12 @@ async function main() {
   console.log(`[seed] Categories: ${categories.length} ensured`);
 
   // ── Testimonials ──────────────────────────────────────────────────────────
+  // Drop the legacy template placeholder reviews (t1–t4) so the storefront's
+  // reviews section stays hidden until real ones are added. Genuine reviews use
+  // their own ids and are never touched here.
+  const removedReviews = await prisma.testimonial.deleteMany({
+    where: { id: { in: ["t1", "t2", "t3", "t4"] } },
+  });
   order = 0;
   for (const t of testimonials) {
     const data = {
@@ -75,10 +81,12 @@ async function main() {
     await prisma.testimonial.upsert({
       where: { id: t.id },
       create: { id: t.id, ...data },
-      update: data, // sync the seeded placeholder reviews (t1–t4) on every deploy
+      update: data,
     });
   }
-  console.log(`[seed] Testimonials: ${testimonials.length} upserted`);
+  console.log(
+    `[seed] Testimonials: ${testimonials.length} upserted, ${removedReviews.count} placeholder(s) removed`,
+  );
 
   // ── Appliances (power calculator) ─────────────────────────────────────────
   order = 0;

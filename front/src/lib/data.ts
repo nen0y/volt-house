@@ -105,41 +105,7 @@ export const products: Product[] = [
   },
 ];
 
-export const testimonials: Testimonial[] = [
-  {
-    id: "t1",
-    name: "Максим Коваленко",
-    location: "Київ",
-    rating: 5,
-    text: "Встановили гібридний інвертор Deye SUN-8K з акумуляторами SE-G5.1 — вдень будинок живиться від сонця, а під час відключень автоматично переходить на батареї. Дуже задоволені.",
-    avatar: "МК",
-    product: "Deye SUN-8K + SE-G5.1",
-  },
-  {
-    id: "t2",
-    name: "Оксана Мельник",
-    location: "Харків",
-    rating: 5,
-    text: "Минулої зими були постійні відключення — тепер про них майже не згадуємо завдяки системі від E-Kit на базі Deye. Моніторинг через Wi-Fi зручний: бачу все зі свого телефону.",
-    avatar: "ОМ",
-    product: "Deye SUN-12K",
-  },
-  {
-    id: "t3",
-    name: "Дмитро Іванченко",
-    location: "Дніпро",
-    rating: 5,
-    text: "Накопичувач Deye впевнено тримає холодильник і опалення під час тривалих відключень. Встановили швидко, працює надійно.",
-    avatar: "ДІ",
-    product: "Deye SE-F16",
-  },
-  {
-    id: "t4",
-    name: "Олена Шевченко",
-    location: "Львів",
-    rating: 5,
-    text: "Трифазний інвертор Deye SUN-30K чудово підійшов для нашого будинку. Команда монтажників E-Kit — професіонали, усе зробили за день.",
-    avatar: "ОШ",
-    product: "Deye SUN-30K",
-  },
-];
+// No placeholder reviews — the storefront hides the reviews section when the
+// list is empty. Real reviews are served by the API (add them via
+// POST /api/testimonials).
+export const testimonials: Testimonial[] = [];

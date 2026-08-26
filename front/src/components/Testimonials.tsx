@@ -28,6 +28,9 @@ export default function Testimonials({ testimonials }: { testimonials: Testimoni
 
   const list = data ?? testimonials;
 
+  // Hide the whole section when there are no reviews yet.
+  if (!list.length) return null;
+
   return (
     <section id="reviews" className="bg-gray-100 py-[56px]">
       <div className="max-w-[1280px] mx-auto px-[24px]">
