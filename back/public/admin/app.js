@@ -634,9 +634,7 @@
     const selectedCategoryKeys = new Set(p.categoryKeys || [p.category]);
     openModal(`
       <h3>${isNew ? "Новий товар" : "Редагувати товар"}</h3>
-      <div class="field"><label>ID (латиницею, напр. inv-5kw)</label><input id="m_id" value="${esc(p.id)}" ${
-      isNew ? "" : "readonly"
-    } /></div>
+      <div class="field"><label>Slug (латиницею, напр. inv-5kw)</label><input id="m_id" value="${esc(p.id)}" /></div>
       <div class="field"><label>Назва</label><input id="m_name" value="${esc(p.name)}" /></div>
       <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none"><input id="m_enabled" type="checkbox" ${p.enabled === false ? "" : "checked"} style="width:auto"> Активний товар (показувати на сайті)</label></div>
       <div class="grid2">
@@ -751,8 +749,10 @@
         features: $("m_features").value.split("\n").map((s) => s.trim()).filter(Boolean),
       };
       try {
-        // POST upserts by id (works for both create and edit)
-        await api("/api/products", { method: "POST", body: JSON.stringify(body) });
+        await api(isNew ? "/api/products" : "/api/products/" + encodeURIComponent(p.id), {
+          method: isNew ? "POST" : "PUT",
+          body: JSON.stringify(body),
+        });
         closeModal();
         loadProducts();
       } catch (err) {

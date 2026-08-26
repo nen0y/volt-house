@@ -130,22 +130,53 @@ productsRouter.put("/:id", requireAdmin, async (req, res) => {
   const exists = await prisma.product.findUnique({ where: { id: req.params.id } });
   if (!exists) return res.status(404).json({ error: "Товар не знайдено" });
 
-  const { id: _ignore, features, ...rest } = parsed.data;
+  const { id: requestedId, features, ...rest } = parsed.data;
+  const nextId = requestedId?.trim() || req.params.id;
+  if (nextId !== req.params.id) {
+    const collision = await prisma.product.findUnique({ where: { id: nextId }, select: { id: true } });
+    if (collision) return res.status(409).json({ error: "Товар із таким slug уже існує" });
+  }
   const categoryKeysInput = rest.categoryKeys;
   delete rest.categoryKeys;
-  const data: Record<string, unknown> = { ...rest };
+  const data: Record<string, unknown> = { ...rest, ...(nextId !== req.params.id ? { id: nextId } : {}) };
   if (features !== undefined) data.features = JSON.stringify(features);
 
-  const saved = await prisma.product.update({
-    where: { id: req.params.id },
-    data: data as any,
+  const saved = await prisma.$transaction(async (tx) => {
+    const updated = await tx.product.update({ where: { id: req.params.id }, data: data as any });
+
+    if (nextId !== req.params.id) {
+      const [homeSections, contentBlocks] = await Promise.all([
+        tx.homeSection.findMany({ select: { id: true, productIds: true } }),
+        tx.contentBlock.findMany({ select: { key: true, productIds: true } }),
+      ]);
+      for (const section of homeSections) {
+        const ids = parseStringArray(section.productIds);
+        if (ids.includes(req.params.id)) {
+          await tx.homeSection.update({
+            where: { id: section.id },
+            data: { productIds: JSON.stringify(ids.map((id) => (id === req.params.id ? nextId : id))) },
+          });
+        }
+      }
+      for (const block of contentBlocks) {
+        const ids = parseStringArray(block.productIds);
+        if (ids.includes(req.params.id)) {
+          await tx.contentBlock.update({
+            where: { key: block.key },
+            data: { productIds: JSON.stringify(ids.map((id) => (id === req.params.id ? nextId : id))) },
+          });
+        }
+      }
+    }
+
+    if (categoryKeysInput !== undefined || parsed.data.category !== undefined) {
+      const primary = parsed.data.category ?? exists.category;
+      const categoryKeys = Array.from(new Set([primary, ...(categoryKeysInput ?? [])]));
+      await tx.productCategoryLink.deleteMany({ where: { productId: updated.id } });
+      await tx.productCategoryLink.createMany({ data: categoryKeys.map((categoryKey) => ({ productId: updated.id, categoryKey })) });
+    }
+    return updated;
   });
-  if (categoryKeysInput !== undefined || parsed.data.category !== undefined) {
-    const primary = parsed.data.category ?? exists.category;
-    const categoryKeys = Array.from(new Set([primary, ...(categoryKeysInput ?? [])]));
-    await prisma.productCategoryLink.deleteMany({ where: { productId: saved.id } });
-    await prisma.productCategoryLink.createMany({ data: categoryKeys.map((categoryKey) => ({ productId: saved.id, categoryKey })) });
-  }
   const result = await prisma.product.findUnique({ where: { id: saved.id }, include: productIncludes });
   res.json(toDto(result));
 });
