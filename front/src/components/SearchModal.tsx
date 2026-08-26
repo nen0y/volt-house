@@ -93,9 +93,16 @@ export default function SearchModal({
           <div className="border-t border-gray-100 max-h-[70vh] overflow-y-auto">
             <div className="max-w-[1280px] mx-auto px-[24px] py-[24px]">
               {results.length === 0 ? (
-                <p className="text-[14px] text-gray-500 py-[16px] text-center">
-                  Нічого не знайдено за запитом &ldquo;{query}&rdquo;
-                </p>
+                <div className="text-[14px] text-gray-500 py-[16px] text-center">
+                  <p>Нічого не знайдено за запитом &ldquo;{query}&rdquo;.</p>
+                  <p className="mt-[8px]">
+                    Товар може бути в наявності, хоча його ще немає на сайті.{" "}
+                    <a href="/#contact" onClick={onClose} className="font-semibold text-amber-700 underline underline-offset-2">
+                      Уточніть у менеджера
+                    </a>
+                    .
+                  </p>
+                </div>
               ) : (
                 <>
                   <p className="text-[12px] text-gray-400 mb-[16px]">

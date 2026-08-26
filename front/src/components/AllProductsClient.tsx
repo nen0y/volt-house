@@ -77,7 +77,16 @@ export default function AllProductsClient({
       {/* Heading */}
       <div className="mb-[24px]">
         <h1 className="text-[28px] font-bold text-gray-900 mb-[4px]">{activeLabel}</h1>
-        <p className="text-[14px] text-gray-500">{visible.length} товарів у наявності</p>
+        <p className="text-[14px] text-gray-500">{visible.length} товарів у каталозі</p>
+      </div>
+
+      <div className="mb-[20px] rounded-[12px] border border-amber-200 bg-amber-50 px-[16px] py-[13px] text-[13px] leading-relaxed text-gray-700">
+        <strong className="text-gray-900">Не знайшли потрібний товар?</strong>{" "}
+        Ми постійно оновлюємо асортимент, тому товар може бути в наявності, навіть якщо його поки немає на сайті.{" "}
+        <a href="/#contact" className="font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800">
+          Уточніть у менеджера
+        </a>
+        .
       </div>
 
       {/* Search + sort */}
@@ -185,8 +194,12 @@ export default function AllProductsClient({
           ))}
         </div>
       ) : (
-        <div className="text-center py-[60px] text-gray-400 text-[14px]">
-          Нічого не знайдено. Спробуйте змінити фільтри.
+        <div className="text-center py-[60px] text-gray-500 text-[14px]">
+          <p>Нічого не знайдено. Спробуйте змінити фільтри.</p>
+          <p className="mt-[8px]">
+            Потрібний товар може бути в наявності —{" "}
+            <a href="/#contact" className="font-semibold text-amber-700 underline underline-offset-2">уточніть у менеджера</a>.
+          </p>
         </div>
       )}
     </div>
