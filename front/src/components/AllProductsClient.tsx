@@ -26,7 +26,7 @@ export default function AllProductsClient({
   const { data: catData } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
   const categories = (catData ?? FALLBACK_CATEGORIES).filter((c) => c.enabled);
 
-  const filters = [{ key: "all", label: "Всі товари", depth: 0 }, ...categories.map((c) => ({ key: c.key, label: c.label, depth: c.parentKey ? 1 : 0 }))];
+  const rootCategories = categories.filter((c) => !c.parentKey);
 
   const categoryKeys = useCallback((key: string) => {
     const keys = [key];
@@ -64,7 +64,13 @@ export default function AllProductsClient({
 
   const brands = useMemo(() => Array.from(new Map(all.filter((p) => p.brand).map((p) => [p.brand!.slug, p.brand!])).values()).sort((a, b) => a.name.localeCompare(b.name, "uk")), [all]);
 
-  const activeLabel = filters.find((f) => f.key === filter)?.label ?? "Товари";
+  const activeCategory = categories.find((c) => c.key === filter);
+  const activeRootKey = activeCategory?.parentKey || activeCategory?.key;
+  const activeRoot = rootCategories.find((c) => c.key === activeRootKey);
+  const subcategories = activeRootKey
+    ? categories.filter((c) => c.parentKey === activeRootKey)
+    : [];
+  const activeLabel = filter === "all" ? "Всі товари" : activeCategory?.label ?? "Товари";
 
   return (
     <div className="max-w-[1280px] mx-auto px-[24px] py-[40px]">
@@ -108,28 +114,62 @@ export default function AllProductsClient({
         </select>
       </div>
 
-      {/* Category filters */}
-      <div className="flex items-center gap-[8px] mb-[24px] flex-wrap">
-        {filters.map((f) => (
+      {/* Main categories */}
+      <div className="mb-[24px]">
+        <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500 mb-[8px]">Основні категорії</div>
+        <div className="flex items-center gap-[8px] flex-wrap">
+        {[{ key: "all", label: "Всі товари" }, ...rootCategories].map((f) => {
+          const isActive = f.key === "all" ? filter === "all" : activeRootKey === f.key;
+          return (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
             className={`flex items-center gap-[6px] px-[16px] py-[8px] rounded-full text-[13px] font-medium transition-colors cursor-pointer ${
-              filter === f.key
+              isActive
                 ? "bg-[#FFC107] text-gray-950"
                 : "bg-white border border-gray-200 text-gray-700 hover:border-gray-300"
             }`}
           >
-            {f.depth ? `↳ ${f.label}` : f.label}
+            {f.label}
             <span
               className={`text-[11px] font-bold px-[6px] py-[1px] rounded-full ${
-                filter === f.key ? "bg-gray-950 text-[#FFC107]" : "bg-gray-100 text-gray-500"
+                isActive ? "bg-gray-950 text-[#FFC107]" : "bg-gray-100 text-gray-500"
               }`}
             >
               {count(f.key)}
             </span>
           </button>
-        ))}
+          );
+        })}
+        </div>
+
+        {activeRoot && subcategories.length > 0 && (
+          <div className="mt-[14px] rounded-[12px] border border-gray-200 bg-white p-[14px] shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-[10px]">
+              <div className="sm:min-w-[190px]">
+                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-amber-700">Підкатегорії</div>
+                <div className="text-[13px] font-semibold text-gray-900 mt-[2px]">{activeRoot.label}</div>
+              </div>
+              <div className="flex items-center gap-[8px] flex-wrap border-gray-100 sm:border-l sm:pl-[14px]">
+                <button
+                  onClick={() => setFilter(activeRoot.key)}
+                  className={`px-[14px] py-[7px] rounded-[8px] text-[13px] font-medium border cursor-pointer ${filter === activeRoot.key ? "bg-gray-950 border-gray-950 text-white" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"}`}
+                >
+                  Усі в категорії <span className="ml-[4px] text-[11px] opacity-70">{count(activeRoot.key)}</span>
+                </button>
+                {subcategories.map((sub) => (
+                  <button
+                    key={sub.key}
+                    onClick={() => setFilter(sub.key)}
+                    className={`px-[14px] py-[7px] rounded-[8px] text-[13px] font-medium border cursor-pointer ${filter === sub.key ? "bg-amber-100 border-amber-400 text-amber-950" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"}`}
+                  >
+                    {sub.label} <span className="ml-[4px] text-[11px] opacity-70">{count(sub.key)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Grid */}
