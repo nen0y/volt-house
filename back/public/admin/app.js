@@ -299,6 +299,9 @@
               <td>${s._count ? s._count.prices : 0}</td>
               <td><span class="badge ${s.active ? "s-done" : "s-new"}">${s.active ? "Активний" : "Вимкнений"}</span></td>
               <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-supplier="${esc(s.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-supplier="${esc(s.id)}">Видалити</button></div></td>
+            </tr>
+            <tr class="supplier-notes-row ${s.active ? "" : "supplier-inactive"}">
+              <td colspan="8"><div class="supplier-notes"><strong>Нотатки:</strong><span>${esc(s.notes || "Нотаток поки немає")}</span></div></td>
             </tr>`).join("")
           }</tbody></table>`
         : `<div class="empty">Додайте першого постачальника</div>`;
