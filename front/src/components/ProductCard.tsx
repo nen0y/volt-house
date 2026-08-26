@@ -80,10 +80,10 @@ export default function ProductCard({ product }: { product: Product }) {
         </div>
       )}
 
-      <div className="bg-gray-50 h-[200px] flex items-center justify-center overflow-hidden">
+      <div className="bg-gray-50 h-[200px] flex items-center justify-center overflow-hidden p-[12px]">
         {product.images && product.images.length > 0 ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={assetUrl(product.images[0])} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+          <img src={assetUrl(product.images[0])} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-contain" />
         ) : (
           categoryIcon[product.category] ?? fallbackIcon
         )}

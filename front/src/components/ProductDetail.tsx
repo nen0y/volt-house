@@ -150,7 +150,7 @@ export default function ProductDetail({
                       }`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={assetUrl(img)} alt="" className="w-full h-full object-cover" />
+                      <img src={assetUrl(img)} alt="" className="w-full h-full object-contain bg-white p-[3px]" />
                     </button>
                   ))}
                 </div>
