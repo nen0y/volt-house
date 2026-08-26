@@ -518,11 +518,17 @@
     $("productFilterCount").textContent = `Показано ${rows.length} із ${productCache.length}`;
     $("productsBody").innerHTML = rows.length ? `<table><thead><tr><th>Товар</th><th>Бренд</th><th>Категорії</th><th>Ціна</th><th>Параметри</th><th></th></tr></thead><tbody>${rows.map((p) => {
       const labels = (p.categoryKeys || [p.category]).map((key) => categoryCache.find((c) => c.key === key)?.label || key);
-      return `<tr><td><strong>${esc(p.name)}</strong><div class="muted" style="font-size:11px">${esc(p.id)}</div></td>
+      const productImage = (p.images || []).find(Boolean) || (p.image && p.image !== "/placeholder.jpg" ? p.image : "");
+      return `<tr><td><div class="product-cell"><div class="product-thumb${productImage ? "" : " missing"}">${productImage ? `<img data-product-thumb src="${esc(productImage)}" alt="">` : ""}</div><div><strong>${esc(p.name)}</strong><div class="muted" style="font-size:11px">${esc(p.id)}</div></div></div></td>
         <td>${esc(p.brand?.name || "—")}</td><td>${labels.map((label) => `<span class="badge" style="margin:2px">${esc(label)}</span>`).join("")}</td>
         <td class="nowrap"><strong>${money(p.price)}</strong></td><td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency, p.warranty].filter(Boolean).map(esc).join(" · ") || "—"}</td>
         <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-product="${esc(p.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button></div></td></tr>`;
     }).join("")}</tbody></table>` : `<div class="empty">За цими фільтрами товарів немає</div>`;
+    document.querySelectorAll("[data-product-thumb]").forEach((img) => img.addEventListener("error", () => {
+      const frame = img.parentElement;
+      img.remove();
+      frame?.classList.add("missing");
+    }));
     document.querySelectorAll("[data-edit-product]").forEach((b) => b.addEventListener("click", () => productModal(productCache.find((p) => p.id === b.dataset.editProduct))));
     document.querySelectorAll("[data-del-product]").forEach((b) => b.addEventListener("click", async () => {
       if (!confirm("Видалити товар?")) return;
