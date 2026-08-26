@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useQuery } from "@tanstack/react-query";
 import SearchModal from "./SearchModal";
 import CartDrawer from "./CartDrawer";
 import PowerCalculatorModal from "./PowerCalculatorModal";
 import ConsultationModal from "./ConsultationModal";
 import { useCart } from "@/context/CartContext";
+import { fetchTestimonials } from "@/lib/api";
 
 const navLinks = [
   { label: "Товари",         href: "/products" },
@@ -24,6 +26,12 @@ export default function Navbar() {
   const [calcOpen, setCalcOpen] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
   const { count } = useCart();
+
+  // Hide the "Відгуки" link when there are no reviews (the section itself is
+  // hidden too), so the menu never points at an empty anchor.
+  const { data: reviews } = useQuery({ queryKey: ["testimonials"], queryFn: fetchTestimonials });
+  const links =
+    reviews && reviews.length > 0 ? navLinks : navLinks.filter((l) => l.href !== "/#reviews");
 
   useEffect(() => {
     let rafId: number;
@@ -66,7 +74,7 @@ export default function Navbar() {
 
             {/* Desktop nav */}
             <div className="hidden lg:flex items-center gap-[28px] flex-1 justify-center">
-              {navLinks.map((l) => (
+              {links.map((l) => (
                 <Link
                   key={l.label}
                   href={l.href}
@@ -149,7 +157,7 @@ export default function Navbar() {
           {/* Mobile menu */}
           {menuOpen && (
             <div className="lg:hidden bg-white border-t border-gray-100 px-[24px] py-[16px] flex flex-col gap-[16px]">
-              {navLinks.map((l) => (
+              {links.map((l) => (
                 <Link
                   key={l.label}
                   href={l.href}
