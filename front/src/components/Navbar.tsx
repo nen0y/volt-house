@@ -13,6 +13,7 @@ import { fetchTestimonials } from "@/lib/api";
 
 const navLinks = [
   { label: "Товари",         href: "/products" },
+  { label: "Категорії",      href: "/#categories" },
   { label: "Як це працює",   href: "/#how-it-works" },
   { label: "Відгуки",        href: "/#reviews" },
   { label: "Контакти",       href: "/#contact" },

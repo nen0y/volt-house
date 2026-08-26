@@ -13,7 +13,7 @@ export default function CategoriesBlock() {
   if (categories.length === 0) return null;
 
   return (
-    <section className="bg-gray-100 py-[32px]">
+    <section id="categories" className="bg-gray-100 py-[32px] scroll-mt-[80px]">
       <div className="max-w-[1280px] mx-auto px-[24px]">
         <div className="flex items-center justify-between mb-[16px]">
           <h2 className="text-[22px] font-bold text-gray-900">Категорії</h2>
