@@ -6,10 +6,10 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
 
 export async function getProductsServer(): Promise<Product[]> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/products`, { next: { revalidate: 60 }, signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${BACKEND_URL}/api/products`, { cache: "no-store", signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data) && data.length) return data as Product[];
+      if (Array.isArray(data)) return data as Product[];
     }
   } catch {
     // backend unreachable (e.g. during a build before it is up) — use local data
@@ -33,7 +33,7 @@ export async function getSeoServer(): Promise<{ indexable: boolean }> {
 export async function getProductServer(id: string): Promise<Product | null> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/products/${encodeURIComponent(id)}`, {
-      next: { revalidate: 60 },
+      cache: "no-store",
       signal: AbortSignal.timeout(3000),
     });
     if (res.ok) return (await res.json()) as Product;

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { products } from "@/lib/data";
+import { useQuery } from "@tanstack/react-query";
+import { fetchProducts } from "@/lib/api";
 import ProductCard from "./ProductCard";
 import type { Product } from "@/types";
 
-function useSearchResults(query: string): Product[] {
+function searchProducts(products: Product[], query: string): Product[] {
   if (!query.trim()) return [];
   const q = query.toLowerCase();
   return products.filter(
@@ -26,7 +27,8 @@ export default function SearchModal({
 }) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const results = useSearchResults(query);
+  const { data: products = [] } = useQuery({ queryKey: ["products"], queryFn: () => fetchProducts() });
+  const results = searchProducts(products, query);
 
   useEffect(() => {
     if (isOpen) {

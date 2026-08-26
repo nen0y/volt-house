@@ -1,7 +1,7 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AllProductsClient from "@/components/AllProductsClient";
-import { products } from "@/lib/data";
+import { getProductsServer } from "@/lib/server-api";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -22,6 +22,7 @@ export default async function AllProductsPage({
   searchParams: Promise<{ category?: string }>;
 }) {
   const { category } = await searchParams;
+  const products = await getProductsServer();
   return (
     <>
       <Navbar />

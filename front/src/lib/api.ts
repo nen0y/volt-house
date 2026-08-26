@@ -26,7 +26,7 @@ export async function fetchProducts(category?: string): Promise<Product[]> {
     const { data } = await api.get<Product[]>("/api/products", {
       params: category && category !== "all" ? { category } : undefined,
     });
-    if (Array.isArray(data) && data.length) return data;
+    if (Array.isArray(data)) return data;
   } catch {
     // fall through to local data
   }

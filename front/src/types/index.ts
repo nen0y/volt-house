@@ -30,6 +30,7 @@ export interface Product {
   features: string[];
   image: string;
   images?: string[]; // uploaded image URLs ("/uploads/..."); empty → category SVG fallback
+  enabled?: boolean;
 }
 
 export type HomeSectionMode = "products" | "category" | "cta";

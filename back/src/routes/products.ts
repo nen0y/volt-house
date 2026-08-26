@@ -27,6 +27,7 @@ function toDto(p: any) {
     features: parseStringArray(p.features),
     image: p.image,
     images: parseStringArray(p.images),
+    enabled: p.enabled,
   };
 }
 
@@ -44,8 +45,8 @@ productsRouter.get("/", async (req, res) => {
     }
   }
   const where = categoryKeys.length
-    ? { OR: [{ category: { in: categoryKeys } }, { categoryLinks: { some: { categoryKey: { in: categoryKeys } } } }] }
-    : {};
+    ? { enabled: true, OR: [{ category: { in: categoryKeys } }, { categoryLinks: { some: { categoryKey: { in: categoryKeys } } } }] }
+    : { enabled: true };
   const rows = await prisma.product.findMany({
     where,
     include: productIncludes,
@@ -54,9 +55,18 @@ productsRouter.get("/", async (req, res) => {
   res.json(rows.map(toDto));
 });
 
+// GET /api/products/admin/all — includes disabled products for management.
+productsRouter.get("/admin/all", requireAdmin, async (_req, res) => {
+  const rows = await prisma.product.findMany({
+    include: productIncludes,
+    orderBy: [{ enabled: "desc" }, { sortOrder: "asc" }, { name: "asc" }],
+  });
+  res.json(rows.map(toDto));
+});
+
 // GET /api/products/:id
 productsRouter.get("/:id", async (req, res) => {
-  const p = await prisma.product.findUnique({ where: { id: req.params.id }, include: productIncludes });
+  const p = await prisma.product.findFirst({ where: { id: req.params.id, enabled: true }, include: productIncludes });
   if (!p) return res.status(404).json({ error: "Товар не знайдено" });
   res.json(toDto(p));
 });
@@ -76,6 +86,7 @@ const productSchema = z.object({
   badge: z.string().nullish(),
   features: z.array(z.string()).default([]),
   image: z.string().default(""),
+  enabled: z.boolean().default(true),
   sortOrder: z.number().int().optional(),
 });
 
@@ -97,6 +108,7 @@ productsRouter.post("/", requireAdmin, async (req, res) => {
     badge: d.badge ?? null,
     features: JSON.stringify(d.features),
     image: d.image,
+    enabled: d.enabled,
     sortOrder: d.sortOrder ?? 0,
   };
   const saved = await prisma.product.upsert({

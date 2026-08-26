@@ -527,7 +527,7 @@
 
   async function loadProducts() {
     try {
-      const [products, cats, brands] = await Promise.all([api("/api/products"), api("/api/categories?all=1"), api("/api/brands?all=1")]);
+      const [products, cats, brands] = await Promise.all([api("/api/products/admin/all"), api("/api/categories?all=1"), api("/api/brands?all=1")]);
       productCache = products;
       categoryCache = cats;
       brandCache = brands;
@@ -550,13 +550,13 @@
       return matchesText && matchesCategory && matchesBrand;
     });
     $("productFilterCount").textContent = `Показано ${rows.length} із ${productCache.length}`;
-    $("productsBody").innerHTML = rows.length ? `<table><thead><tr><th>Товар</th><th>Бренд</th><th>Категорії</th><th>Ціна</th><th>Параметри</th><th></th></tr></thead><tbody>${rows.map((p) => {
+    $("productsBody").innerHTML = rows.length ? `<table><thead><tr><th>Товар</th><th>Бренд</th><th>Категорії</th><th>Ціна</th><th>Статус</th><th>Параметри</th><th></th></tr></thead><tbody>${rows.map((p) => {
       const labels = (p.categoryKeys || [p.category]).map((key) => categoryCache.find((c) => c.key === key)?.label || key);
       const productImage = (p.images || []).find(Boolean) || (p.image && p.image !== "/placeholder.jpg" ? p.image : "");
-      return `<tr><td><div class="product-cell"><div class="product-thumb${productImage ? "" : " missing"}">${productImage ? `<img data-product-thumb src="${esc(productImage)}" alt="">` : ""}</div><div><strong>${esc(p.name)}</strong><div class="muted" style="font-size:11px">${esc(p.id)}</div></div></div></td>
+      return `<tr class="${p.enabled === false ? "supplier-inactive" : ""}"><td><div class="product-cell"><div class="product-thumb${productImage ? "" : " missing"}">${productImage ? `<img data-product-thumb src="${esc(productImage)}" alt="">` : ""}</div><div><strong>${esc(p.name)}</strong><div class="muted" style="font-size:11px">${esc(p.id)}</div></div></div></td>
         <td>${esc(p.brand?.name || "—")}</td><td>${labels.map((label) => `<span class="badge" style="margin:2px">${esc(label)}</span>`).join("")}</td>
-        <td class="nowrap"><strong>${money(p.price)}</strong></td><td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency, p.warranty].filter(Boolean).map(esc).join(" · ") || "—"}</td>
-        <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-product="${esc(p.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button></div></td></tr>`;
+        <td class="nowrap"><strong>${p.price > 0 ? money(p.price) : "—"}</strong></td><td><span class="badge ${p.enabled === false ? "s-new" : "s-done"}">${p.enabled === false ? "Вимкнений" : "Активний"}</span></td><td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency, p.warranty].filter(Boolean).map(esc).join(" · ") || "—"}</td>
+        <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-toggle-product="${esc(p.id)}">${p.enabled === false ? "Увімкнути" : "Вимкнути"}</button><button class="btn-sm btn-ghost" data-edit-product="${esc(p.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button></div></td></tr>`;
     }).join("")}</tbody></table>` : `<div class="empty">За цими фільтрами товарів немає</div>`;
     document.querySelectorAll("[data-product-thumb]").forEach((img) => img.addEventListener("error", () => {
       const frame = img.parentElement;
@@ -564,6 +564,12 @@
       frame?.classList.add("missing");
     }));
     document.querySelectorAll("[data-edit-product]").forEach((b) => b.addEventListener("click", () => productModal(productCache.find((p) => p.id === b.dataset.editProduct))));
+    document.querySelectorAll("[data-toggle-product]").forEach((b) => b.addEventListener("click", async () => {
+      const product = productCache.find((p) => p.id === b.dataset.toggleProduct);
+      if (!product) return;
+      try { await api("/api/products/" + encodeURIComponent(product.id), { method: "PUT", body: JSON.stringify({ enabled: product.enabled === false }) }); loadProducts(); }
+      catch (err) { alert(err.message); }
+    }));
     document.querySelectorAll("[data-del-product]").forEach((b) => b.addEventListener("click", async () => {
       if (!confirm("Видалити товар?")) return;
       try { await api("/api/products/" + b.dataset.delProduct, { method: "DELETE" }); loadProducts(); } catch (err) { alert(err.message); }
@@ -624,7 +630,7 @@
 
   function productModal(p) {
     const isNew = !p;
-    p = p || { id: "", name: "", category: "inverter", categoryKeys: ["inverter"], price: 0, warranty: "", features: [], image: "", images: [] };
+    p = p || { id: "", name: "", category: "inverter", categoryKeys: ["inverter"], price: 0, warranty: "", features: [], image: "", images: [], enabled: true };
     const selectedCategoryKeys = new Set(p.categoryKeys || [p.category]);
     openModal(`
       <h3>${isNew ? "Новий товар" : "Редагувати товар"}</h3>
@@ -632,6 +638,7 @@
       isNew ? "" : "readonly"
     } /></div>
       <div class="field"><label>Назва</label><input id="m_name" value="${esc(p.name)}" /></div>
+      <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none"><input id="m_enabled" type="checkbox" ${p.enabled === false ? "" : "checked"} style="width:auto"> Активний товар (показувати на сайті)</label></div>
       <div class="grid2">
         <div class="field"><label>Основна категорія</label><select id="m_category">
           ${(() => {
@@ -726,6 +733,7 @@
       const body = {
         id: $("m_id").value.trim(),
         name: $("m_name").value.trim(),
+        enabled: $("m_enabled").checked,
         category: $("m_category").value,
         categoryKeys: Array.from(new Set([
           $("m_category").value,
@@ -852,7 +860,7 @@
         : `<div class="empty">Категорій немає</div>`;
       // make sure productCache is populated for the "Товарів" count
       if (!productCache.length) {
-        productCache = await api("/api/products");
+        productCache = await api("/api/products/admin/all");
         loadCategories();
         return;
       }
@@ -937,7 +945,7 @@
     try {
       const [sections, products, cats] = await Promise.all([
         api("/api/home-sections?all=1"),
-        api("/api/products"),
+        api("/api/products/admin/all"),
         api("/api/categories?all=1"),
       ]);
       homeCache = sections;
@@ -1076,7 +1084,7 @@
   // ── content blocks ────────────────────────────────────────────────────────
   async function loadContent() {
     try {
-      const [blocks, products] = await Promise.all([api("/api/content"), api("/api/products")]);
+      const [blocks, products] = await Promise.all([api("/api/content"), api("/api/products/admin/all")]);
       productCache = products;
       contentCache = blocks;
       const keys = Object.keys(blocks);
@@ -1153,7 +1161,7 @@
     try {
       const [data, products, cats] = await Promise.all([
         api("/api/calculator"),
-        api("/api/products"),
+        api("/api/products/admin/all"),
         api("/api/categories?all=1"),
       ]);
       productCache = products;
