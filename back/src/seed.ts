@@ -75,7 +75,7 @@ async function main() {
     await prisma.testimonial.upsert({
       where: { id: t.id },
       create: { id: t.id, ...data },
-      update: {}, // preserve migrated/admin-edited reviews
+      update: data, // sync the seeded placeholder reviews (t1–t4) on every deploy
     });
   }
   console.log(`[seed] Testimonials: ${testimonials.length} upserted`);
