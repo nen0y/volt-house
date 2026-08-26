@@ -12,7 +12,7 @@ import { prisma } from "./prisma";
 // В наявності   → in_stock
 // Очікуємо / Передзамовлення / В резерві → preorder
 
-const SUPPLIER_NAME = "SolarFlow";
+const SUPPLIER_NAME = "SOLAR FLOW";
 
 // Products to create if they don't exist yet.
 // brandSlug omitted — Felicity brand can be linked manually in admin.
