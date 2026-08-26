@@ -14,6 +14,8 @@
     "seed:enrich:prod": "node dist/seed.js --enrich",
     "suppliers:reset": "tsx src/reset-suppliers.ts --confirm-supplier-reset",
     "suppliers:reset:prod": "node dist/reset-suppliers.js --confirm-supplier-reset",
+    "seed:solarflow": "tsx src/seed-solarflow.ts",
+    "seed:solarflow:prod": "node dist/seed-solarflow.js",
     "prisma:push": "prisma db push",
     "prisma:generate": "prisma generate"
   },
