@@ -1,4 +1,7 @@
+import fs from "fs";
+import path from "path";
 import { prisma } from "./prisma";
+import { uploadDir, ensureUploadDir } from "./upload";
 import {
   products,
   testimonials,
@@ -268,23 +271,143 @@ async function main() {
   const supplierRows = await prisma.supplier.findMany({ select: { id: true, name: true } });
   const supplierMap = Object.fromEntries(supplierRows.map((s) => [s.name, s.id]));
 
+  // ── Deye catalogue enrichment (characteristics + official images) ─────────
+  // Runs ONLY when the seed is invoked with `--enrich` (npm run seed:enrich /
+  // seed:enrich:prod, or SEED_ENRICH=1). A normal deploy NEVER writes products'
+  // features/images, so whatever is set here survives every future deploy.
+  const ENRICH = process.argv.includes("--enrich") || process.env.SEED_ENRICH === "1";
+  const seedAssetsDir = path.join(process.cwd(), "seed-assets", "deye");
+  const copySeedImage = (file: string): string | null => {
+    const src = path.join(seedAssetsDir, file);
+    if (!fs.existsSync(src)) {
+      console.warn(`[seed:enrich] ⚠ image not found, skipping: ${src}`);
+      return null;
+    }
+    ensureUploadDir();
+    fs.copyFileSync(src, path.join(uploadDir, file));
+    return `/uploads/${file}`;
+  };
+  // id → { img: filename inside seed-assets/deye, features: characteristics (one per line) }
+  const deyeEnrichment: Record<string, { img: string; features: string[] }> = {
+    "deye-deye-se-g5-1-pro-b": {
+      img: "deye-deye-se-g5-1-pro-b.jpg",
+      features: [
+        "Модель: SE-G5.1 Pro-B",
+        "Тип: акумулятор LiFePO₄ (літій-залізо-фосфат)",
+        "Ємність: 5,12 кВт·год (100 Ач)",
+        "Номінальна напруга: 51,2 В",
+        "Макс. струм заряду/розряду: 100 А",
+        "Ресурс: понад 6000 циклів",
+        "Масштабування: до 16 модулів паралельно",
+        "Комунікація: RS485 / CAN, вбудована BMS",
+      ],
+    },
+    "deye-deye-sun-8k-sg-lp1-1-faza": {
+      img: "deye-deye-sun-8k-sg-lp1-1-faza.png",
+      features: [
+        "Модель: SUN-8K-SG05LP1-EU-AM2-P",
+        "Тип: гібридний інвертор, 1 фаза",
+        "Номінальна потужність: 8 кВт",
+        "MPPT: 2 трекери",
+        "Акумулятор: низьковольтний, 48 В",
+        "Макс. струм заряду/розряду АКБ: 190 А",
+        "Паралельна робота: до 16 інверторів",
+        "Режими: on-grid / off-grid, підтримка генератора, AC-coupling",
+        "Дисплей: кольоровий сенсорний LCD, захист IP65",
+      ],
+    },
+    "deye-deye-sun-12k-sg05lp3-3-faz": {
+      img: "deye-deye-sun-12k-sg05lp3-3-faz.png",
+      features: [
+        "Модель: SUN-12K-SG05LP3-EU",
+        "Тип: гібридний інвертор, 3 фази",
+        "Номінальна потужність: 12 кВт",
+        "MPPT: 2 трекери",
+        "Акумулятор: низьковольтний, 48 В",
+        "Макс. струм заряду/розряду АКБ: 240 А",
+        "Паралельна робота: до 10 інверторів",
+        "100% несиметричне навантаження по фазах",
+        "Режими: on-grid / off-grid, підтримка генератора; IP65",
+      ],
+    },
+    "deye-deye-sun-16k-sg05lp3-3-faz": {
+      img: "deye-deye-sun-16k-sg05lp3-3-faz.png",
+      features: [
+        "Модель: SUN-16K-SG05LP3-EU-SM2",
+        "Тип: гібридний інвертор, 3 фази",
+        "Номінальна потужність: 16 кВт",
+        "MPPT: 2 трекери",
+        "Акумулятор: низьковольтний, 48 В",
+        "Макс. струм заряду/розряду АКБ: 240 А",
+        "Паралельна робота: до 10 інверторів",
+        "100% несиметричне навантаження по фазах",
+        "Режими: on-grid / off-grid, підтримка генератора; IP65",
+      ],
+    },
+    "deye-deye-sun-30-kw-merezhev": {
+      img: "deye-deye-sun-30-kw-merezhev.png",
+      features: [
+        "Модель: SUN-30K-G04",
+        "Тип: мережевий (grid-tie) інвертор, 3 фази",
+        "Номінальна потужність: 30 кВт",
+        "MPPT: 3 трекери",
+        "Макс. ККД: до 98,6%",
+        "Підключення: 3 фази, 380/400 В",
+        "Моніторинг: Wi-Fi; захист IP65",
+        "Без акумулятора — прямий продаж енергії в мережу",
+      ],
+    },
+  };
+
   let deyeCreated = 0;
+  let deyeEnriched = 0;
   let deyePrices = 0;
   for (const p of deyeProducts) {
     const supplierPriceValues = Object.values(p.prices).filter((v) => v > 0);
     const minSupplierPrice = supplierPriceValues.length ? Math.min(...supplierPriceValues) : p.price;
     const retailPrice = Math.round(minSupplierPrice * 1.2);
-    const data = {
+    const enrich = deyeEnrichment[p.id];
+    const createData = {
       name: p.name,
       category: p.category,
       brandSlug: "deye",
       price: retailPrice,
       warranty: "1 рік",
-      features: JSON.stringify([p.model]),
+      power: p.power ?? null,
+      features: JSON.stringify(enrich ? enrich.features : [p.model]),
       image: "/placeholder.jpg",
+      images: "[]",
+    };
+    // Deploy-safe: these are synced on every run. features/image/images are
+    // intentionally absent so a normal deploy never wipes descriptions/photos.
+    const updateData: {
+      name: string;
+      category: string;
+      brandSlug: string;
+      price: number;
+      power: string | null;
+      features?: string;
+      image?: string;
+      images?: string;
+    } = {
+      name: p.name,
+      category: p.category,
+      brandSlug: "deye",
+      price: retailPrice,
       power: p.power ?? null,
     };
-    await prisma.product.upsert({ where: { id: p.id }, create: { id: p.id, ...data }, update: data });
+    if (ENRICH && enrich) {
+      updateData.features = JSON.stringify(enrich.features);
+      const url = copySeedImage(enrich.img);
+      if (url) {
+        updateData.image = url;
+        updateData.images = JSON.stringify([url]);
+        createData.image = url;
+        createData.images = JSON.stringify([url]);
+      }
+      deyeEnriched++;
+    }
+    await prisma.product.upsert({ where: { id: p.id }, create: { id: p.id, ...createData }, update: updateData });
     deyeCreated++;
 
     for (const [supplierName, supplierPrice] of Object.entries(p.prices)) {
@@ -299,7 +422,10 @@ async function main() {
     }
   }
   await prisma.product.updateMany({ where: { id: { startsWith: "deye-" } }, data: { brandSlug: "deye" } });
-  console.log(`[seed] Deye products: ${deyeCreated} upserted, ${deyePrices} supplier prices linked`);
+  console.log(
+    `[seed] Deye products: ${deyeCreated} upserted, ${deyePrices} supplier prices linked` +
+      (ENRICH ? `, ${deyeEnriched} enriched (characteristics + image)` : " (enrichment skipped — pass --enrich to apply)"),
+  );
 
   const productsWithoutCategoryLinks = await prisma.product.findMany({
     where: { categoryLinks: { none: {} } },
