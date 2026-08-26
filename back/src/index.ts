@@ -109,7 +109,6 @@ if (WEAK_SECRETS.includes(env.JWT_SECRET) || env.JWT_SECRET.length < 24) {
 const server = app.listen(env.PORT, () => {
   console.log(`\n🔌 E-Kit API running on http://localhost:${env.PORT}`);
   console.log(`   Admin panel:  http://localhost:${env.PORT}/admin`);
-  console.log(`   Admin login:  ${env.ADMIN_EMAIL}`);
   console.log(
     `   Leads → Telegram: ${
       env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID

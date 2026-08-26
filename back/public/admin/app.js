@@ -10,6 +10,7 @@
   let homeCache = []; // home sections
   let supplierCache = [];
   let crmLeadCache = [];
+  let adminEmail = "";
 
   // ── helpers ────────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -45,6 +46,7 @@
 
   // ── auth ────────────────────────────────────────────────────────────────────
   function showApp(email) {
+    adminEmail = email;
     $("login").style.display = "none";
     $("app").style.display = "block";
     $("who").textContent = email;
@@ -99,7 +101,7 @@
   $("logout").addEventListener("click", logout);
 
   // ── tabs ──────────────────────────────────────────────────────────────────
-  const ALL_TABS = ["crm", "leads", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator"];
+  const ALL_TABS = ["crm", "leads", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
 
   function activateTab(tab) {
     if (!ALL_TABS.includes(tab)) tab = "crm";
@@ -121,10 +123,49 @@
     if (tab === "testimonials") loadTestimonials();
     if (tab === "content") loadContent();
     if (tab === "calculator") loadCalculator();
+    if (tab === "security") loadSecurity();
   }
 
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => activateTab(btn.dataset.tab));
+  });
+
+  // ── admin credentials ─────────────────────────────────────────────────────
+  function loadSecurity() {
+    $("securityEmail").value = adminEmail;
+    $("securityCurrentPassword").value = "";
+    $("securityNewPassword").value = "";
+    $("securityConfirmPassword").value = "";
+    $("securityError").textContent = "";
+    $("securitySuccess").textContent = "";
+  }
+
+  $("securitySave").addEventListener("click", async () => {
+    const email = $("securityEmail").value.trim();
+    const currentPassword = $("securityCurrentPassword").value;
+    const newPassword = $("securityNewPassword").value;
+    const confirmPassword = $("securityConfirmPassword").value;
+    $("securityError").textContent = "";
+    $("securitySuccess").textContent = "";
+    if (!currentPassword) return $("securityError").textContent = "Введіть поточний пароль";
+    if (newPassword && newPassword.length < 8) return $("securityError").textContent = "Новий пароль має містити щонайменше 8 символів";
+    if (newPassword !== confirmPassword) return $("securityError").textContent = "Нові паролі не збігаються";
+    try {
+      const data = await api("/api/auth/profile", {
+        method: "PUT",
+        body: JSON.stringify({ email, currentPassword, ...(newPassword ? { newPassword } : {}) }),
+      });
+      token = data.token;
+      localStorage.setItem(TOKEN_KEY, token);
+      adminEmail = data.admin.email;
+      $("who").textContent = adminEmail;
+      $("securityCurrentPassword").value = "";
+      $("securityNewPassword").value = "";
+      $("securityConfirmPassword").value = "";
+      $("securitySuccess").textContent = "Облікові дані оновлено. Новий пароль збережено як bcrypt-хеш.";
+    } catch (err) {
+      $("securityError").textContent = err.message;
+    }
   });
 
   // ── CRM kanban ────────────────────────────────────────────────────────────

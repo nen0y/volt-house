@@ -23,7 +23,7 @@ docker compose up -d --build
 
 > Треба звертатись до бекенду напряму для дебагу? Тимчасово додай `ports: ["4000:4000"]` у сервіс `back` у `docker-compose.yml`.
 
-**Логін в адмінку:** `omelyazuk@gmail.com` / пароль із `back/.env` (`ADMIN_PASSWORD`).
+Облікові дані адміністратора зберігаються у PostgreSQL. Email і пароль змінюються в адмінці: **Система → Безпека**; пароль зберігається лише як bcrypt-хеш.
 
 ### Керування
 
@@ -37,7 +37,7 @@ docker compose down -v          # зупинити + видалити базу �
 
 1. На сервері: `git clone`, потім `docker compose up -d --build`.
 2. Публічно відкрий порт **3000** (це вітрина + `/admin` + `/api`). Порт 4000 можна не відкривати назовні (або відкрити лише для прямого доступу до адмінки).
-3. Налаштування беруться з `back/.env` — задай там `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (скопіюй із `back/.env.example`). На хостингах їх також можна задати змінними середовища.
+3. Налаштування беруться з `back/.env` — задай там `JWT_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (скопіюй із `back/.env.example`). Облікові дані адміністратора не зберігаються в `.env`.
 4. **Домен для SEO:** впиши свій домен у файл **`.env`** (у корені, поряд із `docker-compose.yml`):
    ```env
    SITE_URL=https://твій-домен
@@ -76,7 +76,7 @@ docker compose down -v          # зупинити + видалити базу �
 Що зробити перед продакшеном:
 
 1. **HTTPS** — постав Caddy перед фронтом (див. [`Caddyfile.example`](Caddyfile.example)): авто-сертифікат Let's Encrypt, і прибери публічний порт 3000 (назовні лишається лише Caddy 80/443).
-2. **Секрети** — свій `JWT_SECRET` (`openssl rand -hex 32`), надійний `ADMIN_PASSWORD`, свій `TELEGRAM_*` — усе в `back/.env` (він у `.gitignore`, не комітиться).
+2. **Секрети** — свій `JWT_SECRET` (`openssl rand -hex 32`) і `TELEGRAM_*` зберігай у `back/.env` (він у `.gitignore`, не комітиться). Пароль адміністратора змінюй у розділі **Безпека**.
 3. За кількома проксі — за потреби підкрути `app.set("trust proxy", …)` у `back/src/index.ts` для точного IP у rate-limit.
 
 ## 🛠 Локальна розробка без Docker

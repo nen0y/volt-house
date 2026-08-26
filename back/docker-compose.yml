@@ -23,8 +23,6 @@ services:
       LEGACY_SQLITE_URL: file:/app/data/volthouse.db
       PORT: 4000
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-omelyazuk@gmail.com}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-VoltHouse2024}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}

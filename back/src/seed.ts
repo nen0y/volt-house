@@ -1,6 +1,4 @@
-import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
-import { env } from "./env";
 import {
   products,
   testimonials,
@@ -314,16 +312,6 @@ async function main() {
     });
   }
   console.log(`[seed] Product category links: ${productsWithoutCategoryLinks.length} backfilled`);
-
-  // ── Admin user ────────────────────────────────────────────────────────────
-  const email = env.ADMIN_EMAIL.toLowerCase();
-  const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 10);
-  await prisma.adminUser.upsert({
-    where: { email },
-    create: { email, passwordHash },
-    update: { passwordHash }, // keep password in sync with env on each seed
-  });
-  console.log(`[seed] Admin user ready: ${email}`);
 
   console.log("[seed] Done ✅");
 }

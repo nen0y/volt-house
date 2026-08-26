@@ -13,10 +13,6 @@ export const env = {
   LEGACY_SQLITE_URL: process.env.LEGACY_SQLITE_URL || "file:/app/data/volthouse.db",
   JWT_SECRET: process.env.JWT_SECRET || "dev-secret-change-me",
 
-  // Admin account used to log into /admin
-  ADMIN_EMAIL: process.env.ADMIN_EMAIL || "omelyazuk@gmail.com",
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "VoltHouse2024",
-
   // Comma-separated list of allowed origins, or "*" for any
   CORS_ORIGIN: process.env.CORS_ORIGIN || "*",
 

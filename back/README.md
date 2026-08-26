@@ -26,14 +26,11 @@ This starts:
 | API | http://localhost:4000 | REST endpoints under `/api` |
 | Admin panel | http://localhost:4000/admin | login below |
 
-On startup the backend automatically **syncs the schema** (`prisma db push`) and **runs the seeder** (products, testimonials, admin user), so everything works out of the box.
+On startup the backend automatically **syncs the schema** (`prisma db push`) and **runs the content seeder**. Existing administrator records in PostgreSQL are never overwritten by the seeder.
 
-### Admin login
-```
-email:    omelyazuk@gmail.com
-password: VoltHouse2024
-```
-(Change via `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`, then re-run — the seeder keeps the account in sync.)
+### Admin credentials
+
+The administrator is stored in PostgreSQL and the password is stored only as a bcrypt hash. Change the login email or password in **System → Security** in the admin panel. Restarting or re-seeding does not reset credentials.
 
 ### Logs / stopping
 ```bash
@@ -175,7 +172,6 @@ The seeder is **idempotent** (upserts by id), so it is safe to run repeatedly. I
 - 16 power-calculator appliances + recommendation rules
 - 4 content blocks (hero, how_it_works, promo, contact)
 - 7 homepage sections (Новинки, per-category blocks incl. stations, a CTA band, Рекомендовані рішення)
-- the admin user (from `ADMIN_EMAIL` / `ADMIN_PASSWORD`)
 
 Content blocks and categories are only **created if missing** on re-seed, so your admin edits are preserved. Calculator rules are normalised to the current shape on re-seed (edits kept when already in the new shape).
 

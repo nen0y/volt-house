@@ -237,6 +237,8 @@
         <button class="tab" data-tab="content"><span class="tab-icon">✎</span> Контент</button>
         <button class="tab" data-tab="testimonials"><span class="tab-icon">★</span> Відгуки</button>
         <button class="tab" data-tab="calculator"><span class="tab-icon">⚙</span> Калькулятор</button>
+        <div class="nav-group">Система</div>
+        <button class="tab" data-tab="security"><span class="tab-icon">🔐</span> Безпека</button>
       </div>
 
       <!-- CRM kanban -->
@@ -362,6 +364,22 @@
           <button class="btn btn-sm" id="addAppliance">+ Додати прилад</button>
         </div>
         <div class="grid-products" id="appliancesBody"></div>
+      </section>
+
+      <!-- Security -->
+      <section id="tab-security" style="display:none">
+        <div class="page-head">
+          <div><h1>Безпека адміністратора</h1><p>Облікові дані зберігаються у PostgreSQL. Пароль — лише як захищений bcrypt-хеш.</p></div>
+        </div>
+        <div class="card" style="padding:20px;max-width:620px">
+          <div class="field"><label>Email для входу</label><input id="securityEmail" type="email" autocomplete="username" required></div>
+          <div class="field"><label>Поточний пароль *</label><input id="securityCurrentPassword" type="password" autocomplete="current-password" required></div>
+          <div class="field"><label>Новий пароль</label><input id="securityNewPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Залиште порожнім, якщо змінюєте лише email"></div>
+          <div class="field"><label>Повторіть новий пароль</label><input id="securityConfirmPassword" type="password" minlength="8" autocomplete="new-password"></div>
+          <div class="error" id="securityError"></div>
+          <div id="securitySuccess" style="color:#166534;font-size:13px;margin-bottom:10px"></div>
+          <button class="btn" id="securitySave" type="button">Зберегти облікові дані</button>
+        </div>
       </section>
     </div>
   </div>
