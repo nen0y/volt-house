@@ -58,7 +58,7 @@ export default async function ProductPage({
 
   const all = await getProductsServer();
   const related = all
-    .filter((p) => p.category === product.category && p.id !== product.id)
+    .filter((p) => (p.categoryKeys ?? [p.category]).some((key) => (product.categoryKeys ?? [product.category]).includes(key)) && p.id !== product.id)
     .slice(0, 3);
 
   return (

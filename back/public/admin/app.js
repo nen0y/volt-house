@@ -456,38 +456,42 @@
       productCache = products;
       categoryCache = cats;
       brandCache = brands;
-      $("productsBody").innerHTML = products.length
-        ? `<table><thead><tr><th>Назва</th><th>Бренд</th><th>Категорія</th><th>Ціна</th><th>Характеристики</th><th>Гарантія</th><th></th></tr></thead><tbody>${
-            products.map((p) => `<tr>
-              <td><strong>${esc(p.name)}</strong>${p.badge ? ` <span class="badge b-order" style="margin-left:4px">${esc(p.badge)}</span>` : ""}</td>
-              <td>${esc(p.brand?.name || "—")}</td>
-              <td><span class="pcard cat">${esc((categoryCache.find((c) => c.key === p.category) || {}).label || "Без категорії")}</span></td>
-              <td class="nowrap pcard price">${money(p.price)}${p.originalPrice ? ` <span class="muted" style="text-decoration:line-through;font-weight:400;font-size:12px">${money(p.originalPrice)}</span>` : ""}</td>
-              <td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency].filter(Boolean).map(esc).join(" · ") || "—"}</td>
-              <td class="nowrap" style="font-size:12px">${esc(p.warranty)}</td>
-              <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-product='${esc(JSON.stringify(p))}'>Редагувати</button><button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button></div></td>
-            </tr>`).join("")
-          }</tbody></table>`
-        : `<div class="empty">Товарів немає</div>`;
-
-      document.querySelectorAll("[data-edit-product]").forEach((b) =>
-        b.addEventListener("click", () => productModal(JSON.parse(b.dataset.editProduct)))
-      );
-      document.querySelectorAll("[data-del-product]").forEach((b) =>
-        b.addEventListener("click", async () => {
-          if (!confirm("Видалити товар?")) return;
-          try {
-            await api("/api/products/" + b.dataset.delProduct, { method: "DELETE" });
-            loadProducts();
-          } catch (err) {
-            alert(err.message);
-          }
-        })
-      );
+      $("productCategoryFilter").innerHTML = `<option value="all">Усі категорії</option>${cats.map((c) => `<option value="${esc(c.key)}">${c.parentKey ? "↳ " : ""}${esc(c.label)}</option>`).join("")}`;
+      $("productBrandFilter").innerHTML = `<option value="all">Усі бренди</option>${brands.map((b) => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join("")}`;
+      renderProducts();
     } catch (err) {
       $("productsBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
     }
   }
+
+  function renderProducts() {
+    const query = $("productSearch").value.trim().toLowerCase();
+    const category = $("productCategoryFilter").value;
+    const brand = $("productBrandFilter").value;
+    const rows = productCache.filter((p) => {
+      const matchesText = !query || p.name.toLowerCase().includes(query) || p.id.toLowerCase().includes(query);
+      const matchesCategory = category === "all" || (p.categoryKeys || [p.category]).includes(category);
+      const matchesBrand = brand === "all" || p.brandSlug === brand;
+      return matchesText && matchesCategory && matchesBrand;
+    });
+    $("productFilterCount").textContent = `Показано ${rows.length} із ${productCache.length}`;
+    $("productsBody").innerHTML = rows.length ? `<table><thead><tr><th>Товар</th><th>Бренд</th><th>Категорії</th><th>Ціна</th><th>Параметри</th><th></th></tr></thead><tbody>${rows.map((p) => {
+      const labels = (p.categoryKeys || [p.category]).map((key) => categoryCache.find((c) => c.key === key)?.label || key);
+      return `<tr><td><strong>${esc(p.name)}</strong><div class="muted" style="font-size:11px">${esc(p.id)}</div></td>
+        <td>${esc(p.brand?.name || "—")}</td><td>${labels.map((label) => `<span class="badge" style="margin:2px">${esc(label)}</span>`).join("")}</td>
+        <td class="nowrap"><strong>${money(p.price)}</strong></td><td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency, p.warranty].filter(Boolean).map(esc).join(" · ") || "—"}</td>
+        <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-product="${esc(p.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button></div></td></tr>`;
+    }).join("")}</tbody></table>` : `<div class="empty">За цими фільтрами товарів немає</div>`;
+    document.querySelectorAll("[data-edit-product]").forEach((b) => b.addEventListener("click", () => productModal(productCache.find((p) => p.id === b.dataset.editProduct))));
+    document.querySelectorAll("[data-del-product]").forEach((b) => b.addEventListener("click", async () => {
+      if (!confirm("Видалити товар?")) return;
+      try { await api("/api/products/" + b.dataset.delProduct, { method: "DELETE" }); loadProducts(); } catch (err) { alert(err.message); }
+    }));
+  }
+
+  $("productSearch").addEventListener("input", renderProducts);
+  $("productCategoryFilter").addEventListener("change", renderProducts);
+  $("productBrandFilter").addEventListener("change", renderProducts);
 
   $("addProduct").addEventListener("click", () => productModal(null));
 
@@ -539,7 +543,8 @@
 
   function productModal(p) {
     const isNew = !p;
-    p = p || { id: "", name: "", category: "inverter", price: 0, warranty: "", features: [], image: "", images: [] };
+    p = p || { id: "", name: "", category: "inverter", categoryKeys: ["inverter"], price: 0, warranty: "", features: [], image: "", images: [] };
+    const selectedCategoryKeys = new Set(p.categoryKeys || [p.category]);
     openModal(`
       <h3>${isNew ? "Новий товар" : "Редагувати товар"}</h3>
       <div class="field"><label>ID (латиницею, напр. inv-5kw)</label><input id="m_id" value="${esc(p.id)}" ${
@@ -547,7 +552,7 @@
     } /></div>
       <div class="field"><label>Назва</label><input id="m_name" value="${esc(p.name)}" /></div>
       <div class="grid2">
-        <div class="field"><label>Категорія</label><select id="m_category">
+        <div class="field"><label>Основна категорія</label><select id="m_category">
           ${(() => {
             const keys = categoryCache.length ? categoryCache.map((c) => c.key) : ["inverter", "battery", "solar", "station"];
             if (p.category && !keys.includes(p.category)) keys.unshift(p.category);
@@ -560,6 +565,16 @@
           })()}
         </select></div>
         <div class="field"><label>Бренд</label><select id="m_brand"><option value="">Без бренду</option>${brandCache.map((b) => `<option value="${esc(b.slug)}" ${b.slug === p.brandSlug ? "selected" : ""}>${esc(b.name)}</option>`).join("")}</select></div>
+      </div>
+      <div class="field">
+        <label>Додаткові категорії та підкатегорії</label>
+        <div class="muted" style="font-size:12px;margin-bottom:8px">Товар буде показаний у кожному вибраному розділі. Основна категорія використовується в картці товару та для SEO.</div>
+        <div class="category-chips">
+          ${categoryCache.map((c) => `<label class="category-check">
+            <input type="checkbox" data-product-category value="${esc(c.key)}" ${selectedCategoryKeys.has(c.key) ? "checked" : ""}>
+            <span>${c.parentKey ? "↳ " : ""}${esc(c.label)}</span>
+          </label>`).join("")}
+        </div>
       </div>
       <div class="field"><label>Гарантія</label><input id="m_warranty" value="${esc(p.warranty)}" /></div>
       <div class="grid2">
@@ -596,6 +611,16 @@
         <button class="btn" id="m_save">Зберегти</button>
       </div>
     `);
+    const syncPrimaryCategory = () => {
+      document.querySelectorAll("[data-product-category]").forEach((checkbox) => {
+        const isPrimary = checkbox.value === $("m_category").value;
+        if (isPrimary) checkbox.checked = true;
+        checkbox.disabled = isPrimary;
+        checkbox.closest(".category-check")?.classList.toggle("is-primary", isPrimary);
+      });
+    };
+    $("m_category").addEventListener("change", syncPrimaryCategory);
+    syncPrimaryCategory();
     if (!isNew) {
       renderProductImages(p);
       $("m_imgupload").addEventListener("click", async () => {
@@ -621,6 +646,10 @@
         id: $("m_id").value.trim(),
         name: $("m_name").value.trim(),
         category: $("m_category").value,
+        categoryKeys: Array.from(new Set([
+          $("m_category").value,
+          ...Array.from(document.querySelectorAll("[data-product-category]:checked")).map((checkbox) => checkbox.value),
+        ])),
         brandSlug: $("m_brand").value || null,
         price: num($("m_price").value) || 0,
         originalPrice: num($("m_originalPrice").value),
@@ -731,7 +760,7 @@
         ${c.parentKey ? `<div class="muted" style="font-size:11px">Батьківська: ${esc((cats.find((x) => x.key === c.parentKey) || {}).label || c.parentKey)}</div>` : ""}
         <div class="muted" style="font-size:12px;margin-top:4px">${esc(c.description || "")}</div>
         <div class="muted" style="font-size:12px;margin-top:6px">Товарів: <b>${
-          productCache.filter((p) => p.category === c.key).length
+          productCache.filter((p) => (p.categoryKeys || [p.category]).includes(c.key)).length
         }</b> · порядок: ${c.sortOrder}</div>
         <div class="acts">
           <button class="btn-sm btn-ghost" data-edit-cat='${esc(JSON.stringify(c))}'>Редагувати</button>

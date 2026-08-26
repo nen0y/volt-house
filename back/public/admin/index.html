@@ -61,7 +61,13 @@
     .stat .l { font-size: 12px; color: var(--slate-500); margin-top: 2px; }
 
     .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
-    .toolbar select { padding: 7px 10px; border: 1px solid var(--slate-200); border-radius: 8px; background: #fff; }
+    .toolbar select, .toolbar input { padding: 8px 10px; border: 1px solid var(--slate-200); border-radius: 8px; background: #fff; }
+    .toolbar input { min-width: 230px; }
+    .category-chips { display:flex; flex-wrap:wrap; gap:7px; padding:10px; border:1px solid var(--slate-200); border-radius:9px; background:var(--slate-50); }
+    .category-check { display:flex; align-items:center; gap:6px; padding:6px 9px; background:#fff; border:1px solid var(--slate-200); border-radius:8px; font-size:12px; cursor:pointer; }
+    .category-check input { width:auto; margin:0; accent-color:var(--yellow-500); }
+    .category-check.is-primary { border-color:#f5b700; background:#fff8d9; color:#713f12; }
+    .category-check.is-primary::after { content:"основна"; font-size:10px; font-weight:700; text-transform:uppercase; opacity:.65; }
     .spacer { flex: 1; }
 
     .card { background: #fff; border: 1px solid var(--slate-200); border-radius: 12px; overflow: hidden; }
@@ -290,6 +296,10 @@
       <!-- Products -->
       <section id="tab-products" style="display:none">
         <div class="toolbar">
+          <input id="productSearch" type="search" placeholder="Пошук за назвою або ID…">
+          <select id="productCategoryFilter"><option value="all">Усі категорії</option></select>
+          <select id="productBrandFilter"><option value="all">Усі бренди</option></select>
+          <span class="muted" id="productFilterCount"></span>
           <div class="spacer"></div>
           <button class="btn btn-sm" id="addProduct">+ Додати товар</button>
         </div>

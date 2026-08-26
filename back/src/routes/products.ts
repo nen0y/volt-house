@@ -6,6 +6,7 @@ import { parseStringArray } from "../json";
 import { upload, deleteUploadByUrl } from "../upload";
 
 export const productsRouter = Router();
+const productIncludes = { brand: true, categoryLinks: { select: { categoryKey: true } } } as const;
 
 // Shape the storefront expects (drops internal columns like sortOrder/timestamps).
 function toDto(p: any) {
@@ -13,6 +14,7 @@ function toDto(p: any) {
     id: p.id,
     name: p.name,
     category: p.category,
+    categoryKeys: p.categoryLinks?.length ? p.categoryLinks.map((link: any) => link.categoryKey) : [p.category],
     brandSlug: p.brandSlug ?? undefined,
     brand: p.brand ? { slug: p.brand.slug, name: p.brand.name, logo: p.brand.logo, country: p.brand.country } : undefined,
     price: p.price,
@@ -41,10 +43,12 @@ productsRouter.get("/", async (req, res) => {
       });
     }
   }
-  const where = categoryKeys.length ? { category: { in: categoryKeys } } : {};
+  const where = categoryKeys.length
+    ? { OR: [{ category: { in: categoryKeys } }, { categoryLinks: { some: { categoryKey: { in: categoryKeys } } } }] }
+    : {};
   const rows = await prisma.product.findMany({
     where,
-    include: { brand: true },
+    include: productIncludes,
     orderBy: [{ sortOrder: "asc" }, { price: "asc" }],
   });
   res.json(rows.map(toDto));
@@ -52,7 +56,7 @@ productsRouter.get("/", async (req, res) => {
 
 // GET /api/products/:id
 productsRouter.get("/:id", async (req, res) => {
-  const p = await prisma.product.findUnique({ where: { id: req.params.id }, include: { brand: true } });
+  const p = await prisma.product.findUnique({ where: { id: req.params.id }, include: productIncludes });
   if (!p) return res.status(404).json({ error: "Товар не знайдено" });
   res.json(toDto(p));
 });
@@ -61,6 +65,7 @@ const productSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   category: z.string().min(1),
+  categoryKeys: z.array(z.string().min(1)).optional(),
   brandSlug: z.string().nullable().optional(),
   price: z.number().int().nonnegative(),
   originalPrice: z.number().int().nonnegative().nullish(),
@@ -99,7 +104,10 @@ productsRouter.post("/", requireAdmin, async (req, res) => {
     create: { id: d.id, ...data },
     update: data,
   });
-  const result = await prisma.product.findUnique({ where: { id: saved.id }, include: { brand: true } });
+  const categoryKeys = Array.from(new Set([d.category, ...(d.categoryKeys ?? [])]));
+  await prisma.productCategoryLink.deleteMany({ where: { productId: saved.id } });
+  await prisma.productCategoryLink.createMany({ data: categoryKeys.map((categoryKey) => ({ productId: saved.id, categoryKey })) });
+  const result = await prisma.product.findUnique({ where: { id: saved.id }, include: productIncludes });
   res.status(201).json(toDto(result));
 });
 
@@ -111,6 +119,8 @@ productsRouter.put("/:id", requireAdmin, async (req, res) => {
   if (!exists) return res.status(404).json({ error: "Товар не знайдено" });
 
   const { id: _ignore, features, ...rest } = parsed.data;
+  const categoryKeysInput = rest.categoryKeys;
+  delete rest.categoryKeys;
   const data: Record<string, unknown> = { ...rest };
   if (features !== undefined) data.features = JSON.stringify(features);
 
@@ -118,7 +128,13 @@ productsRouter.put("/:id", requireAdmin, async (req, res) => {
     where: { id: req.params.id },
     data: data as any,
   });
-  const result = await prisma.product.findUnique({ where: { id: saved.id }, include: { brand: true } });
+  if (categoryKeysInput !== undefined || parsed.data.category !== undefined) {
+    const primary = parsed.data.category ?? exists.category;
+    const categoryKeys = Array.from(new Set([primary, ...(categoryKeysInput ?? [])]));
+    await prisma.productCategoryLink.deleteMany({ where: { productId: saved.id } });
+    await prisma.productCategoryLink.createMany({ data: categoryKeys.map((categoryKey) => ({ productId: saved.id, categoryKey })) });
+  }
+  const result = await prisma.product.findUnique({ where: { id: saved.id }, include: productIncludes });
   res.json(toDto(result));
 });
 

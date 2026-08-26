@@ -44,10 +44,10 @@ export default function AllProductsClient({
   const [sort, setSort] = useState<SortKey>("default");
 
   const count = (key: string) =>
-    key === "all" ? all.length : all.filter((p) => categoryKeys(key).includes(p.category)).length;
+    key === "all" ? all.length : all.filter((p) => (p.categoryKeys ?? [p.category]).some((productKey) => categoryKeys(key).includes(productKey))).length;
 
   const visible = useMemo(() => {
-    let list = filter === "all" ? all : all.filter((p) => categoryKeys(filter).includes(p.category));
+    let list = filter === "all" ? all : all.filter((p) => (p.categoryKeys ?? [p.category]).some((productKey) => categoryKeys(filter).includes(productKey)));
     if (brand !== "all") list = list.filter((p) => p.brandSlug === brand);
     const q = query.trim().toLowerCase();
     if (q) {

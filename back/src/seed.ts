@@ -303,6 +303,18 @@ async function main() {
   await prisma.product.updateMany({ where: { id: { startsWith: "deye-" } }, data: { brandSlug: "deye" } });
   console.log(`[seed] Deye products: ${deyeCreated} upserted, ${deyePrices} supplier prices linked`);
 
+  const productsWithoutCategoryLinks = await prisma.product.findMany({
+    where: { categoryLinks: { none: {} } },
+    select: { id: true, category: true },
+  });
+  if (productsWithoutCategoryLinks.length) {
+    await prisma.productCategoryLink.createMany({
+      data: productsWithoutCategoryLinks.map((p) => ({ productId: p.id, categoryKey: p.category })),
+      skipDuplicates: true,
+    });
+  }
+  console.log(`[seed] Product category links: ${productsWithoutCategoryLinks.length} backfilled`);
+
   // ── Admin user ────────────────────────────────────────────────────────────
   const email = env.ADMIN_EMAIL.toLowerCase();
   const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 10);

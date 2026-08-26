@@ -50,7 +50,7 @@ export default function HomeSections() {
   };
 
   const productsFor = (s: HomeSection): Product[] => {
-    if (s.mode === "category") return all.filter((p) => categoryKeys(s.category).includes(p.category));
+    if (s.mode === "category") return all.filter((p) => (p.categoryKeys ?? [p.category]).some((key) => categoryKeys(s.category).includes(key)));
     return s.productIds
       .map((id) => all.find((p) => p.id === id))
       .filter((p): p is Product => Boolean(p));
