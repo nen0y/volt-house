@@ -144,24 +144,29 @@ export default function AllProductsClient({
         </div>
 
         {activeRoot && subcategories.length > 0 && (
-          <div className="mt-[14px] rounded-[12px] border border-gray-200 bg-white p-[14px] shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-[10px]">
-              <div className="sm:min-w-[190px]">
-                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-amber-700">Підкатегорії</div>
-                <div className="text-[13px] font-semibold text-gray-900 mt-[2px]">{activeRoot.label}</div>
+          <div className="mt-[14px] rounded-[14px] border border-amber-200/70 bg-gradient-to-r from-amber-50 via-white to-white p-[16px]">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-[14px]">
+              <div className="flex items-center gap-[10px] sm:min-w-[210px]">
+                <div className="w-[34px] h-[34px] shrink-0 rounded-[10px] bg-[#FFC107] text-gray-950 flex items-center justify-center text-[17px]">
+                  {activeRoot.icon || "•"}
+                </div>
+                <div>
+                  <div className="text-[14px] font-bold text-gray-950">{activeRoot.label}</div>
+                  <div className="text-[11px] text-gray-500 mt-[1px]">Оберіть потрібний тип</div>
+                </div>
               </div>
-              <div className="flex items-center gap-[8px] flex-wrap border-gray-100 sm:border-l sm:pl-[14px]">
+              <div className="flex items-center gap-[8px] flex-wrap sm:border-l sm:border-amber-200 sm:pl-[14px]">
                 <button
                   onClick={() => setFilter(activeRoot.key)}
-                  className={`px-[14px] py-[7px] rounded-[8px] text-[13px] font-medium border cursor-pointer ${filter === activeRoot.key ? "bg-gray-950 border-gray-950 text-white" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"}`}
+                  className={`px-[14px] py-[7px] rounded-full text-[13px] font-medium border cursor-pointer transition-colors ${filter === activeRoot.key ? "bg-[#FFC107] border-[#FFC107] text-gray-950 shadow-sm" : "bg-white border-gray-200 text-gray-700 hover:border-amber-300"}`}
                 >
-                  Усі в категорії <span className="ml-[4px] text-[11px] opacity-70">{count(activeRoot.key)}</span>
+                  Усі {activeRoot.label.toLocaleLowerCase("uk-UA")} <span className="ml-[4px] text-[11px] opacity-60">{count(activeRoot.key)}</span>
                 </button>
                 {subcategories.map((sub) => (
                   <button
                     key={sub.key}
                     onClick={() => setFilter(sub.key)}
-                    className={`px-[14px] py-[7px] rounded-[8px] text-[13px] font-medium border cursor-pointer ${filter === sub.key ? "bg-amber-100 border-amber-400 text-amber-950" : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"}`}
+                    className={`px-[14px] py-[7px] rounded-full text-[13px] font-medium border cursor-pointer transition-colors ${filter === sub.key ? "bg-[#FFC107] border-[#FFC107] text-gray-950 shadow-sm" : "bg-white border-gray-200 text-gray-700 hover:border-amber-300"}`}
                   >
                     {sub.label} <span className="ml-[4px] text-[11px] opacity-70">{count(sub.key)}</span>
                   </button>
