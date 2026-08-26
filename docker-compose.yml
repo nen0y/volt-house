@@ -7,13 +7,13 @@ services:
     container_name: e-kit-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: e_kit
-      POSTGRES_USER: e_kit
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-e-kit-local-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U e_kit -d e_kit"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -22,12 +22,12 @@ services:
     build: ./back
     container_name: volthouse-back
     restart: unless-stopped
-    # Secrets/config come from back/.env (optional — sensible defaults apply if absent)
+    # Application secrets come from back/.env; database access is required from root .env.
     env_file:
       - path: ./back/.env
         required: false
     environment:
-      DATABASE_URL: postgresql://e_kit:${POSTGRES_PASSWORD:-e-kit-local-change-me}@postgres:5432/e_kit?schema=public
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       LEGACY_SQLITE_URL: file:/app/data/volthouse.db
       UPLOAD_DIR: /app/data/uploads
       PORT: 4000

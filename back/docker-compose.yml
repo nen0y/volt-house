@@ -3,13 +3,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: e_kit
-      POSTGRES_USER: e_kit
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-e-kit-local-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U e_kit -d e_kit"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -19,10 +19,10 @@ services:
     container_name: volthouse-backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://e_kit:${POSTGRES_PASSWORD:-e-kit-local-change-me}@postgres:5432/e_kit?schema=public
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       LEGACY_SQLITE_URL: file:/app/data/volthouse.db
       PORT: 4000
-      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
