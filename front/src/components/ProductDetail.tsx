@@ -203,7 +203,8 @@ export default function ProductDetail({
           </div>
 
           {/* Specs */}
-          <div className="grid grid-cols-3 gap-[12px] mb-[28px]">
+          {(product.efficiency || product.power || product.capacity) && (
+          <div className="grid grid-cols-2 gap-[12px] mb-[28px]">
             {product.efficiency && (
               <div className="bg-gray-50 rounded-[8px] p-[14px] text-center">
                 <p className="text-[11px] text-gray-400 mb-[4px] uppercase tracking-wider">ККД</p>
@@ -220,11 +221,8 @@ export default function ProductDetail({
                 </p>
               </div>
             )}
-            <div className="bg-gray-50 rounded-[8px] p-[14px] text-center">
-              <p className="text-[11px] text-gray-400 mb-[4px] uppercase tracking-wider">Гарантія</p>
-              <p className="text-[16px] font-bold text-gray-900">{product.warranty}</p>
-            </div>
           </div>
+          )}
 
           {/* Features */}
           <div className="mb-[32px]">

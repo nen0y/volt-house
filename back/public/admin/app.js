@@ -555,7 +555,7 @@
       const productImage = (p.images || []).find(Boolean) || (p.image && p.image !== "/placeholder.jpg" ? p.image : "");
       return `<tr class="${p.enabled === false ? "supplier-inactive" : ""}"><td><div class="product-cell"><div class="product-thumb${productImage ? "" : " missing"}">${productImage ? `<img data-product-thumb src="${esc(productImage)}" alt="">` : ""}</div><div><strong>${esc(p.name)}</strong><div class="muted" style="font-size:11px">${esc(p.id)}</div></div></div></td>
         <td>${esc(p.brand?.name || "—")}</td><td>${labels.map((label) => `<span class="badge" style="margin:2px">${esc(label)}</span>`).join("")}</td>
-        <td class="nowrap"><strong>${p.price > 0 ? money(p.price) : "—"}</strong></td><td><span class="badge ${p.enabled === false ? "s-new" : "s-done"}">${p.enabled === false ? "Вимкнений" : "Активний"}</span></td><td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency, p.warranty].filter(Boolean).map(esc).join(" · ") || "—"}</td>
+        <td class="nowrap"><strong>${p.price > 0 ? money(p.price) : "—"}</strong></td><td><span class="badge ${p.enabled === false ? "s-new" : "s-done"}">${p.enabled === false ? "Вимкнений" : "Активний"}</span></td><td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency].filter(Boolean).map(esc).join(" · ") || "—"}</td>
         <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-toggle-product="${esc(p.id)}">${p.enabled === false ? "Увімкнути" : "Вимкнути"}</button><button class="btn-sm btn-ghost" data-edit-product="${esc(p.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button></div></td></tr>`;
     }).join("")}</tbody></table>` : `<div class="empty">За цими фільтрами товарів немає</div>`;
     document.querySelectorAll("[data-product-thumb]").forEach((img) => img.addEventListener("error", () => {
@@ -630,7 +630,7 @@
 
   function productModal(p) {
     const isNew = !p;
-    p = p || { id: "", name: "", category: "inverter", categoryKeys: ["inverter"], price: 0, warranty: "", features: [], image: "", images: [], enabled: true };
+    p = p || { id: "", name: "", category: "inverter", categoryKeys: ["inverter"], price: 0, features: [], image: "", images: [], enabled: true };
     const selectedCategoryKeys = new Set(p.categoryKeys || [p.category]);
     openModal(`
       <h3>${isNew ? "Новий товар" : "Редагувати товар"}</h3>
@@ -662,7 +662,6 @@
           </label>`).join("")}
         </div>
       </div>
-      <div class="field"><label>Гарантія</label><input id="m_warranty" value="${esc(p.warranty)}" /></div>
       <div class="grid2">
         <div class="field"><label>Ціна ($)</label><input id="m_price" type="number" value="${esc(p.price)}" /></div>
         <div class="field"><label>Стара ціна ($)</label><input id="m_originalPrice" type="number" value="${esc(p.originalPrice ?? "")}" /></div>
@@ -744,7 +743,6 @@
         capacity: $("m_capacity").value.trim() || null,
         efficiency: $("m_efficiency").value.trim() || null,
         badge: $("m_badge").value.trim() || null,
-        warranty: $("m_warranty").value.trim(),
         image: $("m_image").value.trim(),
         features: $("m_features").value.split("\n").map((s) => s.trim()).filter(Boolean),
       };

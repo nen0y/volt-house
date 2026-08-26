@@ -82,7 +82,7 @@ const productSchema = z.object({
   power: z.string().nullish(),
   capacity: z.string().nullish(),
   efficiency: z.string().nullish(),
-  warranty: z.string().min(1),
+  warranty: z.string().default(""),
   badge: z.string().nullish(),
   features: z.array(z.string()).default([]),
   image: z.string().default(""),
