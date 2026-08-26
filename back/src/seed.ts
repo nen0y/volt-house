@@ -157,24 +157,8 @@ async function main() {
   }
   console.log(`[seed] Home sections: ${homeSections.length} upserted`);
 
-  // ── Suppliers ─────────────────────────────────────────────────────────────
-  const supplierNames = [
-    "SolarFlow",
-    "EnergyEvolution",
-    "PriceListNew",
-    "SunEnergy",
-    "Сучасна Енергія",
-    "Pulsar",
-    "KeyVolt",
-    "RiseUp",
-  ];
-  for (const name of supplierNames) {
-    const existing = await prisma.supplier.findFirst({ where: { name } });
-    if (!existing) {
-      await prisma.supplier.create({ data: { name } });
-    }
-  }
-  console.log(`[seed] Suppliers: ${supplierNames.length} ensured`);
+  // Suppliers and prices are managed manually in CRM. Never recreate/import
+  // legacy suppliers during a normal deploy; use suppliers:reset explicitly.
 
   await prisma.brand.upsert({
     where: { slug: "deye" },
@@ -189,7 +173,8 @@ async function main() {
   console.log("[seed] Brand Deye ensured");
 
   // ── Deye products ─────────────────────────────────────────────────────────
-  // Auto-generated from base.xlsx. Retail price = min supplier price + 20% markup.
+  // Product identities/models originally imported from base.xlsx. Historical
+  // prices below are retained only as source metadata and are never written.
   const deyeProducts: Array<{
     id: string;
     name: string;
@@ -274,10 +259,6 @@ async function main() {
     { id: "deye-ai-w5-1-8k-sg01lp1-eu-deye-ess-8-kw-1", name: "Deye ESS AI-W5.1-8K (8 кВт, 1 фаза)", category: "station", price: 1180, power: "8 кВт", model: "AI-W5.1-8K-SG01LP1-EU", prices: { EnergyEvolution: 1180 } },
     { id: "deye-s-stema-nakop-chennya-deye-bess-bos-b-240", name: "Система накопичення Deye BESS BOS-B 240 кВт", category: "station", price: 27500, power: "240 кВт", model: "BESS BOS-B 240", prices: { RiseUp: 27500 } },
   ];
-
-  // Fetch supplier name→id map once
-  const supplierRows = await prisma.supplier.findMany({ select: { id: true, name: true } });
-  const supplierMap = Object.fromEntries(supplierRows.map((s) => [s.name, s.id]));
 
   // ── Deye catalogue enrichment (characteristics + official images) ─────────
   // Runs ONLY when the seed is invoked with `--enrich` (npm run seed:enrich /
@@ -1146,17 +1127,13 @@ async function main() {
 
   let deyeCreated = 0;
   let deyeEnriched = 0;
-  let deyePrices = 0;
   for (const p of deyeProducts) {
-    const supplierPriceValues = Object.values(p.prices).filter((v) => v > 0);
-    const minSupplierPrice = supplierPriceValues.length ? Math.min(...supplierPriceValues) : p.price;
-    const retailPrice = Math.round(minSupplierPrice * 1.2);
     const enrich = deyeEnrichment[p.id];
     const createData = {
       name: p.name,
       category: p.category,
       brandSlug: "deye",
-      price: retailPrice,
+      price: 0,
       warranty: "1 рік",
       power: p.power ?? null,
       features: JSON.stringify(enrich ? enrich.features : [p.model]),
@@ -1169,7 +1146,6 @@ async function main() {
       name: string;
       category: string;
       brandSlug: string;
-      price: number;
       power: string | null;
       features?: string;
       image?: string;
@@ -1178,7 +1154,6 @@ async function main() {
       name: p.name,
       category: p.category,
       brandSlug: "deye",
-      price: retailPrice,
       power: p.power ?? null,
     };
     if (ENRICH && enrich) {
@@ -1197,20 +1172,10 @@ async function main() {
     await prisma.product.upsert({ where: { id: p.id }, create: { id: p.id, ...createData }, update: updateData });
     deyeCreated++;
 
-    for (const [supplierName, supplierPrice] of Object.entries(p.prices)) {
-      const supplierId = supplierMap[supplierName];
-      if (!supplierId) continue;
-      await prisma.supplierPrice.upsert({
-        where: { supplierId_productId: { supplierId, productId: p.id } },
-        create: { supplierId, productId: p.id, price: supplierPrice, currency: "USD", availability: "in_stock" },
-        update: { price: supplierPrice, availability: "in_stock" },
-      });
-      deyePrices++;
-    }
   }
   await prisma.product.updateMany({ where: { id: { startsWith: "deye-" } }, data: { brandSlug: "deye" } });
   console.log(
-    `[seed] Deye products: ${deyeCreated} upserted, ${deyePrices} supplier prices linked` +
+    `[seed] Deye products: ${deyeCreated} upserted; supplier and retail prices preserved` +
       (ENRICH ? `, ${deyeEnriched} enriched (characteristics + image)` : " (enrichment skipped — pass --enrich to apply)"),
   );
 

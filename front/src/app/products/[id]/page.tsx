@@ -24,7 +24,7 @@ export async function generateMetadata({
 
   const description =
     (product.features?.slice(0, 3).join(". ") || SITE_DESCRIPTION) +
-    ` Ціна від $${product.price.toLocaleString("en-US")}.`;
+    (product.price > 0 ? ` Ціна від $${product.price.toLocaleString("en-US")}.` : " Ціну уточнюйте у менеджера.");
   const image =
     product.images && product.images.length
       ? product.images[0].startsWith("http")

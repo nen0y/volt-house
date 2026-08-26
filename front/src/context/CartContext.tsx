@@ -16,8 +16,9 @@ type Action =
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "HYDRATE":
-      return { items: action.items };
+      return { items: action.items.filter((item) => item.product.price > 0) };
     case "ADD": {
+      if (action.product.price <= 0) return state;
       const found = state.items.find((i) => i.product.id === action.product.id);
       if (found) {
         return {
@@ -78,7 +79,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (!saved) return;
       const items: unknown = JSON.parse(saved);
       if (Array.isArray(items)) {
-        const hydrated = { items: items as CartItem[] };
+        const hydrated = { items: (items as CartItem[]).filter((item) => item.product.price > 0) };
         stateRef.current = hydrated;
         dispatch({ type: "HYDRATE", items: hydrated.items });
       }

@@ -295,6 +295,12 @@
           <div><h1>Матриця закупівельних цін</h1><p>Найкраща доступна ціна кожного товару виділяється зеленим.</p></div>
           <button class="btn btn-sm btn-ghost" id="refreshPricing">↻ Оновити</button>
         </div>
+        <div class="toolbar">
+          <input id="pricingSearch" type="search" placeholder="Пошук товару…">
+          <select id="pricingCategoryFilter"><option value="all">Усі категорії</option></select>
+          <select id="pricingBrandFilter"><option value="all">Усі бренди</option></select>
+          <span class="muted" id="pricingFilterCount"></span>
+        </div>
         <div id="pricingSummary" class="stats"></div>
         <div id="pricingBody"></div>
       </section>

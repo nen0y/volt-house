@@ -12,6 +12,8 @@
     "seed:prod": "node dist/seed.js",
     "seed:enrich": "tsx src/seed.ts --enrich",
     "seed:enrich:prod": "node dist/seed.js --enrich",
+    "suppliers:reset": "tsx src/reset-suppliers.ts --confirm-supplier-reset",
+    "suppliers:reset:prod": "node dist/reset-suppliers.js --confirm-supplier-reset",
     "prisma:push": "prisma db push",
     "prisma:generate": "prisma generate"
   },

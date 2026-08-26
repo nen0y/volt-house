@@ -90,17 +90,26 @@ model Lead {
 }
 
 model Supplier {
-  id          String          @id @default(cuid())
-  name        String
-  contactName String?
-  phone       String?
-  email       String?
-  website     String?
-  notes       String          @default("")
-  active      Boolean         @default(true)
-  prices      SupplierPrice[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id                  String          @id @default(cuid())
+  name                String
+  contactName         String?
+  phone               String?
+  email               String?
+  website             String?
+  resourceUrl         String?
+  supplierTypes       String          @default("[]") // JSON string[]
+  rating              String?
+  brands              String          @default("[]") // JSON string[]
+  currencies          String          @default("[]") // JSON string[]
+  countries           String          @default("[]") // JSON string[]
+  locations           String          @default("[]") // JSON string[]
+  equipmentCategories String          @default("[]") // JSON string[]
+  lastContactAt       DateTime?
+  notes               String          @default("")
+  active              Boolean         @default(true)
+  prices              SupplierPrice[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 }
 
 model SupplierPrice {

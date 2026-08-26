@@ -98,12 +98,14 @@ export default function ProductDetail({
     product.category;
 
   const handleAdd = () => {
+    if (product.price <= 0) return;
     add(product);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
 
-  const savings = product.originalPrice
+  const hasPrice = product.price > 0;
+  const savings = hasPrice && product.originalPrice
     ? Math.round(
         ((product.originalPrice - product.price) / product.originalPrice) * 100
       )
@@ -184,15 +186,15 @@ export default function ProductDetail({
 
           {/* Price */}
           <div className="flex items-baseline gap-[10px] mb-[24px]">
-            {product.originalPrice && (
+            {hasPrice && product.originalPrice ? (
               <span className="text-[16px] text-gray-400 line-through">
                 ${product.originalPrice.toLocaleString("en-US")}
               </span>
-            )}
-            <span className="text-[32px] font-bold text-gray-900">
-              ${product.price.toLocaleString("en-US")}
-            </span>
-            <span className="text-[13px] text-gray-400">з ПДВ</span>
+            ) : null}
+            {hasPrice ? <>
+              <span className="text-[32px] font-bold text-gray-900">${product.price.toLocaleString("en-US")}</span>
+              <span className="text-[13px] text-gray-400">з ПДВ</span>
+            </> : <span className="text-[24px] font-bold text-amber-700">Ціну уточнюйте</span>}
             {savings && (
               <span className="text-[13px] font-bold text-green-600 bg-green-50 px-[8px] py-[2px] rounded-full">
                 -{savings}%
@@ -253,7 +255,7 @@ export default function ProductDetail({
 
           {/* CTA */}
           <div className="flex gap-[12px] mt-auto">
-            <button
+            {hasPrice ? <button
               onClick={handleAdd}
               className={`flex-1 py-[14px] rounded-[8px] text-[15px] font-semibold transition-colors cursor-pointer ${
                 added
@@ -262,7 +264,7 @@ export default function ProductDetail({
               }`}
             >
               {added ? "✓ Додано до кошика" : "Додати в кошик"}
-            </button>
+            </button> : null}
             <button
               onClick={() => setConsultOpen(true)}
               className="px-[20px] py-[14px] rounded-[8px] border border-gray-200 text-[15px] font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap cursor-pointer"

@@ -65,7 +65,8 @@ const categoryIcon: Record<string, ReactNode> = {
 export default function ProductCard({ product }: { product: Product }) {
   const router = useRouter();
   const { add } = useCart();
-  const savings = product.originalPrice
+  const hasPrice = product.price > 0;
+  const savings = hasPrice && product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
 
@@ -95,20 +96,20 @@ export default function ProductCard({ product }: { product: Product }) {
           {product.name}
         </h3>
         <div>
-          {product.originalPrice && (
+          {hasPrice && product.originalPrice ? (
             <span className="text-[11px] text-gray-400 line-through mr-[6px]">
               ${product.originalPrice.toLocaleString("en-US")}
             </span>
-          )}
-          <span className="text-[11px] text-gray-500">Від: </span>
-          <span className="text-[16px] font-bold text-gray-900">
-            ${product.price.toLocaleString("en-US")}
-          </span>
-          <span className="text-[10px] text-gray-400 ml-[4px]">з ПДВ</span>
+          ) : null}
+          {hasPrice ? <>
+            <span className="text-[11px] text-gray-500">Від: </span>
+            <span className="text-[16px] font-bold text-gray-900">${product.price.toLocaleString("en-US")}</span>
+            <span className="text-[10px] text-gray-400 ml-[4px]">з ПДВ</span>
+          </> : <span className="text-[14px] font-semibold text-amber-700">Ціну уточнюйте</span>}
         </div>
       </div>
 
-      <button
+      {hasPrice && <button
         onClick={(e) => { e.stopPropagation(); add(product); }}
         className="absolute bottom-[14px] right-[14px] w-[32px] h-[32px] rounded-full bg-gray-950 text-[#FFC107] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-sm cursor-pointer"
         aria-label="Додати в кошик"
@@ -118,7 +119,7 @@ export default function ProductCard({ product }: { product: Product }) {
           <circle cx="7" cy="13" r="1" fill="white" />
           <circle cx="12" cy="13" r="1" fill="white" />
         </svg>
-      </button>
+      </button>}
     </div>
   );
 }

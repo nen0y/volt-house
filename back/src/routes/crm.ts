@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAdmin } from "../middleware/auth";
+import { parseStringArray } from "../json";
 
 export const crmRouter = Router();
 
@@ -13,23 +14,61 @@ const supplierSchema = z.object({
   phone: z.string().nullish(),
   email: z.string().email().nullish().or(z.literal("")),
   website: z.string().nullish(),
+  resourceUrl: z.string().nullish(),
+  supplierTypes: z.array(z.string()).default([]),
+  rating: z.string().nullish(),
+  brands: z.array(z.string()).default([]),
+  currencies: z.array(z.string()).default([]),
+  countries: z.array(z.string()).default([]),
+  locations: z.array(z.string()).default([]),
+  equipmentCategories: z.array(z.string()).default([]),
+  lastContactAt: z.coerce.date().nullish(),
   notes: z.string().default(""),
   active: z.boolean().default(true),
 });
+
+function supplierData(d: z.infer<typeof supplierSchema> | Partial<z.infer<typeof supplierSchema>>) {
+  return {
+    ...d,
+    ...(d.email !== undefined ? { email: d.email || null } : {}),
+    ...(d.website !== undefined ? { website: d.website || null } : {}),
+    ...(d.resourceUrl !== undefined ? { resourceUrl: d.resourceUrl || null } : {}),
+    ...(d.rating !== undefined ? { rating: d.rating || null } : {}),
+    ...(d.supplierTypes !== undefined ? { supplierTypes: JSON.stringify(d.supplierTypes) } : {}),
+    ...(d.brands !== undefined ? { brands: JSON.stringify(d.brands) } : {}),
+    ...(d.currencies !== undefined ? { currencies: JSON.stringify(d.currencies) } : {}),
+    ...(d.countries !== undefined ? { countries: JSON.stringify(d.countries) } : {}),
+    ...(d.locations !== undefined ? { locations: JSON.stringify(d.locations) } : {}),
+    ...(d.equipmentCategories !== undefined ? { equipmentCategories: JSON.stringify(d.equipmentCategories) } : {}),
+  };
+}
+
+function supplierDto(row: any) {
+  return {
+    ...row,
+    supplierTypes: parseStringArray(row.supplierTypes),
+    brands: parseStringArray(row.brands),
+    currencies: parseStringArray(row.currencies),
+    countries: parseStringArray(row.countries),
+    locations: parseStringArray(row.locations),
+    equipmentCategories: parseStringArray(row.equipmentCategories),
+    lastContactAt: row.lastContactAt ? row.lastContactAt.toISOString().slice(0, 10) : null,
+  };
+}
 
 crmRouter.get("/suppliers", async (_req, res) => {
   const rows = await prisma.supplier.findMany({
     include: { _count: { select: { prices: true } } },
     orderBy: [{ active: "desc" }, { name: "asc" }],
   });
-  res.json(rows);
+  res.json(rows.map(supplierDto));
 });
 
 crmRouter.post("/suppliers", async (req, res) => {
   const parsed = supplierSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const row = await prisma.supplier.create({ data: { ...parsed.data, email: parsed.data.email || null } });
-  res.status(201).json(row);
+  const row = await prisma.supplier.create({ data: supplierData(parsed.data) as any });
+  res.status(201).json(supplierDto(row));
 });
 
 crmRouter.put("/suppliers/:id", async (req, res) => {
@@ -38,9 +77,9 @@ crmRouter.put("/suppliers/:id", async (req, res) => {
   try {
     const row = await prisma.supplier.update({
       where: { id: req.params.id },
-      data: { ...parsed.data, ...(parsed.data.email === "" ? { email: null } : {}) },
+      data: supplierData(parsed.data) as any,
     });
-    res.json(row);
+    res.json(supplierDto(row));
   } catch {
     res.status(404).json({ error: "Постачальника не знайдено" });
   }
@@ -92,7 +131,7 @@ crmRouter.delete("/prices", async (req, res) => {
 
 crmRouter.get("/price-matrix", async (_req, res) => {
   const [products, suppliers, prices, categories] = await Promise.all([
-    prisma.product.findMany({ include: { brand: true }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
+    prisma.product.findMany({ include: { brand: true, categoryLinks: { select: { categoryKey: true } } }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
     prisma.supplier.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.supplierPrice.findMany(),
     prisma.category.findMany({ select: { key: true, label: true } }),
@@ -110,11 +149,13 @@ crmRouter.get("/price-matrix", async (_req, res) => {
       id: p.id,
       name: p.name,
       category: p.category,
+      categoryKeys: p.categoryLinks.length ? p.categoryLinks.map((link) => link.categoryKey) : [p.category],
       categoryLabel: categories.find((c) => c.key === p.category)?.label || "Без категорії",
       brandLabel: p.brand?.name || "Без бренду",
       retailPrice: p.price,
     })),
     suppliers: suppliers.map((s) => ({ id: s.id, name: s.name })),
+    categories: categories.map((c) => ({ key: c.key, label: c.label })),
     prices,
     bestByProduct,
   });

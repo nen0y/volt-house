@@ -81,12 +81,12 @@ export default function Hero() {
             </p>
             <h1 className="text-white text-[36px] font-bold leading-tight mb-[6px]">{heading}</h1>
             <p className="text-gray-300 text-[14px] mb-[6px]">{subheading}</p>
-            {featured && (
+            {featured && featured.price > 0 && (
               <p className="text-gray-400 text-[12px] mb-[24px]">
                 Від: ${featured.price.toLocaleString("en-US")} з ПДВ
               </p>
             )}
-            {featured && (
+            {featured && featured.price > 0 && (
               <button
                 onClick={(e) => {
                   e.preventDefault();
@@ -96,6 +96,14 @@ export default function Hero() {
                 className="inline-block bg-white text-gray-900 text-[14px] font-medium rounded-full px-[28px] py-[10px] hover:bg-gray-100 transition-colors cursor-pointer"
               >
                 Купити
+              </button>
+            )}
+            {featured && featured.price <= 0 && (
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = "/#contact"; }}
+                className="inline-block bg-white text-gray-900 text-[14px] font-medium rounded-full px-[28px] py-[10px] hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                Уточнити ціну
               </button>
             )}
           </div>

@@ -57,8 +57,8 @@ export default function AllProductsClient({
           p.features.some((f) => f.toLowerCase().includes(q))
       );
     }
-    if (sort === "price-asc") list = [...list].sort((a, b) => a.price - b.price);
-    if (sort === "price-desc") list = [...list].sort((a, b) => b.price - a.price);
+    if (sort === "price-asc") list = [...list].sort((a, b) => a.price <= 0 ? 1 : b.price <= 0 ? -1 : a.price - b.price);
+    if (sort === "price-desc") list = [...list].sort((a, b) => a.price <= 0 ? 1 : b.price <= 0 ? -1 : b.price - a.price);
     return list;
   }, [all, brand, categoryKeys, filter, query, sort]);
 

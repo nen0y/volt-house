@@ -9,6 +9,7 @@
   let brandCache = [];
   let homeCache = []; // home sections
   let supplierCache = [];
+  let pricingCache = null;
   let crmLeadCache = [];
   let adminEmail = "";
 
@@ -288,12 +289,13 @@
     try {
       supplierCache = await api("/api/crm/suppliers");
       $("suppliersBody").innerHTML = supplierCache.length
-        ? `<table><thead><tr><th>Назва</th><th>Контакт</th><th>Телефон / Email</th><th>Сайт</th><th>Цін</th><th>Статус</th><th></th></tr></thead><tbody>${
+        ? `<table><thead><tr><th>Назва / тип</th><th>Бренди / категорії</th><th>Контакт</th><th>Локації</th><th>Ресурси</th><th>Цін</th><th>Статус</th><th></th></tr></thead><tbody>${
             supplierCache.map((s) => `<tr class="${s.active ? "" : "supplier-inactive"}">
-              <td><strong>${esc(s.name)}</strong></td>
-              <td class="supplier-meta">${esc(s.contactName || "—")}</td>
-              <td class="supplier-meta">${s.phone ? `<a href="tel:${esc(s.phone)}">${esc(s.phone)}</a>` : ""}${s.phone && s.email ? "<br>" : ""}${s.email ? esc(s.email) : ""}${!s.phone && !s.email ? "—" : ""}</td>
-              <td class="supplier-meta">${s.website ? `<a href="${esc(s.website)}" target="_blank" rel="noopener">${esc(s.website)}</a>` : "—"}</td>
+              <td><strong>${esc(s.name)}</strong>${s.rating ? `<br><span class="badge s-new">Рейтинг ${esc(s.rating)}</span>` : ""}<div class="supplier-meta">${esc((s.supplierTypes || []).join(" · ") || "—")}</div></td>
+              <td class="supplier-meta">${esc((s.brands || []).join(", ") || "—")}<br>${esc((s.equipmentCategories || []).join(" · ") || "")}</td>
+              <td class="supplier-meta">${esc(s.contactName || "—")}${s.phone ? `<br>${esc(s.phone)}` : ""}${s.email ? `<br>${esc(s.email)}` : ""}</td>
+              <td class="supplier-meta">${esc((s.locations || []).join(", ") || "—")}${(s.countries || []).length ? `<br>${esc(s.countries.join(", "))}` : ""}${(s.currencies || []).length ? `<br>${esc(s.currencies.join(" / "))}` : ""}</td>
+              <td class="supplier-meta">${s.website ? `<a href="${esc(s.website)}" target="_blank" rel="noopener">Сайт</a>` : ""}${s.website && s.resourceUrl ? " · " : ""}${s.resourceUrl && /^https?:\/\//.test(s.resourceUrl) ? `<a href="${esc(s.resourceUrl)}" target="_blank" rel="noopener">Прайс/ресурс</a>` : esc(s.resourceUrl || (!s.website ? "—" : ""))}${s.lastContactAt ? `<br>Контакт: ${esc(s.lastContactAt)}` : ""}</td>
               <td>${s._count ? s._count.prices : 0}</td>
               <td><span class="badge ${s.active ? "s-done" : "s-new"}">${s.active ? "Активний" : "Вимкнений"}</span></td>
               <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-supplier="${esc(s.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-supplier="${esc(s.id)}">Видалити</button></div></td>
@@ -311,17 +313,24 @@
 
   function supplierModal(supplier) {
     const isNew = !supplier;
-    const s = supplier || { name: "", contactName: "", phone: "", email: "", website: "", notes: "", active: true };
+    const s = supplier || { name: "", contactName: "", phone: "", email: "", website: "", resourceUrl: "", supplierTypes: [], rating: "", brands: [], currencies: [], countries: [], locations: [], equipmentCategories: [], lastContactAt: "", notes: "", active: false };
     openModal(`<h3>${isNew ? "Новий постачальник" : "Редагувати постачальника"}</h3>
       <div class="field"><label>Назва *</label><input id="sup_name" value="${esc(s.name)}"></div>
+      <div class="grid2"><div class="field"><label>Типи (через кому)</label><input id="sup_types" value="${esc((s.supplierTypes || []).join(", "))}"></div><div class="field"><label>Рейтинг</label><input id="sup_rating" value="${esc(s.rating || "")}" placeholder="A / B / C"></div></div>
+      <div class="field"><label>Бренди (через кому)</label><input id="sup_brands" value="${esc((s.brands || []).join(", "))}"></div>
       <div class="grid2"><div class="field"><label>Контактна особа</label><input id="sup_contact" value="${esc(s.contactName || "")}"></div><div class="field"><label>Телефон</label><input id="sup_phone" value="${esc(s.phone || "")}"></div></div>
       <div class="grid2"><div class="field"><label>Email</label><input id="sup_email" type="email" value="${esc(s.email || "")}"></div><div class="field"><label>Сайт</label><input id="sup_website" value="${esc(s.website || "")}"></div></div>
+      <div class="field"><label>Посилання на прайс / документи</label><input id="sup_resource" value="${esc(s.resourceUrl || "")}"></div>
+      <div class="grid2"><div class="field"><label>Локації (через кому)</label><input id="sup_locations" value="${esc((s.locations || []).join(", "))}"></div><div class="field"><label>Країни (через кому)</label><input id="sup_countries" value="${esc((s.countries || []).join(", "))}"></div></div>
+      <div class="grid2"><div class="field"><label>Валюти (через кому)</label><input id="sup_currencies" value="${esc((s.currencies || []).join(", "))}"></div><div class="field"><label>Останній контакт</label><input id="sup_last_contact" type="date" value="${esc(s.lastContactAt || "")}"></div></div>
+      <div class="field"><label>Категорії обладнання (через кому)</label><input id="sup_equipment" value="${esc((s.equipmentCategories || []).join(", "))}"></div>
       <div class="field"><label>Умови та нотатки</label><textarea id="sup_notes" rows="4">${esc(s.notes || "")}</textarea></div>
       <div class="field"><label style="display:flex;gap:8px;align-items:center;text-transform:none"><input id="sup_active" type="checkbox" ${s.active ? "checked" : ""} style="width:auto"> Активний постачальник</label></div>
       <div class="error" id="sup_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="sup_cancel">Скасувати</button><button class="btn" id="sup_save">Зберегти</button></div>`);
     $("sup_cancel").addEventListener("click", closeModal);
     $("sup_save").addEventListener("click", async () => {
-      const body = { name: $("sup_name").value.trim(), contactName: $("sup_contact").value.trim(), phone: $("sup_phone").value.trim(), email: $("sup_email").value.trim(), website: $("sup_website").value.trim(), notes: $("sup_notes").value, active: $("sup_active").checked };
+      const csv = (id) => $(id).value.split(",").map((v) => v.trim()).filter(Boolean);
+      const body = { name: $("sup_name").value.trim(), contactName: $("sup_contact").value.trim(), phone: $("sup_phone").value.trim(), email: $("sup_email").value.trim(), website: $("sup_website").value.trim(), resourceUrl: $("sup_resource").value.trim(), supplierTypes: csv("sup_types"), rating: $("sup_rating").value.trim(), brands: csv("sup_brands"), currencies: csv("sup_currencies"), countries: csv("sup_countries"), locations: csv("sup_locations"), equipmentCategories: csv("sup_equipment"), lastContactAt: $("sup_last_contact").value || null, notes: $("sup_notes").value, active: $("sup_active").checked };
       try {
         await api(isNew ? "/api/crm/suppliers" : "/api/crm/suppliers/" + s.id, { method: isNew ? "POST" : "PUT", body: JSON.stringify(body) });
         closeModal(); loadSuppliers();
@@ -331,19 +340,45 @@
 
   // ── Supplier price matrix ─────────────────────────────────────────────────
   $("refreshPricing").addEventListener("click", loadPricing);
+  $("pricingSearch").addEventListener("input", () => pricingCache && renderPricing(pricingCache));
+  $("pricingCategoryFilter").addEventListener("change", () => pricingCache && renderPricing(pricingCache));
+  $("pricingBrandFilter").addEventListener("change", () => pricingCache && renderPricing(pricingCache));
 
   async function loadPricing() {
     try {
       const data = await api("/api/crm/price-matrix");
+      pricingCache = data;
+      const selectedCategory = $("pricingCategoryFilter").value;
+      const selectedBrand = $("pricingBrandFilter").value;
+      $("pricingCategoryFilter").innerHTML = `<option value="all">Усі категорії</option>${(data.categories || []).map((c) => `<option value="${esc(c.key)}">${esc(c.label)}</option>`).join("")}`;
+      const brands = [...new Set(data.products.map((p) => p.brandLabel).filter(Boolean))].sort((a, b) => a.localeCompare(b, "uk"));
+      $("pricingBrandFilter").innerHTML = `<option value="all">Усі бренди</option>${brands.map((b) => `<option value="${esc(b)}">${esc(b)}</option>`).join("")}`;
+      if ([...$("pricingCategoryFilter").options].some((o) => o.value === selectedCategory)) $("pricingCategoryFilter").value = selectedCategory;
+      if ([...$("pricingBrandFilter").options].some((o) => o.value === selectedBrand)) $("pricingBrandFilter").value = selectedBrand;
+      renderPricing(data);
+    } catch (err) { $("pricingBody").innerHTML = `<div class="card empty">${esc(err.message)}</div>`; }
+  }
+
+  function renderPricing(data) {
       const covered = new Set(data.prices.map((p) => p.productId)).size;
       $("pricingSummary").innerHTML = [["Товарів", data.products.length], ["Постачальників", data.suppliers.length], ["З цінами", covered]].map(([l, n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
       if (!data.suppliers.length) {
-        $("pricingBody").innerHTML = `<div class="card empty">Спочатку додайте постачальників</div>`;
+        $("pricingBody").innerHTML = `<div class="card empty">Активуйте хоча б одного постачальника, щоб заповнювати матрицю</div>`;
+        $("pricingFilterCount").textContent = "";
         return;
       }
+      const query = $("pricingSearch").value.trim().toLowerCase();
+      const category = $("pricingCategoryFilter").value;
+      const brand = $("pricingBrandFilter").value;
+      const products = data.products.filter((p) =>
+        (!query || `${p.name} ${p.id}`.toLowerCase().includes(query)) &&
+        (category === "all" || (p.categoryKeys || [p.category]).includes(category)) &&
+        (brand === "all" || p.brandLabel === brand)
+      );
+      $("pricingFilterCount").textContent = `Показано ${products.length} із ${data.products.length}`;
       const priceMap = new Map(data.prices.map((p) => [`${p.productId}:${p.supplierId}`, p]));
       const head = data.suppliers.map((s) => `<th>${esc(s.name)}</th>`).join("");
-      const rows = data.products.map((product) => {
+      const rows = products.map((product) => {
         const cells = data.suppliers.map((supplier) => {
           const row = priceMap.get(`${product.id}:${supplier.id}`);
           const isUnavailable = row && (row.availability === "unavailable" || row.price === 0);
@@ -352,9 +387,9 @@
           return `<td class="price-cell ${isBest ? "best" : ""} ${isUnavailable ? "unavailable" : ""}"><input type="number" min="0" placeholder="—" value="${row ? row.price : ""}" data-price-product="${esc(product.id)}" data-price-supplier="${esc(supplier.id)}">
             ${isUnavailable ? `<span class="unavail-label">Немає в наявності</span>` : ""}${isBest ? `<span class="best-label">✓ Найкраща ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
         }).join("");
-        return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.categoryLabel || "Без категорії")} · ${esc(product.brandLabel || "Без бренду")} · роздріб ${money(product.retailPrice)}</div></td>${cells}</tr>`;
+        return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.categoryLabel || "Без категорії")} · ${esc(product.brandLabel || "Без бренду")} · роздріб ${product.retailPrice > 0 ? money(product.retailPrice) : "—"}</div></td>${cells}</tr>`;
       }).join("");
-      $("pricingBody").innerHTML = `<div class="matrix-wrap"><table class="price-matrix"><thead><tr><th>Товар</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      $("pricingBody").innerHTML = products.length ? `<div class="matrix-wrap"><table class="price-matrix"><thead><tr><th>Товар</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="card empty">За вибраними фільтрами товарів не знайдено</div>`;
       document.querySelectorAll("[data-price-product]").forEach((input) => input.addEventListener("change", async () => {
         input.disabled = true;
         try {
@@ -368,7 +403,6 @@
           loadPricing();
         } catch (err) { input.disabled = false; alert(err.message); }
       }));
-    } catch (err) { $("pricingBody").innerHTML = `<div class="card empty">${esc(err.message)}</div>`; }
   }
 
   // ── leads ─────────────────────────────────────────────────────────────────

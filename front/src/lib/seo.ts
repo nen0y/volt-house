@@ -66,7 +66,7 @@ export function productSchema(product: Product) {
   const images = (product.images && product.images.length ? product.images : []).map((p) =>
     p.startsWith("http") ? p : abs(p)
   );
-  return {
+  const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
@@ -75,7 +75,8 @@ export function productSchema(product: Product) {
     sku: product.id,
     category: categoryLabel[product.category] || product.category,
     brand: { "@type": "Brand", name: product.brand?.name || SITE_NAME },
-    offers: {
+  };
+  if (product.price > 0) schema.offers = {
       "@type": "Offer",
       price: product.price,
       priceCurrency: "USD",
@@ -83,8 +84,8 @@ export function productSchema(product: Product) {
       url: abs(`/products/${product.id}`),
       itemCondition: "https://schema.org/NewCondition",
       seller: { "@type": "Organization", name: SITE_NAME },
-    },
   };
+  return schema;
 }
 
 export function breadcrumbSchema(items: Array<{ name: string; path: string }>) {
