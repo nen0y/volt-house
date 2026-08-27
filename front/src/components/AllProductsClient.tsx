@@ -67,11 +67,10 @@ export default function AllProductsClient({
 
   const [consultOpen, setConsultOpen] = useState(false);
 
-  const count = (key: string) =>
-    key === "all" ? all.length : all.filter((p) => (p.categoryKeys ?? [p.category]).some((productKey) => categoryKeys(key).includes(productKey))).length;
-
-  const visible = useMemo(() => {
-    let list = filter === "all" ? all : all.filter((p) => (p.categoryKeys ?? [p.category]).some((productKey) => categoryKeys(filter).includes(productKey)));
+  // Products matching the active brand + search (but NOT the selected category),
+  // so the per-category counts reflect those filters as you narrow down.
+  const scoped = useMemo(() => {
+    let list = all;
     if (brand !== "all") list = list.filter((p) => p.brandSlug === brand);
     const q = query.trim().toLowerCase();
     if (q) {
@@ -81,10 +80,20 @@ export default function AllProductsClient({
           p.features.some((f) => f.toLowerCase().includes(q))
       );
     }
+    return list;
+  }, [all, brand, query]);
+
+  const count = (key: string) =>
+    key === "all"
+      ? scoped.length
+      : scoped.filter((p) => (p.categoryKeys ?? [p.category]).some((productKey) => categoryKeys(key).includes(productKey))).length;
+
+  const visible = useMemo(() => {
+    let list = filter === "all" ? scoped : scoped.filter((p) => (p.categoryKeys ?? [p.category]).some((productKey) => categoryKeys(filter).includes(productKey)));
     if (sort === "price-asc") list = [...list].sort((a, b) => a.price <= 0 ? 1 : b.price <= 0 ? -1 : a.price - b.price);
     if (sort === "price-desc") list = [...list].sort((a, b) => a.price <= 0 ? 1 : b.price <= 0 ? -1 : b.price - a.price);
     return list;
-  }, [all, brand, categoryKeys, filter, query, sort]);
+  }, [scoped, categoryKeys, filter, sort]);
 
   const brands = useMemo(() => Array.from(new Map(all.filter((p) => p.brand).map((p) => [p.brand!.slug, p.brand!])).values()).sort((a, b) => a.name.localeCompare(b.name, "uk")), [all]);
 
