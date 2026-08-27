@@ -20,6 +20,8 @@
     "seed:sig:prod": "node dist/seed-sig.js",
     "seed:yugtorg": "tsx src/seed-yugtorg.ts",
     "seed:yugtorg:prod": "node dist/seed-yugtorg.js",
+    "seed:solarbiz": "tsx src/seed-solarbiz.ts",
+    "seed:solarbiz:prod": "node dist/seed-solarbiz.js",
     "prisma:push": "prisma db push",
     "prisma:generate": "prisma generate"
   },
