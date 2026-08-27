@@ -224,6 +224,18 @@ export default function ProductDetail({
           </div>
           )}
 
+          {/* Warranty */}
+          {product.warranty && (
+            <div className="flex items-center gap-[8px] mb-[20px]">
+              <svg viewBox="0 0 16 16" fill="none" className="w-[16px] h-[16px] text-green-600 shrink-0">
+                <path d="M8 1L2 3.5v4.5c0 3.5 2.5 5.5 6 7 3.5-1.5 6-3.5 6-7V3.5L8 1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                <path d="M5.5 8l1.5 1.5L10.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="text-[13px] text-gray-500">Гарантія:</span>
+              <span className="text-[13px] font-semibold text-gray-800">{product.warranty}</span>
+            </div>
+          )}
+
           {/* Features */}
           <div className="mb-[32px]">
             <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-[12px]">

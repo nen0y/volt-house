@@ -677,6 +677,10 @@
         <div class="field"><label>ККД</label><input id="m_efficiency" value="${esc(p.efficiency ?? "")}" /></div>
         <div class="field"><label>Бейдж</label><input id="m_badge" value="${esc(p.badge ?? "")}" /></div>
       </div>
+      <div class="grid2">
+        <div class="field"><label>Гарантія</label><input id="m_warranty" value="${esc(p.warranty ?? "")}" placeholder="напр. 1 рік" /></div>
+        <div class="field"></div>
+      </div>
       <div class="field"><label>Зображення (шлях)</label><input id="m_image" value="${esc(p.image ?? "")}" /></div>
       <div class="field"><label>Характеристики (по одній на рядок)</label><textarea id="m_features" rows="4">${esc(
         (p.features || []).join("\n")
@@ -745,6 +749,7 @@
         power: $("m_power").value.trim() || null,
         capacity: $("m_capacity").value.trim() || null,
         efficiency: $("m_efficiency").value.trim() || null,
+        warranty: $("m_warranty").value.trim(),
         badge: $("m_badge").value.trim() || null,
         image: $("m_image").value.trim(),
         features: $("m_features").value.split("\n").map((s) => s.trim()).filter(Boolean),
