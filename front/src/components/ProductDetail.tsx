@@ -78,6 +78,58 @@ const categoryIllustration: Record<string, React.ReactNode> = {
   ),
 };
 
+const specIcons: Record<string, React.ReactNode> = {
+  power: (
+    <svg viewBox="0 0 20 20" fill="none" className="w-[18px] h-[18px]">
+      <path d="M11 2.5 4.8 11h4l-.8 6.5L15.2 9h-4l.8-6.5Z" fill="currentColor" />
+    </svg>
+  ),
+  capacity: (
+    <svg viewBox="0 0 20 20" fill="none" className="w-[18px] h-[18px]">
+      <rect x="2.5" y="6" width="12.5" height="8" rx="2.2" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="4.4" y="7.9" width="6" height="4.2" rx="1" fill="currentColor" />
+      <path d="M17.2 8.8v2.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  efficiency: (
+    <svg viewBox="0 0 20 20" fill="none" className="w-[18px] h-[18px]">
+      <path d="M3.5 14a6.5 6.5 0 1 1 13 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M10 14 13.2 10.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  ),
+  warranty: (
+    <svg viewBox="0 0 20 20" fill="none" className="w-[18px] h-[18px]">
+      <path d="M10 2 4 4.6v4.7c0 3.7 2.6 5.9 6 7.4 3.4-1.5 6-3.7 6-7.4V4.6L10 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M7.3 9.8 9.2 11.7 13 7.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+};
+
+function Spec({
+  icon,
+  label,
+  value,
+  tone = "amber",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone?: "amber" | "green";
+}) {
+  const toneCls = tone === "green" ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600";
+  return (
+    <div className="flex-1 min-w-[150px] flex items-center gap-[12px] rounded-[12px] border border-gray-100 bg-white px-[16px] py-[13px] shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
+      <div className={`flex items-center justify-center w-[38px] h-[38px] rounded-[10px] shrink-0 ${toneCls}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] text-gray-400 uppercase tracking-wider leading-none mb-[5px]">{label}</p>
+        <p className="text-[16px] font-bold text-gray-900 leading-none truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductDetail({
   product,
   related,
@@ -202,37 +254,15 @@ export default function ProductDetail({
             )}
           </div>
 
-          {/* Specs */}
-          {(product.efficiency || product.power || product.capacity) && (
-          <div className="grid grid-cols-2 gap-[12px] mb-[28px]">
-            {product.efficiency && (
-              <div className="bg-gray-50 rounded-[8px] p-[14px] text-center">
-                <p className="text-[11px] text-gray-400 mb-[4px] uppercase tracking-wider">ККД</p>
-                <p className="text-[16px] font-bold text-gray-900">{product.efficiency}</p>
-              </div>
-            )}
-            {(product.power || product.capacity) && (
-              <div className="bg-gray-50 rounded-[8px] p-[14px] text-center">
-                <p className="text-[11px] text-gray-400 mb-[4px] uppercase tracking-wider">
-                  {product.power ? "Потужність" : "Ємність"}
-                </p>
-                <p className="text-[16px] font-bold text-gray-900">
-                  {product.power ?? product.capacity}
-                </p>
-              </div>
-            )}
-          </div>
-          )}
-
-          {/* Warranty */}
-          {product.warranty && (
-            <div className="flex items-center gap-[8px] mb-[20px]">
-              <svg viewBox="0 0 16 16" fill="none" className="w-[16px] h-[16px] text-green-600 shrink-0">
-                <path d="M8 1L2 3.5v4.5c0 3.5 2.5 5.5 6 7 3.5-1.5 6-3.5 6-7V3.5L8 1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-                <path d="M5.5 8l1.5 1.5L10.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span className="text-[13px] text-gray-500">Гарантія:</span>
-              <span className="text-[13px] font-semibold text-gray-800">{product.warranty}</span>
+          {/* Specs + warranty */}
+          {(product.power || product.capacity || product.efficiency || product.warranty) && (
+            <div className="flex flex-wrap gap-[12px] mb-[28px]">
+              {product.power && <Spec icon={specIcons.power} label="Потужність" value={product.power} />}
+              {product.capacity && <Spec icon={specIcons.capacity} label="Ємність" value={product.capacity} />}
+              {product.efficiency && <Spec icon={specIcons.efficiency} label="ККД" value={product.efficiency} />}
+              {product.warranty && (
+                <Spec icon={specIcons.warranty} label="Гарантія" value={product.warranty} tone="green" />
+              )}
             </div>
           )}
 
