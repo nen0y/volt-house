@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { fetchProducts, fetchCategories } from "@/lib/api";
 import { FALLBACK_CATEGORIES } from "@/types";
 import ProductCard from "./ProductCard";
+import ConsultationModal from "./ConsultationModal";
 import type { Product } from "@/types";
 
 type SortKey = "default" | "price-asc" | "price-desc";
@@ -38,10 +40,32 @@ export default function AllProductsClient({
     return keys;
   }, [categories]);
 
-  const [filter, setFilter] = useState<string>(initialCategory || "all");
-  const [brand, setBrand] = useState("all");
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("default");
+  const searchParams = useSearchParams();
+  const asSort = (s: string | null): SortKey =>
+    s === "price-asc" || s === "price-desc" ? s : "default";
+
+  // Initial filter state comes from the URL, so a shared link opens pre-filtered.
+  const [filter, setFilter] = useState<string>(
+    () => searchParams.get("category") || initialCategory || "all"
+  );
+  const [brand, setBrand] = useState(() => searchParams.get("brand") || "all");
+  const [query, setQuery] = useState(() => searchParams.get("q") || "");
+  const [sort, setSort] = useState<SortKey>(() => asSort(searchParams.get("sort")));
+
+  // Reflect the active filters back into the URL (no reload) so the current view
+  // can be copied from the address bar and shared with someone else.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filter && filter !== "all") params.set("category", filter);
+    if (brand !== "all") params.set("brand", brand);
+    const q = query.trim();
+    if (q) params.set("q", q);
+    if (sort !== "default") params.set("sort", sort);
+    const qs = params.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [filter, brand, query, sort]);
+
+  const [consultOpen, setConsultOpen] = useState(false);
 
   const count = (key: string) =>
     key === "all" ? all.length : all.filter((p) => (p.categoryKeys ?? [p.category]).some((productKey) => categoryKeys(key).includes(productKey))).length;
@@ -74,6 +98,7 @@ export default function AllProductsClient({
 
   return (
     <div className="max-w-[1280px] mx-auto px-[24px] py-[40px]">
+      <ConsultationModal isOpen={consultOpen} onClose={() => setConsultOpen(false)} />
       {/* Heading */}
       <div className="mb-[24px]">
         <h1 className="text-[28px] font-bold text-gray-900 mb-[4px]">{activeLabel}</h1>
@@ -83,9 +108,13 @@ export default function AllProductsClient({
       <div className="mb-[20px] rounded-[12px] border border-amber-200 bg-amber-50 px-[16px] py-[13px] text-[13px] leading-relaxed text-gray-700">
         <strong className="text-gray-900">Не знайшли потрібний товар?</strong>{" "}
         Ми постійно оновлюємо асортимент, тому товар може бути в наявності, навіть якщо його поки немає на сайті.{" "}
-        <a href="/#contact" className="font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800">
+        <button
+          type="button"
+          onClick={() => setConsultOpen(true)}
+          className="font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800 cursor-pointer"
+        >
           Уточніть у менеджера
-        </a>
+        </button>
         .
       </div>
 
@@ -198,7 +227,13 @@ export default function AllProductsClient({
           <p>Нічого не знайдено. Спробуйте змінити фільтри.</p>
           <p className="mt-[8px]">
             Потрібний товар може бути в наявності —{" "}
-            <a href="/#contact" className="font-semibold text-amber-700 underline underline-offset-2">уточніть у менеджера</a>.
+            <button
+              type="button"
+              onClick={() => setConsultOpen(true)}
+              className="font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800 cursor-pointer"
+            >
+              уточніть у менеджера
+            </button>.
           </p>
         </div>
       )}
