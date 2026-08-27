@@ -1134,7 +1134,7 @@ async function main() {
       category: p.category,
       brandSlug: "deye",
       price: 0,
-      warranty: "1 рік",
+      warranty: "", // пусто за замовчуванням — гарантію проставляють вручну в адмінці
       power: p.power ?? null,
       features: JSON.stringify(enrich ? enrich.features : [p.model]),
       image: "/placeholder.jpg",
