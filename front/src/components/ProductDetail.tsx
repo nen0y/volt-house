@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useCart } from "@/context/CartContext";
@@ -141,7 +141,38 @@ export default function ProductDetail({
   const [added, setAdded] = useState(false);
   const [consultOpen, setConsultOpen] = useState(false);
   const [imgIdx, setImgIdx] = useState(0);
-  const images = product.images ?? [];
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const images = useMemo(
+    () => Array.from(new Set([product.image, ...(product.images ?? [])].filter(Boolean))),
+    [product.image, product.images],
+  );
+
+  const showPrevImage = useCallback(
+    () => setImgIdx((current) => (current - 1 + images.length) % images.length),
+    [images.length],
+  );
+  const showNextImage = useCallback(
+    () => setImgIdx((current) => (current + 1) % images.length),
+    [images.length],
+  );
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLightboxOpen(false);
+      if (event.key === "ArrowLeft" && images.length > 1) showPrevImage();
+      if (event.key === "ArrowRight" && images.length > 1) showNextImage();
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [images.length, lightboxOpen, showNextImage, showPrevImage]);
 
   const { data: cats } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
   const catLabel =
@@ -166,6 +197,63 @@ export default function ProductDetail({
   return (
     <div className="max-w-[1280px] mx-auto px-[24px] py-[40px]">
       <ConsultationModal isOpen={consultOpen} onClose={() => setConsultOpen(false)} />
+      {lightboxOpen && images.length > 0 && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-[16px] sm:p-[32px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Галерея товару ${product.name}`}
+          onClick={() => setLightboxOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(false)}
+            className="absolute right-[16px] top-[16px] z-20 flex h-[44px] w-[44px] items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 sm:right-[28px] sm:top-[28px]"
+            aria-label="Закрити галерею"
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-[26px] w-[26px]">
+              <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+
+          <div className="relative flex h-full w-full max-w-[1400px] items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={showPrevImage}
+                className="absolute left-0 z-10 flex h-[48px] w-[48px] items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 sm:left-[8px] sm:h-[56px] sm:w-[56px]"
+                aria-label="Попереднє фото"
+              >
+                <svg viewBox="0 0 24 24" fill="none" className="h-[28px] w-[28px]"><path d="m15 18-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            )}
+
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={assetUrl(images[Math.min(imgIdx, images.length - 1)])}
+              alt={`${product.name}, фото ${imgIdx + 1}`}
+              className="max-h-full max-w-full select-none object-contain"
+            />
+
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={showNextImage}
+                className="absolute right-0 z-10 flex h-[48px] w-[48px] items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20 sm:right-[8px] sm:h-[56px] sm:w-[56px]"
+                aria-label="Наступне фото"
+              >
+                <svg viewBox="0 0 24 24" fill="none" className="h-[28px] w-[28px]"><path d="m9 18 6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            )}
+
+            {images.length > 1 && (
+              <span className="absolute bottom-0 rounded-full bg-black/50 px-[12px] py-[6px] text-[13px] font-medium text-white backdrop-blur">
+                {imgIdx + 1} / {images.length}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
       {/* Breadcrumb */}
       <nav className="flex items-center gap-[8px] text-[13px] text-gray-400 mb-[32px]">
         <Link href="/" className="hover:text-gray-600 transition-colors">
@@ -185,13 +273,35 @@ export default function ProductDetail({
         <div className="bg-white rounded-[12px] border border-gray-100 flex flex-col items-center justify-center min-h-[360px] overflow-hidden">
           {images.length > 0 ? (
             <div className="w-full">
-              <div className="h-[360px] w-full flex items-center justify-center overflow-hidden bg-gray-50">
+              <div className="group relative h-[360px] w-full flex items-center justify-center overflow-hidden bg-gray-50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={assetUrl(images[Math.min(imgIdx, images.length - 1)])}
                   alt={product.name}
-                  className="w-full h-full object-contain"
+                  onClick={() => setLightboxOpen(true)}
+                  className="w-full h-full cursor-zoom-in object-contain transition-transform duration-300 group-hover:scale-[1.015]"
                 />
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(true)}
+                  className="absolute right-[12px] top-[12px] flex h-[40px] w-[40px] items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-gray-950"
+                  aria-label="Відкрити фото на весь екран"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" className="h-[20px] w-[20px]"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </button>
+                {images.length > 1 && (
+                  <>
+                    <button type="button" onClick={showPrevImage} className="absolute left-[12px] flex h-[42px] w-[42px] items-center justify-center rounded-full bg-white/90 text-gray-800 shadow-md transition hover:bg-white" aria-label="Попереднє фото">
+                      <svg viewBox="0 0 24 24" fill="none" className="h-[24px] w-[24px]"><path d="m15 18-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </button>
+                    <button type="button" onClick={showNextImage} className="absolute right-[12px] flex h-[42px] w-[42px] items-center justify-center rounded-full bg-white/90 text-gray-800 shadow-md transition hover:bg-white" aria-label="Наступне фото">
+                      <svg viewBox="0 0 24 24" fill="none" className="h-[24px] w-[24px]"><path d="m9 18 6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </button>
+                    <span className="absolute bottom-[12px] rounded-full bg-gray-950/65 px-[10px] py-[4px] text-[12px] font-semibold text-white backdrop-blur">
+                      {imgIdx + 1} / {images.length}
+                    </span>
+                  </>
+                )}
               </div>
               {images.length > 1 && (
                 <div className="flex gap-[8px] p-[12px] flex-wrap">
