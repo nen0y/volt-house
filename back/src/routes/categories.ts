@@ -40,6 +40,10 @@ const schema = z.object({
   parentKey: z.string().nullable().optional(),
 });
 
+const reorderSchema = z.object({
+  keys: z.array(z.string().min(1)).min(1),
+});
+
 // POST /api/categories  (admin) — create/upsert
 categoriesRouter.post("/", requireAdmin, async (req, res) => {
   const parsed = schema.safeParse(req.body);
@@ -60,6 +64,30 @@ categoriesRouter.post("/", requireAdmin, async (req, res) => {
     update: data,
   });
   res.status(201).json(toDto(saved));
+});
+
+// PUT /api/categories/reorder (admin) — atomically persist the full UI order.
+categoriesRouter.put("/reorder", requireAdmin, async (req, res) => {
+  const parsed = reorderSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const keys = parsed.data.keys;
+  if (new Set(keys).size !== keys.length) {
+    return res.status(400).json({ error: "Категорії в порядку не повинні повторюватися" });
+  }
+
+  const existing = await prisma.category.findMany({ select: { key: true } });
+  const existingKeys = new Set(existing.map((category) => category.key));
+  if (keys.length !== existingKeys.size || keys.some((key) => !existingKeys.has(key))) {
+    return res.status(400).json({ error: "Передайте повний актуальний список категорій" });
+  }
+
+  await prisma.$transaction(
+    keys.map((key, sortOrder) => prisma.category.update({ where: { key }, data: { sortOrder } })),
+  );
+
+  const rows = await prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
+  res.json(rows.map(toDto));
 });
 
 // PUT /api/categories/:key  (admin) — partial update

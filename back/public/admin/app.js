@@ -842,14 +842,25 @@
   });
 
   // ── categories ──────────────────────────────────────────────────────────────
+  function categoryTree(cats) {
+    const roots = cats.filter((c) => !c.parentKey);
+    const rootKeys = new Set(roots.map((c) => c.key));
+    const orphans = cats.filter((c) => c.parentKey && !rootKeys.has(c.parentKey));
+    return roots.flatMap((root) => [root, ...cats.filter((c) => c.parentKey === root.key)]).concat(orphans);
+  }
+
   async function loadCategories() {
     try {
       const cats = await api("/api/categories?all=1");
       categoryCache = cats;
-      $("categoriesBody").innerHTML = cats.length
-        ? cats
+      const tree = categoryTree(cats);
+      $("categoriesBody").innerHTML = tree.length
+        ? tree
             .map(
-              (c) => `<div class="pcard">
+              (c) => {
+                const siblings = cats.filter((x) => (x.parentKey || null) === (c.parentKey || null));
+                const siblingIndex = siblings.findIndex((x) => x.key === c.key);
+                return `<div class="pcard">
         <div class="cat">${c.parentKey ? "Підкатегорія" : "Категорія"} · ${esc(c.key)}${c.enabled ? "" : " · прихована"}</div>
         <h4>${c.parentKey ? "↳ " : ""}${esc(c.icon)} ${esc(c.label)}</h4>
         ${c.parentKey ? `<div class="muted" style="font-size:11px">Батьківська: ${esc((cats.find((x) => x.key === c.parentKey) || {}).label || c.parentKey)}</div>` : ""}
@@ -858,9 +869,12 @@
           productCache.filter((p) => (p.categoryKeys || [p.category]).includes(c.key)).length
         }</b> · порядок: ${c.sortOrder}</div>
         <div class="acts">
+          <button class="btn-sm btn-ghost" data-up-cat="${esc(c.key)}" ${siblingIndex === 0 ? "disabled" : ""} title="Перемістити вище">↑</button>
+          <button class="btn-sm btn-ghost" data-down-cat="${esc(c.key)}" ${siblingIndex === siblings.length - 1 ? "disabled" : ""} title="Перемістити нижче">↓</button>
           <button class="btn-sm btn-ghost" data-edit-cat='${esc(JSON.stringify(c))}'>Редагувати</button>
           <button class="btn-sm btn-danger" data-del-cat="${esc(c.key)}">Видалити</button>
-        </div></div>`
+        </div></div>`;
+              }
             )
             .join("")
         : `<div class="empty">Категорій немає</div>`;
@@ -872,6 +886,12 @@
       }
       document.querySelectorAll("[data-edit-cat]").forEach((b) =>
         b.addEventListener("click", () => categoryModal(JSON.parse(b.dataset.editCat)))
+      );
+      document.querySelectorAll("[data-up-cat]").forEach((b) =>
+        b.addEventListener("click", () => moveCategory(b.dataset.upCat, -1))
+      );
+      document.querySelectorAll("[data-down-cat]").forEach((b) =>
+        b.addEventListener("click", () => moveCategory(b.dataset.downCat, 1))
       );
       document.querySelectorAll("[data-del-cat]").forEach((b) =>
         b.addEventListener("click", async () => {
@@ -886,6 +906,35 @@
       );
     } catch (err) {
       $("categoriesBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
+    }
+  }
+
+  async function moveCategory(key, direction) {
+    const current = categoryCache.find((c) => c.key === key);
+    if (!current) return;
+    const siblings = categoryCache.filter((c) => (c.parentKey || null) === (current.parentKey || null));
+    const index = siblings.findIndex((c) => c.key === key);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= siblings.length) return;
+
+    [siblings[index], siblings[targetIndex]] = [siblings[targetIndex], siblings[index]];
+    const roots = current.parentKey
+      ? categoryCache.filter((category) => !category.parentKey)
+      : siblings;
+    const ordered = roots.flatMap((root) => [
+      root,
+      ...(current.parentKey === root.key
+        ? siblings
+        : categoryCache.filter((category) => category.parentKey === root.key)),
+    ]);
+    const orderedKeys = new Set(ordered.map((category) => category.key));
+    const keys = ordered.concat(categoryCache.filter((category) => !orderedKeys.has(category.key))).map((category) => category.key);
+    try {
+      categoryCache = await api("/api/categories/reorder", { method: "PUT", body: JSON.stringify({ keys }) });
+      loadCategories();
+    } catch (err) {
+      alert(err.message);
+      loadCategories();
     }
   }
 
