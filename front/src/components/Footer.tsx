@@ -5,11 +5,18 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTestimonials } from "@/lib/api";
 
 const footerLinks = [
-  { label: "Товари", href: "#products" },
-  { label: "Категорії", href: "#categories" },
-  { label: "Як це працює", href: "#how-it-works" },
-  { label: "Відгуки", href: "#reviews" },
-  { label: "Контакти", href: "#contact" },
+  { label: "Товари", href: "/products" },
+  { label: "Категорії", href: "/#categories" },
+  { label: "Як це працює", href: "/#how-it-works" },
+  { label: "Відгуки", href: "/#reviews" },
+  { label: "Контакти", href: "/#contact" },
+];
+
+const policyLinks = [
+  { label: "Доставка й оплата", href: "/delivery-payment" },
+  { label: "Повернення", href: "/returns" },
+  { label: "Конфіденційність", href: "/privacy" },
+  { label: "Умови", href: "/terms" },
 ];
 
 export default function Footer() {
@@ -20,7 +27,7 @@ export default function Footer() {
 
   return (
     <footer className="bg-[#1c1c1c] text-white">
-      <div className="max-w-[1280px] mx-auto px-[24px] py-[20px] flex flex-col sm:flex-row items-center justify-between gap-[16px]">
+      <div className="max-w-[1280px] mx-auto px-[24px] py-[24px] flex flex-col items-center gap-[16px]">
         {/* Logo */}
         <a href="#" className="flex items-center" aria-label="E-Kit — на початок сторінки">
           <Image src="/brand/e-kit-logo-white.svg" alt="E-Kit" width={160} height={56} className="w-[124px] h-auto" />
@@ -35,6 +42,14 @@ export default function Footer() {
               className="text-[13px] text-gray-500 hover:text-gray-300 transition-colors"
             >
               {l.label}
+            </a>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-x-[18px] gap-y-[8px] border-t border-white/10 pt-[14px]">
+          {policyLinks.map((link) => (
+            <a key={link.href} href={link.href} className="text-[12px] text-gray-400 transition-colors hover:text-white">
+              {link.label}
             </a>
           ))}
         </div>
