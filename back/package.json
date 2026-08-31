@@ -26,7 +26,8 @@
     "prices:sync:prod": "node dist/sync-retail-prices.js",
     "fix:inverter-power-fields": "tsx src/fix-inverter-power-fields.ts",
     "fix:inverter-power-fields:apply": "tsx src/fix-inverter-power-fields.ts --apply",
-    "fix:inverter-power-fields:prod": "node dist/fix-inverter-power-fields.js --apply",
+    "fix:inverter-power-fields:prod": "node dist/fix-inverter-power-fields.js",
+    "fix:inverter-power-fields:prod:apply": "node dist/fix-inverter-power-fields.js --apply",
     "prisma:push": "prisma db push",
     "prisma:generate": "prisma generate"
   },
