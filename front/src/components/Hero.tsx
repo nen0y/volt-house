@@ -16,7 +16,8 @@ export default function Hero() {
   // fallback when the API is unreachable) — never the placeholder VoltMax rows.
   const pool = liveProducts?.length ? liveProducts : localProducts;
   const productId = block?.productIds?.[0] || "deye-deye-sun-8k-sg-lp1-1-faza";
-  const featured = pool.find((p) => p.id === productId) ?? pool[0];
+  const configuredProduct = pool.find((p) => p.id === productId);
+  const featured = (configuredProduct?.price ?? 0) > 0 ? configuredProduct : pool.find((p) => p.price > 0);
 
   const heading = block?.heading || featured?.name || "Гібридні інвертори та накопичувачі Deye";
   const subheading =

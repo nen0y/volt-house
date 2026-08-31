@@ -16,13 +16,7 @@ function ctaTarget(s: HomeSection): string {
 }
 
 function sortByPrice(products: Product[]) {
-  return [...products].sort((a, b) => {
-    const aHasPrice = a.price > 0;
-    const bHasPrice = b.price > 0;
-    if (aHasPrice !== bHasPrice) return aHasPrice ? -1 : 1;
-    if (!aHasPrice) return a.name.localeCompare(b.name, "uk");
-    return a.price - b.price;
-  });
+  return products.filter((product) => product.price > 0).sort((a, b) => a.price - b.price);
 }
 
 function CatalogButton({ href, label }: { href: string; label: string }) {
