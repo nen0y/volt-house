@@ -615,12 +615,20 @@
 
   async function loadProducts() {
     try {
+      const selectedCategory = $("productCategoryFilter").value || "all";
+      const selectedBrand = $("productBrandFilter").value || "all";
       const [products, cats, brands] = await Promise.all([api("/api/products/admin/all"), api("/api/categories?all=1"), api("/api/brands?all=1")]);
       productCache = products;
       categoryCache = cats;
       brandCache = brands;
       $("productCategoryFilter").innerHTML = `<option value="all">Усі категорії</option>${cats.map((c) => `<option value="${esc(c.key)}">${c.parentKey ? "↳ " : ""}${esc(c.label)}</option>`).join("")}`;
       $("productBrandFilter").innerHTML = `<option value="all">Усі бренди</option>${brands.map((b) => `<option value="${esc(b.slug)}">${esc(b.name)}</option>`).join("")}`;
+      if ([...$("productCategoryFilter").options].some((option) => option.value === selectedCategory)) {
+        $("productCategoryFilter").value = selectedCategory;
+      }
+      if ([...$("productBrandFilter").options].some((option) => option.value === selectedBrand)) {
+        $("productBrandFilter").value = selectedBrand;
+      }
       renderProducts();
     } catch (err) {
       $("productsBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
