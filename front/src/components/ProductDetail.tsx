@@ -347,7 +347,7 @@ export default function ProductDetail({
           </h1>
 
           {/* Price */}
-          <div className="flex items-baseline gap-[10px] mb-[24px]">
+          <div className="flex flex-wrap items-baseline gap-[10px] mb-[6px]">
             {hasPrice && product.originalPrice ? (
               <span className="text-[16px] text-gray-400 line-through">
                 ${product.originalPrice.toLocaleString("en-US")}
@@ -363,6 +363,11 @@ export default function ProductDetail({
               </span>
             )}
           </div>
+          {hasPrice && (
+            <p className="text-[12px] leading-relaxed text-gray-500 mb-[24px]">
+              * Орієнтовна ціна: вартість залежить від партії постачання та може змінюватися.
+            </p>
+          )}
 
           {/* Specs + warranty */}
           {(product.power || product.capacity || product.efficiency || product.warranty) && (

@@ -388,6 +388,7 @@
           const isBest = row && !isUnavailable && data.bestByProduct[product.id] === row.price;
           const margin = row && !isUnavailable && product.retailPrice > 0 ? Math.round(((product.retailPrice - row.price) / product.retailPrice) * 100) : null;
           return `<td class="price-cell ${isBest ? "best" : ""} ${isUnavailable ? "unavailable" : ""}"><input type="number" min="0" placeholder="—" value="${row ? row.price : ""}" data-price-product="${esc(product.id)}" data-price-supplier="${esc(supplier.id)}">
+            <label class="arrival-label">Дата прибуття (необов'язково)</label><input class="arrival-date" type="date" value="${row?.arrivalDate ? esc(row.arrivalDate.slice(0, 10)) : ""}" data-arrival-product="${esc(product.id)}" data-arrival-supplier="${esc(supplier.id)}">
             ${isUnavailable ? `<span class="unavail-label">Немає в наявності</span>` : ""}${isBest ? `<span class="best-label">✓ Найкраща ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
         }).join("");
         return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.categoryLabel || "Без категорії")} · ${esc(product.brandLabel || "Без бренду")} · роздріб ${product.retailPrice > 0 ? money(product.retailPrice) : "—"}</div></td>${cells}</tr>`;
@@ -401,8 +402,21 @@
           } else {
             const price = Number(input.value);
             const availability = price === 0 ? "unavailable" : "in_stock";
-            await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.priceProduct, supplierId: input.dataset.priceSupplier, price, currency: "USD", availability, minOrderQty: 1 }) });
+            const arrivalInput = [...document.querySelectorAll("[data-arrival-product]")].find((candidate) => candidate.dataset.arrivalProduct === input.dataset.priceProduct && candidate.dataset.arrivalSupplier === input.dataset.priceSupplier);
+            await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.priceProduct, supplierId: input.dataset.priceSupplier, price, currency: "USD", availability, arrivalDate: arrivalInput?.value || null, minOrderQty: 1 }) });
           }
+          loadPricing();
+        } catch (err) { input.disabled = false; alert(err.message); }
+      }));
+      document.querySelectorAll("[data-arrival-product]").forEach((input) => input.addEventListener("change", async () => {
+        const row = priceMap.get(`${input.dataset.arrivalProduct}:${input.dataset.arrivalSupplier}`);
+        if (!row) {
+          input.value = "";
+          return alert("Спочатку вкажіть закупівельну ціну");
+        }
+        input.disabled = true;
+        try {
+          await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.arrivalProduct, supplierId: input.dataset.arrivalSupplier, price: row.price, currency: row.currency || "USD", availability: row.availability || "in_stock", leadTimeDays: row.leadTimeDays, arrivalDate: input.value || null, minOrderQty: row.minOrderQty || 1 }) });
           loadPricing();
         } catch (err) { input.disabled = false; alert(err.message); }
       }));

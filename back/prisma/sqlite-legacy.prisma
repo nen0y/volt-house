@@ -93,6 +93,7 @@ model SupplierPrice {
   currency String @default("USD")
   availability String @default("in_stock")
   leadTimeDays Int?
+  arrivalDate DateTime?
   minOrderQty Int @default(1)
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)

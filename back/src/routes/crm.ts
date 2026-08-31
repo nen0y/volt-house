@@ -101,6 +101,7 @@ const priceSchema = z.object({
   currency: z.enum(["USD", "EUR", "UAH"]).default("USD"),
   availability: z.enum(["in_stock", "preorder", "unavailable"]).default("in_stock"),
   leadTimeDays: z.number().int().nonnegative().nullish(),
+  arrivalDate: z.string().date().nullish(),
   minOrderQty: z.number().int().positive().default(1),
 });
 
@@ -108,14 +109,19 @@ crmRouter.put("/prices", async (req, res) => {
   const parsed = priceSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const d = parsed.data;
+  const data = {
+    ...d,
+    arrivalDate: d.arrivalDate ? new Date(`${d.arrivalDate}T00:00:00.000Z`) : null,
+  };
   const row = await prisma.supplierPrice.upsert({
     where: { supplierId_productId: { supplierId: d.supplierId, productId: d.productId } },
-    create: d,
+    create: data,
     update: {
       price: d.price,
       currency: d.currency,
       availability: d.availability,
       leadTimeDays: d.leadTimeDays ?? null,
+      arrivalDate: data.arrivalDate,
       minOrderQty: d.minOrderQty,
     },
   });
