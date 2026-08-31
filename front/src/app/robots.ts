@@ -26,11 +26,13 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   }
 
   return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-      disallow: ["/admin", "/api", "/uploads"],
-    },
+    rules: [
+      // Merchant Center must be able to crawl both product landing pages and
+      // the original files referenced by <g:image_link> under /uploads.
+      { userAgent: "Googlebot", allow: "/" },
+      { userAgent: "Googlebot-Image", allow: "/" },
+      { userAgent: "*", allow: "/", disallow: ["/admin", "/api"] },
+    ],
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,
   };

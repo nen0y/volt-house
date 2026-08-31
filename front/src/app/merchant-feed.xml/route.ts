@@ -16,8 +16,7 @@ function xml(value: unknown): string {
 }
 
 function absoluteUrl(value: string): string {
-  if (/^https?:\/\//i.test(value)) return value;
-  return `${SITE_URL}${value.startsWith("/") ? value : `/${value}`}`;
+  return new URL(value, `${SITE_URL}/`).href;
 }
 
 function merchantId(productId: string): string {
@@ -26,8 +25,8 @@ function merchantId(productId: string): string {
 }
 
 function productImages(product: Product): string[] {
-  return Array.from(new Set([product.image, ...(product.images ?? [])].filter(Boolean)))
-    .filter((image) => image !== "/placeholder.jpg")
+  return Array.from(new Set([...(product.images ?? []), product.image].filter(Boolean)))
+    .filter((image) => image !== "/placeholder.jpg" && (/^https?:\/\//i.test(image) || image.startsWith("/")))
     .map(absoluteUrl)
     .slice(0, 11);
 }
