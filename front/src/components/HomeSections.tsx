@@ -15,6 +15,16 @@ function ctaTarget(s: HomeSection): string {
   return "/products";
 }
 
+function sortByPrice(products: Product[]) {
+  return [...products].sort((a, b) => {
+    const aHasPrice = a.price > 0;
+    const bHasPrice = b.price > 0;
+    if (aHasPrice !== bHasPrice) return aHasPrice ? -1 : 1;
+    if (!aHasPrice) return a.name.localeCompare(b.name, "uk");
+    return a.price - b.price;
+  });
+}
+
 function CatalogButton({ href, label }: { href: string; label: string }) {
   return (
     <div className="flex justify-center mt-[24px]">
@@ -50,10 +60,12 @@ export default function HomeSections() {
   };
 
   const productsFor = (s: HomeSection): Product[] => {
-    if (s.mode === "category") return all.filter((p) => (p.categoryKeys ?? [p.category]).some((key) => categoryKeys(s.category).includes(key)));
-    return s.productIds
+    const sectionProducts = s.mode === "category"
+      ? all.filter((p) => (p.categoryKeys ?? [p.category]).some((key) => categoryKeys(s.category).includes(key)))
+      : s.productIds
       .map((id) => all.find((p) => p.id === id))
       .filter((p): p is Product => Boolean(p));
+    return sortByPrice(sectionProducts);
   };
 
   let productSectionIdx = 0;
