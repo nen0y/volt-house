@@ -137,7 +137,7 @@ crmRouter.delete("/prices", async (req, res) => {
 
 crmRouter.get("/price-matrix", async (_req, res) => {
   const [products, suppliers, prices, categories] = await Promise.all([
-    prisma.product.findMany({ include: { brand: true, categoryLinks: { select: { categoryKey: true } } }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
+    prisma.product.findMany({ where: { enabled: true }, include: { brand: true, categoryLinks: { select: { categoryKey: true } } }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
     prisma.supplier.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.supplierPrice.findMany(),
     prisma.category.findMany({ select: { key: true, label: true } }),
@@ -156,7 +156,7 @@ crmRouter.get("/price-matrix", async (_req, res) => {
   ));
   const bestByProduct: Record<string, number> = {};
   for (const row of prices) {
-    if (row.availability === "unavailable" || row.price === 0 || (row.arrivalDate && row.arrivalDate > today)) continue;
+    if (row.availability !== "in_stock" || row.price === 0 || (row.arrivalDate && row.arrivalDate > today)) continue;
     const current = bestByProduct[row.productId];
     if (current === undefined || row.price < current) bestByProduct[row.productId] = row.price;
   }
