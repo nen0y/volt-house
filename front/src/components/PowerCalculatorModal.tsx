@@ -36,6 +36,8 @@ const FALLBACK_REC: CalcRecommendation = {
   stationCategory: "station",
 };
 
+const SMALL_LOAD_FALLBACK_WATTS = 1000;
+
 // ── Spec parsers ───────────────────────────────────────────────────────────────
 // Read power/capacity straight off each product's spec strings so the calculator
 // can size against the whole catalogue rather than a fixed list of products.
@@ -95,8 +97,10 @@ function buildRecommendation(
       .filter((p) => inCategory(p, rec.stationCategory))
       .map((p) => ({ p, w: parseWatts(p.power), kwh: parseKwh(p.capacity) }))
       .sort(byPrice);
-    const coveringStations = stations.filter((x) => x.w >= requiredW && x.kwh >= requiredKwh);
-    const station = coveringStations[0] ?? stations.find((x) => x.w === 0 || x.kwh === 0);
+    const station = stations.find((x) =>
+      (x.w >= requiredW || (x.w === 0 && requiredW <= SMALL_LOAD_FALLBACK_WATTS)) &&
+      (x.kwh >= requiredKwh || (x.kwh === 0 && requiredW <= SMALL_LOAD_FALLBACK_WATTS))
+    );
     if (station) {
       solutions.push({
         items: [{ product: station.p, quantity: 1 }],
@@ -117,25 +121,23 @@ function buildRecommendation(
     .sort(byPrice);
 
   if (inverters.length && batteries.length) {
-    // smallest inverter that covers the load; else the largest available
-    const invCover = inverters.filter((x) => x.w >= requiredW).sort((a, b) => a.w - b.w || a.p.price - b.p.price);
-    const inv = invCover[0] ?? inverters.find((x) => x.w === 0) ?? [...inverters].sort((a, b) => b.w - a.w)[0];
+    // Unknown structured power no longer pushes an inexpensive real product
+    // behind an oversized industrial inverter. Among eligible candidates, the
+    // cheapest option wins; known undersized models are excluded.
+    const inverterCandidates = inverters.filter((x) =>
+      x.w >= requiredW || (x.w === 0 && requiredW <= SMALL_LOAD_FALLBACK_WATTS)
+    );
+    const inv = inverterCandidates[0] ?? [...inverters].sort((a, b) => b.w - a.w)[0];
 
-    // smallest single battery that covers; else the largest, multiplied to cover
-    const batteriesWithCapacity = batteries.filter((x) => x.kwh > 0);
-    const batCover = batteriesWithCapacity.filter((x) => x.kwh >= requiredKwh).sort((a, b) => a.kwh - b.kwh || a.p.price - b.p.price);
-    let bat: (typeof batteries)[number];
-    let qty: number;
-    if (batCover.length) {
-      bat = batCover[0];
-      qty = 1;
-    } else if (batteriesWithCapacity.length) {
-      bat = [...batteriesWithCapacity].sort((a, b) => b.kwh - a.kwh)[0];
-      qty = Math.max(1, Math.ceil(requiredKwh / bat.kwh));
-    } else {
-      bat = batteries[0];
-      qty = 1;
-    }
+    // Compare the complete battery cost, including quantity, instead of always
+    // preferring the smallest nominal capacity.
+    const batteryOptions = batteries
+      .map((bat) => {
+        const qty = bat.kwh > 0 ? Math.max(1, Math.ceil(requiredKwh / bat.kwh)) : 1;
+        return { bat, qty, total: bat.p.price * qty };
+      })
+      .sort((a, b) => a.total - b.total || a.bat.p.price - b.bat.p.price);
+    const { bat, qty } = batteryOptions[0];
 
     solutions.push({
       items: [
