@@ -44,20 +44,22 @@ const SMALL_LOAD_FALLBACK_WATTS = 1000;
 
 function parseWatts(power?: string): number {
   if (!power) return 0;
-  const m = power.replace(",", ".").match(/([\d.]+)\s*(kw|w)?/i);
+  const m = power.replace(",", ".").match(/([\d.]+)\s*(квт|вт|kw|w)?/iu);
   if (!m) return 0;
   const n = parseFloat(m[1]);
   if (!isFinite(n)) return 0;
-  return /kw/i.test(m[2] || "") ? n * 1000 : n; // assume W by default
+  return /^(квт|kw)$/iu.test(m[2] || "") ? n * 1000 : n; // assume W by default
 }
 
 function parseKwh(capacity?: string): number {
   if (!capacity) return 0;
-  const m = capacity.replace(",", ".").match(/([\d.]+)\s*(kwh|wh)?/i);
+  const m = capacity
+    .replace(",", ".")
+    .match(/([\d.]+)\s*(квт(?:[·\s/-]*год|г)|вт(?:[·\s/-]*год|г)|kwh|wh)?/iu);
   if (!m) return 0;
   const n = parseFloat(m[1]);
   if (!isFinite(n)) return 0;
-  return /(^|[^k])wh/i.test(m[2] || "") ? n / 1000 : n; // Wh → kWh, kWh as-is
+  return /^(вт(?:[·\s/-]*год|г)|wh)$/iu.test(m[2] || "") ? n / 1000 : n; // Wh → kWh, kWh as-is
 }
 
 function inCategory(product: Product, category: string): boolean {
