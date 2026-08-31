@@ -9,7 +9,7 @@ import ProductCard from "./ProductCard";
 import ConsultationModal from "./ConsultationModal";
 import type { Product } from "@/types";
 
-type SortKey = "default" | "price-asc" | "price-desc";
+type SortKey = "price-asc" | "price-desc";
 
 export default function AllProductsClient({
   products,
@@ -42,7 +42,7 @@ export default function AllProductsClient({
 
   const searchParams = useSearchParams();
   const asSort = (s: string | null): SortKey =>
-    s === "price-asc" || s === "price-desc" ? s : "default";
+    s === "price-desc" ? "price-desc" : "price-asc";
 
   // Initial filter state comes from the URL, so a shared link opens pre-filtered.
   const [filter, setFilter] = useState<string>(
@@ -60,7 +60,7 @@ export default function AllProductsClient({
     if (brand !== "all") params.set("brand", brand);
     const q = query.trim();
     if (q) params.set("q", q);
-    if (sort !== "default") params.set("sort", sort);
+    if (sort === "price-desc") params.set("sort", sort);
     const qs = params.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
   }, [filter, brand, query, sort]);
@@ -90,8 +90,13 @@ export default function AllProductsClient({
 
   const visible = useMemo(() => {
     let list = filter === "all" ? scoped : scoped.filter((p) => (p.categoryKeys ?? [p.category]).some((productKey) => categoryKeys(filter).includes(productKey)));
-    if (sort === "price-asc") list = [...list].sort((a, b) => a.price <= 0 ? 1 : b.price <= 0 ? -1 : a.price - b.price);
-    if (sort === "price-desc") list = [...list].sort((a, b) => a.price <= 0 ? 1 : b.price <= 0 ? -1 : b.price - a.price);
+    list = [...list].sort((a, b) => {
+      const aHasPrice = a.price > 0;
+      const bHasPrice = b.price > 0;
+      if (aHasPrice !== bHasPrice) return aHasPrice ? -1 : 1;
+      if (!aHasPrice) return a.name.localeCompare(b.name, "uk");
+      return sort === "price-desc" ? b.price - a.price : a.price - b.price;
+    });
     return list;
   }, [scoped, categoryKeys, filter, sort]);
 
@@ -155,7 +160,6 @@ export default function AllProductsClient({
           onChange={(e) => setSort(e.target.value as SortKey)}
           className="px-[14px] py-[10px] rounded-[8px] border border-gray-200 bg-white text-[14px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
         >
-          <option value="default">За замовчуванням</option>
           <option value="price-asc">Ціна: спочатку дешевші</option>
           <option value="price-desc">Ціна: спочатку дорожчі</option>
         </select>

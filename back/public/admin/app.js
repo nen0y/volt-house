@@ -395,6 +395,8 @@
   }
 
   function renderPricing(data) {
+      const previousMatrix = $("pricingBody").querySelector(".matrix-wrap");
+      const scrollPosition = previousMatrix ? { top: previousMatrix.scrollTop, left: previousMatrix.scrollLeft } : null;
       const covered = new Set(data.prices.map((p) => p.productId)).size;
       $("pricingSummary").innerHTML = [["Товарів", data.products.length], ["Постачальників", data.suppliers.length], ["З цінами", covered]].map(([l, n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
       if (!data.suppliers.length) {
@@ -426,11 +428,16 @@
           return `<td class="price-cell ${isAvailable ? "available" : ""} ${isExpected ? "expected" : ""} ${isBest ? "best" : ""} ${isUnavailable ? "unavailable" : ""}"><input type="number" min="0" placeholder="—" value="${row ? row.price : ""}" data-price-product="${esc(product.id)}" data-price-supplier="${esc(supplier.id)}">
             <label class="arrival-label">Наявність</label><select class="availability-select" data-availability-product="${esc(product.id)}" data-availability-supplier="${esc(supplier.id)}"><option value="in_stock" ${!row || row.availability === "in_stock" ? "selected" : ""}>В наявності</option><option value="preorder" ${row?.availability === "preorder" ? "selected" : ""}>Очікується</option><option value="unavailable" ${row?.availability === "unavailable" ? "selected" : ""}>Немає в наявності</option></select>
             <label class="arrival-label">Дата прибуття (необов'язково)</label><div class="arrival-control"><input class="arrival-date" type="text" inputmode="numeric" maxlength="10" placeholder="дд.мм.рррр" value="${esc(uaDate(row?.arrivalDate))}" data-arrival-product="${esc(product.id)}" data-arrival-supplier="${esc(supplier.id)}"><button class="arrival-picker" type="button" title="Вибрати дату" aria-label="Вибрати дату">📅</button><input class="arrival-native" type="date" value="${esc(arrivalIso)}"></div>
-            ${isUnavailable ? `<span class="unavail-label">Немає в наявності</span>` : ""}${isExpected ? `<span class="expected-label">${arrivalIso ? `Очікується ${esc(uaDate(row.arrivalDate))}` : "Очікується"}</span>` : ""}${isBest ? `<span class="best-label">✓ Найкраща актуальна ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
+            <div class="price-cell-meta">${isUnavailable ? `<span class="unavail-label">Немає в наявності</span>` : ""}${isExpected ? `<span class="expected-label">${arrivalIso ? `Очікується ${esc(uaDate(row.arrivalDate))}` : "Очікується"}</span>` : ""}${isBest ? `<span class="best-label">✓ Найкраща актуальна ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</div></td>`;
         }).join("");
         return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.categoryLabel || "Без категорії")} · ${esc(product.brandLabel || "Без бренду")} · роздріб ${product.retailPrice > 0 ? money(product.retailPrice) : "—"}</div></td>${cells}</tr>`;
       }).join("");
       $("pricingBody").innerHTML = products.length ? `<div class="matrix-wrap"><table class="price-matrix"><thead><tr><th>Товар</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="card empty">За вибраними фільтрами товарів не знайдено</div>`;
+      const nextMatrix = $("pricingBody").querySelector(".matrix-wrap");
+      if (nextMatrix && scrollPosition) {
+        nextMatrix.scrollTop = scrollPosition.top;
+        nextMatrix.scrollLeft = scrollPosition.left;
+      }
       document.querySelectorAll("[data-price-product]").forEach((input) => input.addEventListener("change", async () => {
         input.disabled = true;
         try {

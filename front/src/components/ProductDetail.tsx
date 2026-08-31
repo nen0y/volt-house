@@ -355,7 +355,6 @@ export default function ProductDetail({
             ) : null}
             {hasPrice ? <>
               <span className="text-[32px] font-bold text-gray-900">${product.price.toLocaleString("en-US")}</span>
-              <span className="text-[13px] text-gray-400">з ПДВ</span>
             </> : <span className="text-[24px] font-bold text-amber-700">Ціну уточнюйте</span>}
             {savings && (
               <span className="text-[13px] font-bold text-green-600 bg-green-50 px-[8px] py-[2px] rounded-full">

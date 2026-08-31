@@ -83,7 +83,7 @@ export default function Hero() {
             <p className="text-gray-300 text-[14px] mb-[6px]">{subheading}</p>
             {featured && featured.price > 0 && (
               <p className="text-gray-400 text-[12px] mb-[24px]">
-                Від: ${featured.price.toLocaleString("en-US")} з ПДВ
+                Від: ${featured.price.toLocaleString("en-US")}
               </p>
             )}
             {featured && featured.price > 0 && (
