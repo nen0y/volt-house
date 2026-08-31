@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAdmin } from "../middleware/auth";
 import { parseStringArray } from "../json";
+import { runRetailPriceSync } from "../retail-price-sync";
 
 export const crmRouter = Router();
 
@@ -135,11 +136,16 @@ crmRouter.delete("/prices", async (req, res) => {
   res.json({ ok: true });
 });
 
+crmRouter.post("/sync-retail-prices", async (_req, res) => {
+  const result = await runRetailPriceSync("manual");
+  res.json(result);
+});
+
 crmRouter.get("/price-matrix", async (_req, res) => {
   const [products, suppliers, prices, categories] = await Promise.all([
     prisma.product.findMany({ where: { enabled: true }, include: { brand: true, categoryLinks: { select: { categoryKey: true } } }, orderBy: [{ category: "asc" }, { name: "asc" }] }),
     prisma.supplier.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
-    prisma.supplierPrice.findMany(),
+    prisma.supplierPrice.findMany({ where: { supplier: { active: true }, product: { enabled: true } } }),
     prisma.category.findMany({ select: { key: true, label: true } }),
   ]);
 

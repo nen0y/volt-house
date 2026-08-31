@@ -363,6 +363,18 @@
 
   // ── Supplier price matrix ─────────────────────────────────────────────────
   $("refreshPricing").addEventListener("click", loadPricing);
+  $("syncRetailPrices").addEventListener("click", async () => {
+    if (!confirm("Оновити роздрібні ціни всіх активних товарів: мінімальна актуальна закупівельна ціна + 20%?")) return;
+    const button = $("syncRetailPrices");
+    button.disabled = true;
+    button.textContent = "Оновлення…";
+    try {
+      const result = await api("/api/crm/sync-retail-prices", { method: "POST" });
+      alert(`Готово. Оновлено товарів: ${result.updatedProducts}. Без актуальної ціни: ${result.skippedProducts}.`);
+      loadPricing();
+    } catch (err) { alert(err.message); }
+    finally { button.disabled = false; button.textContent = "+20% → ціни товарів"; }
+  });
   $("pricingSearch").addEventListener("input", () => pricingCache && renderPricing(pricingCache));
   $("pricingCategoryFilter").addEventListener("change", () => pricingCache && renderPricing(pricingCache));
   $("pricingBrandFilter").addEventListener("change", () => pricingCache && renderPricing(pricingCache));

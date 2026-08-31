@@ -176,3 +176,16 @@ The seeder is **idempotent** (upserts by id), so it is safe to run repeatedly. I
 Content blocks and categories are only **created if missing** on re-seed, so your admin edits are preserved. Calculator rules are normalised to the current shape on re-seed (edits kept when already in the new shape).
 
 Edit `src/data.ts` to change the seeded catalogue.
+
+---
+
+## Automatic retail price sync
+
+Every day at 03:00 in the `Europe/Kyiv` time zone, the backend updates each enabled product's retail price to the lowest eligible supplier price plus 20% (rounded up). An eligible price must belong to an active supplier, be marked `in_stock`, be greater than zero, and have no future arrival date. Products without an eligible supplier price are left unchanged.
+
+The same sync can be started from the price-matrix admin page or from the command line:
+
+```bash
+npm run prices:sync       # local development
+npm run prices:sync:prod  # compiled production build
+```

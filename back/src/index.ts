@@ -16,6 +16,7 @@ import { settingsRouter } from "./routes/settings";
 import { crmRouter } from "./routes/crm";
 import { brandsRouter } from "./routes/brands";
 import { ensureUploadDir, uploadDir } from "./upload";
+import { startNightlyRetailPriceSync } from "./retail-price-sync";
 
 const app = express();
 
@@ -117,6 +118,7 @@ const server = app.listen(env.PORT, () => {
     }\n`
   );
 });
+startNightlyRetailPriceSync();
 
 async function shutdown() {
   console.log("\n[server] Shutting down…");

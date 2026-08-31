@@ -22,6 +22,8 @@
     "seed:yugtorg:prod": "node dist/seed-yugtorg.js",
     "seed:solarbiz": "tsx src/seed-solarbiz.ts",
     "seed:solarbiz:prod": "node dist/seed-solarbiz.js",
+    "prices:sync": "tsx src/sync-retail-prices.ts",
+    "prices:sync:prod": "node dist/sync-retail-prices.js",
     "prisma:push": "prisma db push",
     "prisma:generate": "prisma generate"
   },
