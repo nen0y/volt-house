@@ -143,9 +143,20 @@ crmRouter.get("/price-matrix", async (_req, res) => {
     prisma.category.findMany({ select: { key: true, label: true } }),
   ]);
 
+  const todayParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Kyiv",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const today = new Date(Date.UTC(
+    Number(todayParts.find((part) => part.type === "year")?.value),
+    Number(todayParts.find((part) => part.type === "month")?.value) - 1,
+    Number(todayParts.find((part) => part.type === "day")?.value),
+  ));
   const bestByProduct: Record<string, number> = {};
   for (const row of prices) {
-    if (row.availability === "unavailable" || row.price === 0) continue;
+    if (row.availability === "unavailable" || row.price === 0 || (row.arrivalDate && row.arrivalDate > today)) continue;
     const current = bestByProduct[row.productId];
     if (current === undefined || row.price < current) bestByProduct[row.productId] = row.price;
   }

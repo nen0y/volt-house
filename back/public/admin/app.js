@@ -19,6 +19,26 @@
     String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const money = (n) => (n == null ? "—" : "$" + Number(n).toLocaleString("en-US"));
   const dt = (s) => new Date(s).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" });
+  const uaDate = (s) => {
+    if (!s) return "";
+    const [year, month, day] = String(s).slice(0, 10).split("-");
+    return `${day}.${month}.${year}`;
+  };
+  const isoDate = (s) => {
+    if (!s.trim()) return "";
+    const match = s.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!match) return null;
+    const [, day, month, year] = match;
+    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    return date.getUTCFullYear() === Number(year) && date.getUTCMonth() === Number(month) - 1 && date.getUTCDate() === Number(day)
+      ? `${year}-${month}-${day}`
+      : null;
+  };
+  const todayInKyiv = () => {
+    const parts = new Intl.DateTimeFormat("uk-UA", { timeZone: "Europe/Kyiv", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const part = (type) => parts.find((item) => item.type === type)?.value;
+    return `${part("year")}-${part("month")}-${part("day")}`;
+  };
 
   const TYPE_LABEL = { order: "Замовлення", consultation: "Консультація", callback: "Дзвінок" };
   const STATUS_LABEL = {
@@ -385,11 +405,14 @@
         const cells = data.suppliers.map((supplier) => {
           const row = priceMap.get(`${product.id}:${supplier.id}`);
           const isUnavailable = row && (row.availability === "unavailable" || row.price === 0);
-          const isBest = row && !isUnavailable && data.bestByProduct[product.id] === row.price;
+          const arrivalIso = row?.arrivalDate?.slice(0, 10) || "";
+          const todayIso = todayInKyiv();
+          const isExpected = arrivalIso && arrivalIso > todayIso;
+          const isBest = row && !isUnavailable && !isExpected && data.bestByProduct[product.id] === row.price;
           const margin = row && !isUnavailable && product.retailPrice > 0 ? Math.round(((product.retailPrice - row.price) / product.retailPrice) * 100) : null;
           return `<td class="price-cell ${isBest ? "best" : ""} ${isUnavailable ? "unavailable" : ""}"><input type="number" min="0" placeholder="—" value="${row ? row.price : ""}" data-price-product="${esc(product.id)}" data-price-supplier="${esc(supplier.id)}">
-            <label class="arrival-label">Дата прибуття (необов'язково)</label><input class="arrival-date" type="date" value="${row?.arrivalDate ? esc(row.arrivalDate.slice(0, 10)) : ""}" data-arrival-product="${esc(product.id)}" data-arrival-supplier="${esc(supplier.id)}">
-            ${isUnavailable ? `<span class="unavail-label">Немає в наявності</span>` : ""}${isBest ? `<span class="best-label">✓ Найкраща ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
+            <label class="arrival-label">Дата прибуття (необов'язково)</label><input class="arrival-date" type="text" inputmode="numeric" maxlength="10" placeholder="дд.мм.рррр" value="${esc(uaDate(row?.arrivalDate))}" data-arrival-product="${esc(product.id)}" data-arrival-supplier="${esc(supplier.id)}">
+            ${isUnavailable ? `<span class="unavail-label">Немає в наявності</span>` : ""}${isExpected ? `<span class="expected-label">Очікується ${esc(uaDate(row.arrivalDate))}</span>` : ""}${isBest ? `<span class="best-label">✓ Найкраща актуальна ціна</span>` : ""}${margin != null ? `<span class="margin-label">Маржа ${margin}%</span>` : ""}</td>`;
         }).join("");
         return `<tr><td><strong>${esc(product.name)}</strong><div class="muted" style="font-size:11px">${esc(product.categoryLabel || "Без категорії")} · ${esc(product.brandLabel || "Без бренду")} · роздріб ${product.retailPrice > 0 ? money(product.retailPrice) : "—"}</div></td>${cells}</tr>`;
       }).join("");
@@ -403,7 +426,9 @@
             const price = Number(input.value);
             const availability = price === 0 ? "unavailable" : "in_stock";
             const arrivalInput = [...document.querySelectorAll("[data-arrival-product]")].find((candidate) => candidate.dataset.arrivalProduct === input.dataset.priceProduct && candidate.dataset.arrivalSupplier === input.dataset.priceSupplier);
-            await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.priceProduct, supplierId: input.dataset.priceSupplier, price, currency: "USD", availability, arrivalDate: arrivalInput?.value || null, minOrderQty: 1 }) });
+            const arrivalDate = isoDate(arrivalInput?.value || "");
+            if (arrivalDate === null) throw new Error("Введіть дату у форматі дд.мм.рррр");
+            await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.priceProduct, supplierId: input.dataset.priceSupplier, price, currency: "USD", availability, arrivalDate: arrivalDate || null, minOrderQty: 1 }) });
           }
           loadPricing();
         } catch (err) { input.disabled = false; alert(err.message); }
@@ -416,7 +441,9 @@
         }
         input.disabled = true;
         try {
-          await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.arrivalProduct, supplierId: input.dataset.arrivalSupplier, price: row.price, currency: row.currency || "USD", availability: row.availability || "in_stock", leadTimeDays: row.leadTimeDays, arrivalDate: input.value || null, minOrderQty: row.minOrderQty || 1 }) });
+          const arrivalDate = isoDate(input.value);
+          if (arrivalDate === null) throw new Error("Введіть дату у форматі дд.мм.рррр");
+          await api("/api/crm/prices", { method: "PUT", body: JSON.stringify({ productId: input.dataset.arrivalProduct, supplierId: input.dataset.arrivalSupplier, price: row.price, currency: row.currency || "USD", availability: row.availability || "in_stock", leadTimeDays: row.leadTimeDays, arrivalDate: arrivalDate || null, minOrderQty: row.minOrderQty || 1 }) });
           loadPricing();
         } catch (err) { input.disabled = false; alert(err.message); }
       }));
