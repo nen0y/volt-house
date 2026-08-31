@@ -58,6 +58,16 @@ function parseKwh(capacity?: string): number {
   return /(^|[^k])wh/i.test(m[2] || "") ? n / 1000 : n; // Wh → kWh, kWh as-is
 }
 
+function inCategory(product: Product, category: string): boolean {
+  if (!category) return false;
+  const keys = product.categoryKeys ?? [product.category];
+  return product.category === category || keys.some((key) => key === category || key.startsWith(`${category}-`));
+}
+
+function byPrice(a: { p: Product }, b: { p: Product }) {
+  return a.p.price - b.p.price;
+}
+
 export type RecItem = { product: Product; quantity: number };
 export type Recommendation = { items: RecItem[]; total: number; hours: number };
 
@@ -75,46 +85,56 @@ function buildRecommendation(
   if (totalWatts <= 0) return null;
   const requiredW = totalWatts * (1 + (rec.powerReservePct ?? 0) / 100);
   const requiredKwh = (totalWatts * rec.autonomyHours) / 1000;
+  const availableProducts = productList.filter((product) => product.price > 0);
 
   const solutions: Array<{ items: RecItem[]; total: number; capacityKwh: number }> = [];
 
   // 1) All-in-one station that covers both power and energy
   if (rec.stationCategory) {
-    const fit = productList
-      .filter((p) => p.category === rec.stationCategory)
+    const stations = availableProducts
+      .filter((p) => inCategory(p, rec.stationCategory))
       .map((p) => ({ p, w: parseWatts(p.power), kwh: parseKwh(p.capacity) }))
-      .filter((x) => x.w >= requiredW && x.kwh >= requiredKwh)
-      .sort((a, b) => a.p.price - b.p.price);
-    if (fit.length) {
-      solutions.push({ items: [{ product: fit[0].p, quantity: 1 }], total: fit[0].p.price, capacityKwh: fit[0].kwh });
+      .sort(byPrice);
+    const coveringStations = stations.filter((x) => x.w >= requiredW && x.kwh >= requiredKwh);
+    const station = coveringStations[0] ?? stations.find((x) => x.w === 0 || x.kwh === 0);
+    if (station) {
+      solutions.push({
+        items: [{ product: station.p, quantity: 1 }],
+        total: station.p.price,
+        capacityKwh: station.kwh || requiredKwh,
+      });
     }
   }
 
   // 2) Inverter + battery system
-  const inverters = productList
-    .filter((p) => p.category === rec.inverterCategory)
+  const inverters = availableProducts
+    .filter((p) => inCategory(p, rec.inverterCategory))
     .map((p) => ({ p, w: parseWatts(p.power) }))
-    .filter((x) => x.w > 0);
-  const batteries = productList
-    .filter((p) => p.category === rec.batteryCategory)
+    .sort(byPrice);
+  const batteries = availableProducts
+    .filter((p) => inCategory(p, rec.batteryCategory))
     .map((p) => ({ p, kwh: parseKwh(p.capacity) }))
-    .filter((x) => x.kwh > 0);
+    .sort(byPrice);
 
   if (inverters.length && batteries.length) {
     // smallest inverter that covers the load; else the largest available
     const invCover = inverters.filter((x) => x.w >= requiredW).sort((a, b) => a.w - b.w || a.p.price - b.p.price);
-    const inv = invCover[0] ?? [...inverters].sort((a, b) => b.w - a.w)[0];
+    const inv = invCover[0] ?? inverters.find((x) => x.w === 0) ?? [...inverters].sort((a, b) => b.w - a.w)[0];
 
     // smallest single battery that covers; else the largest, multiplied to cover
-    const batCover = batteries.filter((x) => x.kwh >= requiredKwh).sort((a, b) => a.kwh - b.kwh || a.p.price - b.p.price);
+    const batteriesWithCapacity = batteries.filter((x) => x.kwh > 0);
+    const batCover = batteriesWithCapacity.filter((x) => x.kwh >= requiredKwh).sort((a, b) => a.kwh - b.kwh || a.p.price - b.p.price);
     let bat: (typeof batteries)[number];
     let qty: number;
     if (batCover.length) {
       bat = batCover[0];
       qty = 1;
-    } else {
-      bat = [...batteries].sort((a, b) => b.kwh - a.kwh)[0];
+    } else if (batteriesWithCapacity.length) {
+      bat = [...batteriesWithCapacity].sort((a, b) => b.kwh - a.kwh)[0];
       qty = Math.max(1, Math.ceil(requiredKwh / bat.kwh));
+    } else {
+      bat = batteries[0];
+      qty = 1;
     }
 
     solutions.push({
@@ -123,7 +143,7 @@ function buildRecommendation(
         { product: bat.p, quantity: qty },
       ],
       total: inv.p.price + bat.p.price * qty,
-      capacityKwh: bat.kwh * qty,
+      capacityKwh: bat.kwh > 0 ? bat.kwh * qty : requiredKwh,
     });
   }
 
