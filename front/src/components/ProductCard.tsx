@@ -105,7 +105,7 @@ export default function ProductCard({ product }: { product: Product }) {
             <span className="text-[11px] text-gray-500">Орієнтовно: </span>
             <span className="text-[16px] font-bold text-gray-900">${product.price.toLocaleString("en-US")}</span>
             <span className="text-[10px] text-gray-400 ml-[4px]">з ПДВ</span>
-            <span className="block text-[9px] leading-tight text-gray-400 mt-[2px]">Ціна залежить від партії постачання та може змінюватися</span>
+            <span className="block text-[9px] leading-tight text-gray-400 mt-[2px]">* Орієнтовна ціна — залежить від партії постачання та може змінюватися</span>
           </> : <span className="text-[14px] font-semibold text-amber-700">Ціну уточнюйте</span>}
         </div>
       </div>

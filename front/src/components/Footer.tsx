@@ -54,6 +54,10 @@ export default function Footer() {
           ))}
         </div>
 
+        <p className="max-w-[760px] text-center text-[11px] leading-relaxed text-gray-400">
+          Усі ціни на сайті є орієнтовними. Фактична вартість може відрізнятися залежно від партії постачання, курсу валют і наявності товару. Остаточну ціну підтверджує менеджер під час оформлення замовлення.
+        </p>
+
         <p className="text-[11px] text-gray-600">
           &copy; 2026 E-Kit. Всі права захищені.
         </p>
