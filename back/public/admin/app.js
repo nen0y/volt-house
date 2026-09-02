@@ -9,6 +9,7 @@
   let brandCache = [];
   let homeCache = []; // home sections
   let supplierCache = [];
+  let installerCache = [];
   let pricingCache = null;
   let crmLeadCache = [];
   let adminEmail = "";
@@ -122,7 +123,7 @@
   $("logout").addEventListener("click", logout);
 
   // ── tabs ──────────────────────────────────────────────────────────────────
-  const ALL_TABS = ["crm", "leads", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
+  const ALL_TABS = ["crm", "leads", "installers", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
 
   function activateTab(tab) {
     if (!ALL_TABS.includes(tab)) tab = "crm";
@@ -135,6 +136,7 @@
     history.replaceState(null, "", url);
     if (tab === "crm") loadCrm();
     if (tab === "leads") loadLeads();
+    if (tab === "installers") loadInstallers();
     if (tab === "suppliers") loadSuppliers();
     if (tab === "pricing") loadPricing();
     if (tab === "products") loadProducts();
@@ -299,6 +301,64 @@
         closeModal();
         loadCrm();
       } catch (err) { $("crm_error").textContent = err.message; }
+    });
+  }
+
+  // ── Installers ────────────────────────────────────────────────────────────
+  $("addInstaller").addEventListener("click", () => installerModal(null));
+
+  async function loadInstallers() {
+    try {
+      installerCache = await api("/api/crm/installers");
+      $("installersBody").innerHTML = installerCache.length
+        ? `<table><thead><tr><th>Ім’я</th><th>Телефон</th><th>Місто</th><th>Нотатки</th><th></th></tr></thead><tbody>${installerCache.map((installer) => `<tr>
+            <td><strong>${esc(installer.name)}</strong></td>
+            <td><a href="tel:${esc(installer.phone)}">${esc(installer.phone)}</a></td>
+            <td>${esc(installer.city)}</td>
+            <td class="supplier-meta" style="white-space:pre-wrap;max-width:420px">${esc(installer.notes || "—")}</td>
+            <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-installer="${esc(installer.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-installer="${esc(installer.id)}">Видалити</button></div></td>
+          </tr>`).join("")}</tbody></table>`
+        : `<div class="empty">Додайте першого інсталятора</div>`;
+      document.querySelectorAll("[data-edit-installer]").forEach((button) => button.addEventListener("click", () => installerModal(installerCache.find((installer) => installer.id === button.dataset.editInstaller))));
+      document.querySelectorAll("[data-del-installer]").forEach((button) => button.addEventListener("click", async () => {
+        if (!confirm("Видалити інсталятора?")) return;
+        try {
+          await api("/api/crm/installers/" + button.dataset.delInstaller, { method: "DELETE" });
+          loadInstallers();
+        } catch (err) { alert(err.message); }
+      }));
+    } catch (err) { $("installersBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  }
+
+  function installerModal(installer) {
+    const isNew = !installer;
+    const item = installer || { name: "", phone: "", city: "", notes: "" };
+    openModal(`<h3>${isNew ? "Новий інсталятор" : "Редагувати інсталятора"}</h3>
+      <div class="field"><label>Ім’я *</label><input id="installer_name" value="${esc(item.name)}" autocomplete="name"></div>
+      <div class="grid2"><div class="field"><label>Телефон *</label><input id="installer_phone" type="tel" value="${esc(item.phone)}" autocomplete="tel" placeholder="+380..."></div><div class="field"><label>Місто *</label><input id="installer_city" value="${esc(item.city)}" autocomplete="address-level2"></div></div>
+      <div class="field"><label>Нотатки</label><textarea id="installer_notes" rows="5" placeholder="Досвід, напрямки робіт, домовленості…">${esc(item.notes || "")}</textarea></div>
+      <div class="error" id="installer_error"></div>
+      <div class="modal-actions"><button class="btn btn-ghost" id="installer_cancel">Скасувати</button><button class="btn" id="installer_save">Зберегти</button></div>`);
+    $("installer_cancel").addEventListener("click", closeModal);
+    $("installer_save").addEventListener("click", async () => {
+      const body = {
+        name: $("installer_name").value.trim(),
+        phone: $("installer_phone").value.trim(),
+        city: $("installer_city").value.trim(),
+        notes: $("installer_notes").value,
+      };
+      if (!body.name || !body.phone || !body.city) {
+        $("installer_error").textContent = "Заповніть ім’я, телефон і місто";
+        return;
+      }
+      try {
+        await api(isNew ? "/api/crm/installers" : "/api/crm/installers/" + item.id, {
+          method: isNew ? "POST" : "PUT",
+          body: JSON.stringify(body),
+        });
+        closeModal();
+        loadInstallers();
+      } catch (err) { $("installer_error").textContent = err.message; }
     });
   }
 

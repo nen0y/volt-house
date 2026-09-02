@@ -95,6 +95,50 @@ crmRouter.delete("/suppliers/:id", async (req, res) => {
   }
 });
 
+const installerSchema = z.object({
+  name: z.string().trim().min(1, "Вкажіть ім’я"),
+  phone: z.string().trim().min(1, "Вкажіть телефон"),
+  city: z.string().trim().min(1, "Вкажіть місто"),
+  notes: z.string().default(""),
+});
+
+crmRouter.get("/installers", async (_req, res) => {
+  const rows = await prisma.installer.findMany({
+    orderBy: [{ city: "asc" }, { name: "asc" }],
+  });
+  res.json(rows);
+});
+
+crmRouter.post("/installers", async (req, res) => {
+  const parsed = installerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const row = await prisma.installer.create({ data: parsed.data });
+  res.status(201).json(row);
+});
+
+crmRouter.put("/installers/:id", async (req, res) => {
+  const parsed = installerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  try {
+    const row = await prisma.installer.update({
+      where: { id: req.params.id },
+      data: parsed.data,
+    });
+    res.json(row);
+  } catch {
+    res.status(404).json({ error: "Інсталятора не знайдено" });
+  }
+});
+
+crmRouter.delete("/installers/:id", async (req, res) => {
+  try {
+    await prisma.installer.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch {
+    res.status(404).json({ error: "Інсталятора не знайдено" });
+  }
+});
+
 const priceSchema = z.object({
   supplierId: z.string().min(1),
   productId: z.string().min(1),

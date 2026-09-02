@@ -244,6 +244,7 @@
         <div class="nav-group">CRM</div>
         <button class="tab active" data-tab="crm"><span class="tab-icon">▦</span> Канбан клієнтів</button>
         <button class="tab" data-tab="leads"><span class="tab-icon">☷</span> Усі заявки</button>
+        <button class="tab" data-tab="installers"><span class="tab-icon">⚒</span> Інсталятори</button>
         <div class="nav-group">Закупівлі</div>
         <button class="tab" data-tab="suppliers"><span class="tab-icon">◆</span> Постачальники</button>
         <button class="tab" data-tab="pricing"><span class="tab-icon">▦</span> Матриця цін</button>
@@ -267,6 +268,15 @@
         </div>
         <div class="stats" id="crmStats"></div>
         <div class="kanban" id="kanbanBody"></div>
+      </section>
+
+      <!-- Installers -->
+      <section id="tab-installers" style="display:none">
+        <div class="page-head">
+          <div><h1>Інсталятори</h1><p>Контакти інсталяторів, які готові до співпраці.</p></div>
+          <button class="btn btn-sm" id="addInstaller">+ Додати інсталятора</button>
+        </div>
+        <div class="admin-table-wrap" id="installersBody"></div>
       </section>
 
       <!-- Leads -->

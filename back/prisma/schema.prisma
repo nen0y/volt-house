@@ -113,6 +113,19 @@ model Supplier {
   updatedAt           DateTime        @updatedAt
 }
 
+model Installer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  city      String
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city])
+  @@index([name])
+}
+
 model SupplierPrice {
   id           String   @id @default(cuid())
   supplierId   String
