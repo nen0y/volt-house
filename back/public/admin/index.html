@@ -245,6 +245,7 @@
         <button class="tab active" data-tab="crm"><span class="tab-icon">▦</span> Канбан клієнтів</button>
         <button class="tab" data-tab="leads"><span class="tab-icon">☷</span> Усі заявки</button>
         <button class="tab" data-tab="installers"><span class="tab-icon">⚒</span> Інсталятори</button>
+        <button class="tab" data-tab="finance"><span class="tab-icon">₴</span> Фінанси</button>
         <div class="nav-group">Закупівлі</div>
         <button class="tab" data-tab="suppliers"><span class="tab-icon">◆</span> Постачальники</button>
         <button class="tab" data-tab="pricing"><span class="tab-icon">▦</span> Матриця цін</button>
@@ -268,6 +269,21 @@
         </div>
         <div class="stats" id="crmStats"></div>
         <div class="kanban" id="kanbanBody"></div>
+      </section>
+
+      <!-- Finance -->
+      <section id="tab-finance" style="display:none">
+        <div class="page-head">
+          <div><h1>Фінанси · Розподіл коштів</h1><p>Повернення витрат і розподіл прибутку: порівну за замовчуванням або за власними частками.</p></div>
+          <button class="btn btn-sm" id="addFinanceSale">+ Додати продаж</button>
+        </div>
+        <div class="card" style="padding:16px;margin-bottom:18px">
+          <div style="font-weight:700;margin-bottom:10px">Троє учасників</div>
+          <div id="financeParticipants" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px"></div>
+          <div style="margin-top:10px"><button class="btn btn-sm btn-ghost" id="saveFinanceParticipants">Зберегти імена</button></div>
+        </div>
+        <div class="stats" id="financeStats"></div>
+        <div class="admin-table-wrap" id="financeBody"></div>
       </section>
 
       <!-- Installers -->

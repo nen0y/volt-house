@@ -15,6 +15,7 @@ import { homeRouter } from "./routes/home";
 import { settingsRouter } from "./routes/settings";
 import { crmRouter } from "./routes/crm";
 import { brandsRouter } from "./routes/brands";
+import { financeRouter } from "./routes/finance";
 import { ensureUploadDir, uploadDir } from "./upload";
 import { startNightlyRetailPriceSync } from "./retail-price-sync";
 
@@ -74,6 +75,7 @@ app.use("/api/brands", brandsRouter);
 app.use("/api/home-sections", homeRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/crm", crmRouter);
+app.use("/api/finance", financeRouter);
 
 // ── Uploaded product images ─────────────────────────────────────────────────
 ensureUploadDir();
