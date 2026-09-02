@@ -125,14 +125,15 @@ leadsRouter.post("/admin", requireAdmin, async (req, res) => {
 });
 
 const statusSchema = z.object({
+  type: z.enum(["order", "consultation", "callback"]).optional(),
   status: z.enum(["new", "contacted", "proposal", "won", "lost", "in_progress", "done"]).optional(),
   notes: z.string().max(5000).optional(),
 });
 
-// PATCH /api/leads/:id  (admin) — update status
+// PATCH /api/leads/:id  (admin) — update CRM fields
 leadsRouter.patch("/:id", requireAdmin, async (req, res) => {
   const parsed = statusSchema.safeParse(req.body);
-  if (!parsed.success || (!parsed.data.status && parsed.data.notes === undefined)) {
+  if (!parsed.success || (!parsed.data.type && !parsed.data.status && parsed.data.notes === undefined)) {
     return res.status(400).json({ error: "Некоректні дані" });
   }
   try {

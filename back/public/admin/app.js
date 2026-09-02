@@ -290,6 +290,7 @@
       ${lead.interest ? `<div class="field"><label>Інтерес</label><div>${esc(lead.interest)}</div></div>` : ""}
       ${lead.message ? `<div class="field"><label>Повідомлення</label><div>${esc(lead.message)}</div></div>` : ""}
       ${items}
+      <div class="field"><label>Тип звернення</label><select id="crm_type">${Object.entries(TYPE_LABEL).map(([value, label]) => `<option value="${value}" ${value === lead.type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
       <div class="field"><label>Нотатки менеджера</label><textarea id="crm_notes" rows="5" placeholder="Домовленості, наступний крок, бюджет…">${esc(lead.notes || "")}</textarea></div>
       <div class="error" id="crm_error"></div>
@@ -297,7 +298,7 @@
     $("crm_cancel").addEventListener("click", closeModal);
     $("crm_save").addEventListener("click", async () => {
       try {
-        await api("/api/leads/" + lead.id, { method: "PATCH", body: JSON.stringify({ status: $("crm_status").value, notes: $("crm_notes").value }) });
+        await api("/api/leads/" + lead.id, { method: "PATCH", body: JSON.stringify({ type: $("crm_type").value, status: $("crm_status").value, notes: $("crm_notes").value }) });
         closeModal();
         loadCrm();
       } catch (err) { $("crm_error").textContent = err.message; }
