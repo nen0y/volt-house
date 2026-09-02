@@ -10,23 +10,35 @@ financeRouter.use(requireAdmin);
 const SETTING_KEY = "finance_ledger";
 const participantSchema = z.object({ id: z.string().min(1), name: z.string().trim().min(1).max(100) });
 const shareSchema = z.object({ participantId: z.string().min(1), percent: z.number().min(0).max(100).finite() });
+const receiptSchema = z.object({
+  participantId: z.string().min(1), amount: z.number().positive().finite(),
+  method: z.enum(["cash", "card", "account", "cod"]).default("card"),
+});
+const currencyFields = {
+  currency: z.enum(["USD", "UAH"]).default("USD"),
+  exchangeRate: z.number().positive().finite().default(1),
+};
 const incomeInputSchema = z.object({
   purpose: z.string().trim().min(1).max(300), customer: z.string().trim().max(200).default(""),
   amount: z.number().nonnegative().finite(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().max(2000).default(""), shares: z.array(shareSchema).length(3),
-  paymentStatus: z.enum(["expected", "post", "received"]).default("received"),
+  paymentStatus: z.enum(["expected", "post", "partial", "received"]).default("received"),
   paymentMethod: z.enum(["cash", "card", "account", "cod"]).default("card"),
   heldBy: z.string().nullable().default(null),
+  receipts: z.array(receiptSchema).max(20).default([]),
+  ...currencyFields,
 });
 const expenseInputSchema = z.object({
   participantId: z.string().min(1), purpose: z.string().trim().min(1).max(300),
   amount: z.number().nonnegative().finite(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().max(2000).default(""),
+  ...currencyFields,
 });
 const transferInputSchema = z.object({
   fromParticipantId: z.string().min(1), toParticipantId: z.string().min(1),
   amount: z.number().positive().finite(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   method: z.enum(["cash", "card", "account"]).default("card"), notes: z.string().max(1000).default(""),
+  ...currencyFields,
 });
 const ledgerSchema = z.object({
   participants: z.array(participantSchema).length(3),
@@ -47,7 +59,7 @@ function migrateLedger(value: unknown): Ledger {
   if (!legacy || !Array.isArray(legacy.participants) || !Array.isArray(legacy.sales)) return emptyLedger();
   const migrated = {
     participants: legacy.participants,
-    incomes: legacy.sales.map((sale: any) => ({ id: sale.id, purpose: sale.item, customer: sale.customer || "", amount: Number(sale.revenue), date: sale.soldAt, notes: sale.notes || "", shares: sale.shares, paymentStatus: "received", paymentMethod: "card", heldBy: null })),
+    incomes: legacy.sales.map((sale: any) => ({ id: sale.id, purpose: sale.item, customer: sale.customer || "", amount: Number(sale.revenue), date: sale.soldAt, notes: sale.notes || "", shares: sale.shares, paymentStatus: "received", paymentMethod: "card", heldBy: null, receipts: [] })),
     expenses: legacy.sales.flatMap((sale: any) => (sale.expenses || []).map((expense: any) => ({ id: expense.id || randomUUID(), participantId: expense.participantId, purpose: expense.purpose, amount: Number(expense.amount), date: sale.soldAt, notes: `Перенесено з надходження: ${sale.item}` }))),
     transfers: [],
   };
@@ -69,6 +81,14 @@ function validShares(shares: z.infer<typeof shareSchema>[], participantIds: Set<
   return shares.every((share) => participantIds.has(share.participantId)) && new Set(shares.map((share) => share.participantId)).size === 3 && Math.abs(shares.reduce((sum, share) => sum + share.percent, 0) - 100) <= 0.01;
 }
 
+function validReceipts(income: z.infer<typeof incomeInputSchema>, participantIds: Set<string>) {
+  const received = income.receipts.reduce((sum, receipt) => sum + receipt.amount, 0);
+  if (income.receipts.some((receipt) => !participantIds.has(receipt.participantId)) || received > income.amount + 0.01) return false;
+  if (income.paymentStatus === "received") return Math.abs(received - income.amount) <= 0.01 || (income.receipts.length === 0 && !!income.heldBy);
+  if (income.paymentStatus === "partial") return received > 0 && received < income.amount;
+  return received === 0;
+}
+
 financeRouter.get("/", async (_req, res) => res.json(await readLedger()));
 
 financeRouter.put("/participants", async (req, res) => {
@@ -88,7 +108,7 @@ financeRouter.post("/incomes", async (req, res) => {
   const ledger = await readLedger();
   const participantIds = new Set(ledger.participants.map((person) => person.id));
   if (!validShares(parsed.data.shares, participantIds)) return res.status(400).json({ error: "Частки трьох учасників мають разом становити 100%" });
-  if (parsed.data.paymentStatus === "received" && (!parsed.data.heldBy || !participantIds.has(parsed.data.heldBy))) return res.status(400).json({ error: "Вкажіть, у кого знаходяться отримані кошти" });
+  if (!validReceipts(parsed.data, participantIds)) return res.status(400).json({ error: "Перевірте розподіл отриманих коштів і стан оплати" });
   const income = { ...parsed.data, id: randomUUID() };
   ledger.incomes.unshift(income); await writeLedger(ledger); res.status(201).json(income);
 });
@@ -101,7 +121,7 @@ financeRouter.put("/incomes/:id", async (req, res) => {
   if (index < 0) return res.status(404).json({ error: "Надходження не знайдено" });
   const participantIds = new Set(ledger.participants.map((person) => person.id));
   if (!validShares(parsed.data.shares, participantIds)) return res.status(400).json({ error: "Частки трьох учасників мають разом становити 100%" });
-  if (parsed.data.paymentStatus === "received" && (!parsed.data.heldBy || !participantIds.has(parsed.data.heldBy))) return res.status(400).json({ error: "Вкажіть, у кого знаходяться отримані кошти" });
+  if (!validReceipts(parsed.data, participantIds)) return res.status(400).json({ error: "Перевірте розподіл отриманих коштів і стан оплати" });
   ledger.incomes[index] = { ...parsed.data, id: req.params.id }; await writeLedger(ledger); res.json(ledger.incomes[index]);
 });
 
