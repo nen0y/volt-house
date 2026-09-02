@@ -275,7 +275,7 @@
       <section id="tab-finance" style="display:none">
         <div class="page-head">
           <div><h1>Фінанси · Розподіл коштів</h1><p>Повернення витрат і розподіл прибутку: порівну за замовчуванням або за власними частками.</p></div>
-          <div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" id="addFinanceExpense">− Додати витрату</button><button class="btn btn-sm" id="addFinanceIncome">+ Додати надходження</button></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-ghost" id="addFinanceTransfer">⇄ Передати кошти</button><button class="btn btn-sm btn-ghost" id="addFinanceExpense">− Додати витрату</button><button class="btn btn-sm" id="addFinanceIncome">+ Додати надходження</button></div>
         </div>
         <div class="card" style="padding:16px;margin-bottom:18px">
           <div style="font-weight:700;margin-bottom:10px">Троє учасників</div>
@@ -283,10 +283,13 @@
           <div style="margin-top:10px"><button class="btn btn-sm btn-ghost" id="saveFinanceParticipants">Зберегти імена</button></div>
         </div>
         <div class="stats" id="financeStats"></div>
-        <h3 style="margin:18px 0 10px">Надходження</h3>
+        <div class="card" style="padding:16px;margin:18px 0"><h3 style="margin-bottom:6px">Що робити зараз</h3><p class="muted" style="margin-bottom:12px">Підказка формується лише за фактично отриманими коштами.</p><div id="financeSettlement"></div></div>
+        <h3 style="margin:18px 0 10px">1. Надходження від клієнтів</h3>
         <div class="admin-table-wrap" id="financeIncomeBody"></div>
-        <h3 style="margin:22px 0 10px">Витрати</h3>
+        <h3 style="margin:22px 0 10px">2. Витрати команди</h3>
         <div class="admin-table-wrap" id="financeExpenseBody"></div>
+        <h3 style="margin:22px 0 10px">3. Передачі між учасниками</h3>
+        <div class="admin-table-wrap" id="financeTransferBody"></div>
       </section>
 
       <!-- Installers -->
