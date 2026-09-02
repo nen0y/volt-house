@@ -138,7 +138,7 @@
     if (tab === "crm") loadCrm();
     if (tab === "leads") loadLeads();
     if (tab === "installers") loadInstallers();
-    if (tab === "finance") loadFinance();
+    if (tab === "finance") loadFinanceLedger();
     if (tab === "suppliers") loadSuppliers();
     if (tab === "pricing") loadPricing();
     if (tab === "products") loadProducts();
@@ -369,7 +369,7 @@
   $("saveFinanceParticipants").addEventListener("click", async () => {
     const participants = financeCache.participants.map((person) => ({ id: person.id, name: document.querySelector(`[data-finance-person="${person.id}"]`).value.trim() }));
     if (participants.some((person) => !person.name)) return alert("Вкажіть усі три імені");
-    try { await api("/api/finance/participants", { method: "PUT", body: JSON.stringify({ participants }) }); loadFinance(); }
+    try { await api("/api/finance/participants", { method: "PUT", body: JSON.stringify({ participants }) }); loadFinanceLedger(); }
     catch (err) { alert(err.message); }
   });
 
@@ -424,7 +424,64 @@
     });
   }
 
-  $("addFinanceSale").addEventListener("click", () => financeSaleModal(null));
+  async function loadFinanceLedger() {
+    try { financeCache = await api("/api/finance"); renderFinanceLedger(); }
+    catch (err) { $("financeIncomeBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  }
+
+  function renderFinanceLedger() {
+    $("financeParticipants").innerHTML = financeCache.participants.map((person) => `<div class="field" style="margin:0"><label>Ім’я</label><input data-finance-person="${esc(person.id)}" value="${esc(person.name)}"></div>`).join("");
+    const incomeShares = Object.fromEntries(financeCache.participants.map((person) => [person.id, 0]));
+    const paid = Object.fromEntries(financeCache.participants.map((person) => [person.id, 0]));
+    const incomeTotal = financeCache.incomes.reduce((sum, income) => sum + Number(income.amount), 0);
+    const expenseTotal = financeCache.expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+    financeCache.incomes.forEach((income) => income.shares.forEach((share) => { incomeShares[share.participantId] += Number(income.amount) * Number(share.percent) / 100; }));
+    financeCache.expenses.forEach((expense) => { paid[expense.participantId] += Number(expense.amount); });
+    const balance = Object.fromEntries(financeCache.participants.map((person) => [person.id, incomeShares[person.id] - expenseTotal / 3 + paid[person.id]]));
+    $("financeStats").innerHTML = [["Надходження", money(incomeTotal)], ["Витрати", money(expenseTotal)], ["Чистий результат", money(incomeTotal - expenseTotal)], ...financeCache.participants.map((person) => [`Баланс · ${person.name}`, money(balance[person.id])])].map(([label, value]) => `<div class="stat"><div class="n" style="font-size:22px">${esc(value)}</div><div class="l">${esc(label)}</div></div>`).join("");
+
+    const name = (id) => financeCache.participants.find((person) => person.id === id)?.name || "—";
+    $("financeIncomeBody").innerHTML = financeCache.incomes.length ? `<table><thead><tr><th>Дата</th><th>За що отримано</th><th>Сума</th><th>Частки</th><th></th></tr></thead><tbody>${financeCache.incomes.map((income) => `<tr><td class="nowrap">${esc(uaDate(income.date))}</td><td><strong>${esc(income.purpose)}</strong>${income.customer ? `<div class="muted">Клієнт: ${esc(income.customer)}</div>` : ""}${income.notes ? `<div class="muted">${esc(income.notes)}</div>` : ""}</td><td><strong>${money(income.amount)}</strong></td><td class="muted">${income.shares.map((share) => `${esc(name(share.participantId))}: ${Number(share.percent).toLocaleString("uk-UA")}%`).join("<br>")}</td><td><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-income="${esc(income.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-income="${esc(income.id)}">Видалити</button></div></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Надходжень ще немає</div>`;
+    $("financeExpenseBody").innerHTML = financeCache.expenses.length ? `<table><thead><tr><th>Дата</th><th>На що витрачено</th><th>Хто платив</th><th>Сума</th><th></th></tr></thead><tbody>${financeCache.expenses.map((expense) => `<tr><td class="nowrap">${esc(uaDate(expense.date))}</td><td><strong>${esc(expense.purpose)}</strong>${expense.notes ? `<div class="muted">${esc(expense.notes)}</div>` : ""}</td><td>${esc(name(expense.participantId))}</td><td><strong>${money(expense.amount)}</strong></td><td><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-expense="${esc(expense.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-expense="${esc(expense.id)}">Видалити</button></div></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Витрат ще немає</div>`;
+    document.querySelectorAll("[data-edit-income]").forEach((button) => button.addEventListener("click", () => financeIncomeModal(financeCache.incomes.find((item) => item.id === button.dataset.editIncome))));
+    document.querySelectorAll("[data-edit-expense]").forEach((button) => button.addEventListener("click", () => financeExpenseModal(financeCache.expenses.find((item) => item.id === button.dataset.editExpense))));
+    document.querySelectorAll("[data-del-income]").forEach((button) => button.addEventListener("click", () => deleteFinanceEntry("incomes", button.dataset.delIncome, "надходження")));
+    document.querySelectorAll("[data-del-expense]").forEach((button) => button.addEventListener("click", () => deleteFinanceEntry("expenses", button.dataset.delExpense, "витрату")));
+  }
+
+  async function deleteFinanceEntry(kind, id, label) {
+    if (!confirm(`Видалити ${label}?`)) return;
+    try { await api(`/api/finance/${kind}/${id}`, { method: "DELETE" }); loadFinanceLedger(); } catch (err) { alert(err.message); }
+  }
+
+  function financeIncomeModal(existing) {
+    const item = existing || { purpose: "", customer: "", amount: "", date: todayInKyiv(), notes: "", shares: financeCache.participants.map((person, index) => ({ participantId: person.id, percent: index === 0 ? 33.34 : 33.33 })) };
+    openModal(`<h3>${existing ? "Редагувати надходження" : "Нове надходження"}</h3><div class="field"><label>За що отримано *</label><input id="fin_income_purpose" value="${esc(item.purpose)}" placeholder="Наприклад: продаж інвертора"></div><div class="grid2"><div class="field"><label>Клієнт</label><input id="fin_income_customer" value="${esc(item.customer)}"></div><div class="field"><label>Дата</label><input id="fin_income_date" type="date" value="${esc(item.date)}"></div></div><div class="field"><label>Сума, $ *</label><input id="fin_income_amount" type="number" min="0" step="0.01" value="${esc(item.amount)}"></div><div style="font-weight:700;margin:14px 0 8px">Частки надходження</div><div class="grid2">${item.shares.map((share) => `<div class="field"><label>${esc(financeCache.participants.find((person) => person.id === share.participantId)?.name)}</label><input type="number" min="0" max="100" step="0.01" data-income-share="${esc(share.participantId)}" value="${esc(share.percent)}"></div>`).join("")}</div><div class="muted" id="fin_income_total"></div><div class="field"><label>Нотатки</label><textarea id="fin_income_notes" rows="3">${esc(item.notes)}</textarea></div><div class="error" id="fin_income_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="fin_income_cancel">Скасувати</button><button class="btn" id="fin_income_save">Зберегти</button></div>`);
+    const updateTotal = () => { const total = [...document.querySelectorAll("[data-income-share]")].reduce((sum, input) => sum + (Number(input.value) || 0), 0); $("fin_income_total").textContent = `Разом: ${total.toLocaleString("uk-UA")}% (має бути 100%)`; };
+    document.querySelectorAll("[data-income-share]").forEach((input) => input.addEventListener("input", updateTotal)); updateTotal();
+    $("fin_income_cancel").addEventListener("click", closeModal);
+    $("fin_income_save").addEventListener("click", async () => {
+      const shares = [...document.querySelectorAll("[data-income-share]")].map((input) => ({ participantId: input.dataset.incomeShare, percent: Number(input.value) }));
+      const body = { purpose: $("fin_income_purpose").value.trim(), customer: $("fin_income_customer").value.trim(), amount: Number($("fin_income_amount").value), date: $("fin_income_date").value, notes: $("fin_income_notes").value, shares };
+      if (!body.purpose || !body.date || $("fin_income_amount").value === "") return $("fin_income_error").textContent = "Заповніть призначення, дату і суму";
+      if (Math.abs(shares.reduce((sum, share) => sum + share.percent, 0) - 100) > 0.01) return $("fin_income_error").textContent = "Сума часток має дорівнювати 100%";
+      try { await api(existing ? `/api/finance/incomes/${existing.id}` : "/api/finance/incomes", { method: existing ? "PUT" : "POST", body: JSON.stringify(body) }); closeModal(); loadFinanceLedger(); } catch (err) { $("fin_income_error").textContent = err.message; }
+    });
+  }
+
+  function financeExpenseModal(existing) {
+    const item = existing || { participantId: financeCache.participants[0].id, purpose: "", amount: "", date: todayInKyiv(), notes: "" };
+    openModal(`<h3>${existing ? "Редагувати витрату" : "Нова витрата"}</h3><div class="field"><label>На що витрачено *</label><input id="fin_expense_purpose" value="${esc(item.purpose)}" placeholder="Наприклад: оплата сайту або реклама"></div><div class="grid2"><div class="field"><label>Хто заплатив</label><select id="fin_expense_person">${financeCache.participants.map((person) => `<option value="${esc(person.id)}" ${person.id === item.participantId ? "selected" : ""}>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>Дата</label><input id="fin_expense_date" type="date" value="${esc(item.date)}"></div></div><div class="field"><label>Сума, $ *</label><input id="fin_expense_amount" type="number" min="0" step="0.01" value="${esc(item.amount)}"></div><div class="field"><label>Нотатки</label><textarea id="fin_expense_notes" rows="3">${esc(item.notes)}</textarea></div><div class="error" id="fin_expense_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="fin_expense_cancel">Скасувати</button><button class="btn" id="fin_expense_save">Зберегти</button></div>`);
+    $("fin_expense_cancel").addEventListener("click", closeModal);
+    $("fin_expense_save").addEventListener("click", async () => {
+      const body = { participantId: $("fin_expense_person").value, purpose: $("fin_expense_purpose").value.trim(), amount: Number($("fin_expense_amount").value), date: $("fin_expense_date").value, notes: $("fin_expense_notes").value };
+      if (!body.purpose || !body.date || $("fin_expense_amount").value === "") return $("fin_expense_error").textContent = "Заповніть призначення, дату і суму";
+      try { await api(existing ? `/api/finance/expenses/${existing.id}` : "/api/finance/expenses", { method: existing ? "PUT" : "POST", body: JSON.stringify(body) }); closeModal(); loadFinanceLedger(); } catch (err) { $("fin_expense_error").textContent = err.message; }
+    });
+  }
+
+  $("addFinanceIncome").addEventListener("click", () => financeIncomeModal(null));
+  $("addFinanceExpense").addEventListener("click", () => financeExpenseModal(null));
 
   // ── Installers ────────────────────────────────────────────────────────────
   $("addInstaller").addEventListener("click", () => installerModal(null));
