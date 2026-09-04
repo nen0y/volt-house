@@ -309,7 +309,6 @@
           <span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span>
           <h4>${esc(l.name)}</h4>
           <div class="lead-meta"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br>${esc(details || "Без деталей")}<br>${dt(l.createdAt)}</div>
-          ${l.total != null ? `<div class="lead-total">${money(l.total)}</div>` : ""}
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"><span class="badge s-${esc(l.paymentStatus || "unpaid")}">${esc(PAYMENT_STATUS_LABEL[l.paymentStatus] || PAYMENT_STATUS_LABEL.unpaid)}</span><span class="badge s-${esc(l.deliveryStatus || "not_sent")}">${esc(DELIVERY_STATUS_LABEL[l.deliveryStatus] || DELIVERY_STATUS_LABEL.not_sent)}</span></div>
           ${l.notes ? `<div class="items">${esc(l.notes).slice(0, 90)}</div>` : ""}
           <div class="lead-actions"><button class="btn-sm btn-ghost" data-open-lead="${esc(l.id)}">Відкрити</button></div>
