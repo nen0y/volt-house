@@ -203,8 +203,27 @@ leadsRouter.patch("/:id", requireAdmin, async (req, res) => {
       where: { id: req.params.id },
       data,
     });
+    const previousItems = parseItems(previous.items) || [];
+    const productsChanged = items !== undefined && JSON.stringify(previousItems) !== JSON.stringify(items);
+
+    // When products are added or changed on an existing CRM card, send the
+    // refreshed entry to Telegram. Other edits (status, notes, etc.) stay quiet.
+    if (productsChanged) {
+      await sendLeadTelegram({
+        id: updated.id,
+        type: updated.type,
+        name: updated.name,
+        phone: updated.phone,
+        email: updated.email,
+        interest: updated.interest,
+        message: updated.message,
+        items: items.length ? items : null,
+        total: updated.total,
+        createdAt: updated.createdAt,
+      });
+    }
     if (parsed.data.items) {
-      const previousMissing = new Set((parseItems(previous.items) || []).filter((item: any) => item.custom || item.availability === "unavailable").map((item: any) => `${item.id}:${item.name}`));
+      const previousMissing = new Set(previousItems.filter((item: any) => item.custom || item.availability === "unavailable").map((item: any) => `${item.id}:${item.name}`));
       for (const item of parsed.data.items) {
         if ((item.custom || item.availability === "unavailable") && !previousMissing.has(`${item.id}:${item.name}`)) await sendUnavailableProductTelegram({ id: updated.id, name: updated.name, phone: updated.phone, productName: item.name });
       }
