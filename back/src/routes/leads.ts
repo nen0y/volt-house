@@ -146,6 +146,11 @@ leadsRouter.post("/admin", requireAdmin, async (req, res) => {
 
 const statusSchema = z.object({
   type: z.enum(["order", "consultation", "callback"]).optional(),
+  name: z.string().min(1, "Вкажіть ім'я").optional(),
+  phone: z.string().min(3, "Вкажіть телефон").optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  interest: z.string().optional(),
+  message: z.string().optional(),
   status: z.enum(["new", "contacted", "proposal", "won", "lost", "in_progress", "done"]).optional(),
   notes: z.string().max(5000).optional(),
   items: z.array(itemSchema).optional(),
@@ -154,14 +159,23 @@ const statusSchema = z.object({
 // PATCH /api/leads/:id  (admin) — update CRM fields
 leadsRouter.patch("/:id", requireAdmin, async (req, res) => {
   const parsed = statusSchema.safeParse(req.body);
-  if (!parsed.success || (!parsed.data.type && !parsed.data.status && parsed.data.notes === undefined && parsed.data.items === undefined)) {
+  if (!parsed.success || Object.keys(parsed.data).length === 0) {
     return res.status(400).json({ error: "Некоректні дані" });
   }
   try {
     const previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
-    const { items, ...fields } = parsed.data;
-    const data = { ...fields, ...(items !== undefined ? { items: items.length ? JSON.stringify(items) : null } : {}) };
+    const { items, email, interest, message, ...fields } = parsed.data;
+    const data = {
+      ...fields,
+      ...(email !== undefined ? { email: email || null } : {}),
+      ...(interest !== undefined ? { interest: interest || null } : {}),
+      ...(message !== undefined ? { message: message || null } : {}),
+      ...(items !== undefined ? {
+        items: items.length ? JSON.stringify(items) : null,
+        total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+      } : {}),
+    };
     const updated = await prisma.lead.update({
       where: { id: req.params.id },
       data,

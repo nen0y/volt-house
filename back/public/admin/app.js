@@ -321,13 +321,11 @@
   async function openLead(lead) {
     if (!lead) return;
     try { await loadCrmProductOptions(); } catch (err) { return alert(err.message); }
-    const items = lead.items && lead.items.length
-      ? `<div class="items" style="margin-bottom:16px">${lead.items.map((it) => `<div>• ${esc(it.name)} × ${it.quantity} — ${money(it.price * it.quantity)}</div>`).join("")}</div>`
-      : "";
-    openModal(`<h3>${esc(lead.name)}</h3>
-      <div class="field"><label>Контакт</label><div><a href="tel:${esc(lead.phone)}">${esc(lead.phone)}</a>${lead.email ? ` · ${esc(lead.email)}` : ""}</div></div>
-      ${lead.interest ? `<div class="field"><label>Інтерес</label><div>${esc(lead.interest)}</div></div>` : ""}
-      ${lead.message ? `<div class="field"><label>Повідомлення</label><div>${esc(lead.message)}</div></div>` : ""}
+    openModal(`<h3>Редагувати клієнта</h3>
+      <div class="field"><label>Ім’я *</label><input id="crm_name" value="${esc(lead.name)}"></div>
+      <div class="grid2"><div class="field"><label>Телефон *</label><input id="crm_phone" type="tel" value="${esc(lead.phone)}"></div><div class="field"><label>Email</label><input id="crm_email" type="email" value="${esc(lead.email || "")}"></div></div>
+      <div class="field"><label>Інтерес</label><input id="crm_interest" value="${esc(lead.interest || "")}" placeholder="Що цікавить клієнта"></div>
+      <div class="field"><label>Повідомлення</label><textarea id="crm_message" rows="3" placeholder="Повідомлення клієнта">${esc(lead.message || "")}</textarea></div>
       ${crmProductPickerHtml()}
       <div class="field"><label>Тип звернення</label><select id="crm_type">${Object.entries(TYPE_LABEL).map(([value, label]) => `<option value="${value}" ${value === lead.type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
@@ -337,8 +335,24 @@
     const getProducts = setupCrmProductPicker(lead.items || []);
     $("crm_cancel").addEventListener("click", closeModal);
     $("crm_save").addEventListener("click", async () => {
+      const name = $("crm_name").value.trim();
+      const phone = $("crm_phone").value.trim();
+      if (!name || phone.length < 3) {
+        $("crm_error").textContent = !name ? "Вкажіть ім’я" : "Вкажіть телефон";
+        return;
+      }
       try {
-        await api("/api/leads/" + lead.id, { method: "PATCH", body: JSON.stringify({ type: $("crm_type").value, status: $("crm_status").value, notes: $("crm_notes").value, items: getProducts() }) });
+        await api("/api/leads/" + lead.id, { method: "PATCH", body: JSON.stringify({
+          name,
+          phone,
+          email: $("crm_email").value.trim(),
+          interest: $("crm_interest").value.trim(),
+          message: $("crm_message").value.trim(),
+          type: $("crm_type").value,
+          status: $("crm_status").value,
+          notes: $("crm_notes").value,
+          items: getProducts(),
+        }) });
         closeModal();
         loadCrm();
       } catch (err) { $("crm_error").textContent = err.message; }
