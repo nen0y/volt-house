@@ -116,6 +116,8 @@ leadsRouter.get("/stats", requireAdmin, async (_req, res) => {
 
 const manualLeadSchema = leadSchema.extend({
   status: z.enum(["new", "contacted", "proposal", "won", "lost"]).default("new"),
+  paymentStatus: z.enum(["unpaid", "partial", "paid"]).default("unpaid"),
+  deliveryStatus: z.enum(["not_sent", "preparing", "sent", "received", "returned"]).default("not_sent"),
   notes: z.string().max(5000).default(""),
 });
 
@@ -135,6 +137,8 @@ leadsRouter.post("/admin", requireAdmin, async (req, res) => {
       items: d.items?.length ? JSON.stringify(d.items) : null,
       total: d.total ?? null,
       status: d.status,
+      paymentStatus: d.paymentStatus,
+      deliveryStatus: d.deliveryStatus,
       notes: d.notes,
     },
   });
@@ -152,6 +156,8 @@ const statusSchema = z.object({
   interest: z.string().optional(),
   message: z.string().optional(),
   status: z.enum(["new", "contacted", "proposal", "won", "lost", "in_progress", "done"]).optional(),
+  paymentStatus: z.enum(["unpaid", "partial", "paid"]).optional(),
+  deliveryStatus: z.enum(["not_sent", "preparing", "sent", "received", "returned"]).optional(),
   notes: z.string().max(5000).optional(),
   items: z.array(itemSchema).optional(),
 });

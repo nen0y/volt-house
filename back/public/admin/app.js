@@ -54,6 +54,9 @@
     done: "Успішно",
   };
   const CRM_STATUSES = ["new", "contacted", "proposal", "won", "lost"];
+  const PAYMENT_STATUS_LABEL = { unpaid: "Не оплачено", partial: "Частково оплачено", paid: "Оплачено" };
+  const DELIVERY_STATUS_LABEL = { not_sent: "Не відправлено", preparing: "Готується", sent: "Відправлено", received: "Отримано", returned: "Повернено" };
+  const statusOptions = (labels, selected) => Object.entries(labels).map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join("");
 
   async function api(path, opts = {}) {
     const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
@@ -203,7 +206,7 @@
     return crmProductOptions;
   }
 
-  const crmProductPickerHtml = () => `<div class="field"><label>Товари в заявці</label><div class="grid2"><select id="crm_product_select"><option value="">— Оберіть товар —</option>${crmProductOptions.map((product) => `<option value="${esc(product.id)}">${esc(product.name)} · ${product.availability === "in_stock" ? "є в наявності" : product.availability === "preorder" ? "очікується" : "немає в наявності"}</option>`).join("")}<option value="__custom__">Інший товар — немає в каталозі</option></select><input id="crm_product_quantity" type="number" min="1" value="1" placeholder="Кількість"></div><div id="crm_custom_product_wrap" style="display:none;margin-top:8px"><input id="crm_custom_product" placeholder="Вкажіть назву потрібного товару"></div><button class="btn-sm btn-ghost" type="button" id="crm_add_product" style="margin-top:8px">+ Додати товар</button><div id="crm_selected_products" style="margin-top:10px"></div></div>`;
+  const crmProductPickerHtml = () => `<div class="field"><label>Товари в заявці</label><div class="grid2"><select id="crm_product_select"><option value="">— Оберіть товар —</option>${crmProductOptions.map((product) => `<option value="${esc(product.id)}">${esc(product.name)} · ${product.availability === "in_stock" ? "є в наявності" : product.availability === "preorder" ? "очікується" : "немає в наявності"}</option>`).join("")}<option value="__custom__">Інший товар — немає в каталозі</option></select><input id="crm_product_quantity" type="number" min="1" value="1" placeholder="Кількість"></div><div id="crm_custom_product_wrap" style="display:none;margin-top:8px"><label for="crm_custom_product">Назва товару, якого немає в базі</label><input id="crm_custom_product" placeholder="Наприклад: інвертор Deye 10 кВт"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn-sm btn-ghost" type="button" id="crm_add_product">+ Додати товар</button><button class="btn-sm btn-ghost" type="button" id="crm_add_custom_product">✎ Додати товар вручну</button></div><div id="crm_selected_products" style="margin-top:10px"></div></div>`;
 
   function setupCrmProductPicker(initialItems = []) {
     const selected = initialItems.map((item) => ({ ...item }));
@@ -212,6 +215,11 @@
       document.querySelectorAll("[data-remove-crm-product]").forEach((button) => button.addEventListener("click", () => { selected.splice(Number(button.dataset.removeCrmProduct), 1); render(); }));
     };
     $("crm_product_select").addEventListener("change", () => { $("crm_custom_product_wrap").style.display = $("crm_product_select").value === "__custom__" ? "block" : "none"; });
+    $("crm_add_custom_product").addEventListener("click", () => {
+      $("crm_product_select").value = "__custom__";
+      $("crm_custom_product_wrap").style.display = "block";
+      $("crm_custom_product").focus();
+    });
     $("crm_add_product").addEventListener("click", () => {
       const id = $("crm_product_select").value; const quantity = Math.max(1, Number($("crm_product_quantity").value) || 1);
       if (!id) return;
@@ -237,13 +245,14 @@
       <div class="field"><label>Що цікавить</label><input id="new_client_interest" placeholder="Наприклад: комплект для будинку"></div>
       ${crmProductPickerHtml()}
       <div class="field"><label>Етап</label><select id="new_client_status">${CRM_STATUSES.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("")}</select></div>
+      <div class="grid2"><div class="field"><label>Оплата</label><select id="new_client_payment_status">${statusOptions(PAYMENT_STATUS_LABEL, "unpaid")}</select></div><div class="field"><label>Доставка</label><select id="new_client_delivery_status">${statusOptions(DELIVERY_STATUS_LABEL, "not_sent")}</select></div></div>
       <div class="field"><label>Нотатки менеджера</label><textarea id="new_client_notes" rows="4"></textarea></div>
       <div class="error" id="new_client_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="new_client_cancel">Скасувати</button><button class="btn" id="new_client_save">Додати</button></div>`);
     const getProducts = setupCrmProductPicker();
     $("new_client_cancel").addEventListener("click", closeModal);
     $("new_client_save").addEventListener("click", async () => {
       const items = getProducts();
-      const body = { type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), items, total: items.reduce((sum, item) => sum + item.price * item.quantity, 0), status: $("new_client_status").value, notes: $("new_client_notes").value };
+      const body = { type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), items, total: items.reduce((sum, item) => sum + item.price * item.quantity, 0), status: $("new_client_status").value, paymentStatus: $("new_client_payment_status").value, deliveryStatus: $("new_client_delivery_status").value, notes: $("new_client_notes").value };
       try { await api("/api/leads/admin", { method: "POST", body: JSON.stringify(body) }); closeModal(); loadCrm(); }
       catch (err) { $("new_client_error").textContent = err.message; }
     });
@@ -284,6 +293,7 @@
           <h4>${esc(l.name)}</h4>
           <div class="lead-meta"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br>${esc(details || "Без деталей")}<br>${dt(l.createdAt)}</div>
           ${l.total != null ? `<div class="lead-total">${money(l.total)}</div>` : ""}
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"><span class="badge s-${esc(l.paymentStatus || "unpaid")}">${esc(PAYMENT_STATUS_LABEL[l.paymentStatus] || PAYMENT_STATUS_LABEL.unpaid)}</span><span class="badge s-${esc(l.deliveryStatus || "not_sent")}">${esc(DELIVERY_STATUS_LABEL[l.deliveryStatus] || DELIVERY_STATUS_LABEL.not_sent)}</span></div>
           ${l.notes ? `<div class="items">${esc(l.notes).slice(0, 90)}</div>` : ""}
           <div class="lead-actions"><button class="btn-sm btn-ghost" data-open-lead="${esc(l.id)}">Відкрити</button></div>
         </article>`;
@@ -329,11 +339,20 @@
       ${crmProductPickerHtml()}
       <div class="field"><label>Тип звернення</label><select id="crm_type">${Object.entries(TYPE_LABEL).map(([value, label]) => `<option value="${value}" ${value === lead.type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
+      <div class="grid2"><div class="field"><label>Оплата</label><select id="crm_payment_status">${statusOptions(PAYMENT_STATUS_LABEL, lead.paymentStatus || "unpaid")}</select></div><div class="field"><label>Доставка</label><select id="crm_delivery_status">${statusOptions(DELIVERY_STATUS_LABEL, lead.deliveryStatus || "not_sent")}</select></div></div>
       <div class="field"><label>Нотатки менеджера</label><textarea id="crm_notes" rows="5" placeholder="Домовленості, наступний крок, бюджет…">${esc(lead.notes || "")}</textarea></div>
       <div class="error" id="crm_error"></div>
-      <div class="modal-actions"><button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
+      <div class="modal-actions"><button class="btn btn-danger" id="crm_delete">Видалити заявку</button><button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
     const getProducts = setupCrmProductPicker(lead.items || []);
     $("crm_cancel").addEventListener("click", closeModal);
+    $("crm_delete").addEventListener("click", async () => {
+      if (!confirm(`Видалити заявку клієнта «${lead.name}»? Цю дію неможливо скасувати.`)) return;
+      try {
+        await api("/api/leads/" + lead.id, { method: "DELETE" });
+        closeModal();
+        loadCrm();
+      } catch (err) { $("crm_error").textContent = err.message; }
+    });
     $("crm_save").addEventListener("click", async () => {
       const name = $("crm_name").value.trim();
       const phone = $("crm_phone").value.trim();
@@ -350,6 +369,8 @@
           message: $("crm_message").value.trim(),
           type: $("crm_type").value,
           status: $("crm_status").value,
+          paymentStatus: $("crm_payment_status").value,
+          deliveryStatus: $("crm_delivery_status").value,
           notes: $("crm_notes").value,
           items: getProducts(),
         }) });
@@ -910,15 +931,19 @@
         const statusOpts = CRM_STATUSES
           .map((s) => `<option value="${s}" ${s === normalizedStatus ? "selected" : ""}>${STATUS_LABEL[s]}</option>`)
           .join("");
+        const paymentStatus = l.paymentStatus || "unpaid";
+        const deliveryStatus = l.deliveryStatus || "not_sent";
         return `<tr>
           <td class="nowrap"><span class="badge b-${l.type}">${TYPE_LABEL[l.type] || l.type}</span></td>
           <td><strong>${esc(l.name)}</strong><br><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>${
           l.email ? `<br><span class="muted">${esc(l.email)}</span>` : ""
         }${details}</td>
-          <td class="nowrap"><span class="badge s-${l.status}">${STATUS_LABEL[l.status]}</span></td>
+          <td class="nowrap"><span class="badge s-${l.status}">${STATUS_LABEL[l.status]}</span><div style="display:grid;gap:5px;margin-top:7px"><span class="badge s-${paymentStatus}">${PAYMENT_STATUS_LABEL[paymentStatus]}</span><span class="badge s-${deliveryStatus}">${DELIVERY_STATUS_LABEL[deliveryStatus]}</span></div></td>
           <td class="nowrap muted">${dt(l.createdAt)}</td>
           <td class="nowrap"><div class="row-actions">
             <select data-status="${l.id}">${statusOpts}</select>
+            <select data-payment-status="${l.id}" aria-label="Статус оплати">${statusOptions(PAYMENT_STATUS_LABEL, paymentStatus)}</select>
+            <select data-delivery-status="${l.id}" aria-label="Статус доставки">${statusOptions(DELIVERY_STATUS_LABEL, deliveryStatus)}</select>
             <button class="btn-sm btn-danger" data-del-lead="${l.id}">Видалити</button>
           </div></td>
         </tr>`;
@@ -936,6 +961,22 @@
         } catch (err) {
           alert(err.message);
         }
+      })
+    );
+    document.querySelectorAll("[data-payment-status]").forEach((sel) =>
+      sel.addEventListener("change", async () => {
+        try {
+          await api("/api/leads/" + sel.dataset.paymentStatus, { method: "PATCH", body: JSON.stringify({ paymentStatus: sel.value }) });
+          loadLeads();
+        } catch (err) { alert(err.message); }
+      })
+    );
+    document.querySelectorAll("[data-delivery-status]").forEach((sel) =>
+      sel.addEventListener("change", async () => {
+        try {
+          await api("/api/leads/" + sel.dataset.deliveryStatus, { method: "PATCH", body: JSON.stringify({ deliveryStatus: sel.value }) });
+          loadLeads();
+        } catch (err) { alert(err.message); }
       })
     );
     document.querySelectorAll("[data-del-lead]").forEach((b) =>
