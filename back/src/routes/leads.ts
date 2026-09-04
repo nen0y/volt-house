@@ -63,8 +63,8 @@ leadsRouter.post("/", leadsLimiter, async (req, res) => {
     email: lead.email,
     interest: lead.interest,
     message: lead.message,
-    items: parseItems(lead.items),
-    total: lead.total,
+    items: d.items?.length ? d.items : null,
+    total: d.total ?? null,
     createdAt: lead.createdAt,
   });
 
@@ -154,8 +154,8 @@ leadsRouter.post("/admin", requireAdmin, async (req, res) => {
     email: lead.email,
     interest: lead.interest,
     message: lead.message,
-    items: parseItems(lead.items),
-    total: lead.total,
+    items: d.items?.length ? d.items : null,
+    total: d.total ?? null,
     createdAt: lead.createdAt,
   });
 
