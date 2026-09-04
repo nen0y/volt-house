@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAdmin } from "../middleware/auth";
-import { sendLeadTelegram } from "../telegram";
+import { sendLeadTelegram, sendUnavailableProductTelegram } from "../telegram";
 import { leadsLimiter } from "../middleware/rateLimit";
 import { parseItems } from "../json";
 
@@ -18,6 +18,8 @@ const itemSchema = z.object({
   name: z.string(),
   price: z.number(),
   quantity: z.number().int().positive(),
+  availability: z.enum(["in_stock", "preorder", "unavailable"]).optional(),
+  custom: z.boolean().optional(),
 });
 
 const leadSchema = z.object({
@@ -85,6 +87,21 @@ leadsRouter.get("/", requireAdmin, async (req, res) => {
   res.json(rows.map(toDto));
 });
 
+// Product picker for CRM leads, including the best known supplier availability.
+leadsRouter.get("/product-options", requireAdmin, async (_req, res) => {
+  const products = await prisma.product.findMany({
+    where: { enabled: true },
+    select: { id: true, name: true, price: true, supplierPrices: { select: { availability: true, price: true } } },
+    orderBy: { name: "asc" },
+  });
+  res.json(products.map((product) => {
+    const available = product.supplierPrices.filter((row) => row.price > 0);
+    const availability = available.some((row) => row.availability === "in_stock") ? "in_stock"
+      : available.some((row) => row.availability === "preorder") ? "preorder" : "unavailable";
+    return { id: product.id, name: product.name, price: product.price, availability };
+  }));
+});
+
 // GET /api/leads/stats  (admin)
 leadsRouter.get("/stats", requireAdmin, async (_req, res) => {
   const [total, orders, consultations, callbacks, fresh] = await Promise.all([
@@ -121,6 +138,9 @@ leadsRouter.post("/admin", requireAdmin, async (req, res) => {
       notes: d.notes,
     },
   });
+  for (const item of d.items || []) {
+    if (item.custom || item.availability === "unavailable") await sendUnavailableProductTelegram({ id: lead.id, name: lead.name, phone: lead.phone, productName: item.name });
+  }
   res.status(201).json(toDto(lead));
 });
 
@@ -128,20 +148,31 @@ const statusSchema = z.object({
   type: z.enum(["order", "consultation", "callback"]).optional(),
   status: z.enum(["new", "contacted", "proposal", "won", "lost", "in_progress", "done"]).optional(),
   notes: z.string().max(5000).optional(),
+  items: z.array(itemSchema).optional(),
 });
 
 // PATCH /api/leads/:id  (admin) — update CRM fields
 leadsRouter.patch("/:id", requireAdmin, async (req, res) => {
   const parsed = statusSchema.safeParse(req.body);
-  if (!parsed.success || (!parsed.data.type && !parsed.data.status && parsed.data.notes === undefined)) {
+  if (!parsed.success || (!parsed.data.type && !parsed.data.status && parsed.data.notes === undefined && parsed.data.items === undefined)) {
     return res.status(400).json({ error: "Некоректні дані" });
   }
   try {
+    const previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
+    if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
+    const { items, ...fields } = parsed.data;
+    const data = { ...fields, ...(items !== undefined ? { items: items.length ? JSON.stringify(items) : null } : {}) };
     const updated = await prisma.lead.update({
       where: { id: req.params.id },
-      data: parsed.data,
+      data,
     });
-    res.json(updated);
+    if (parsed.data.items) {
+      const previousMissing = new Set((parseItems(previous.items) || []).filter((item: any) => item.custom || item.availability === "unavailable").map((item: any) => `${item.id}:${item.name}`));
+      for (const item of parsed.data.items) {
+        if ((item.custom || item.availability === "unavailable") && !previousMissing.has(`${item.id}:${item.name}`)) await sendUnavailableProductTelegram({ id: updated.id, name: updated.name, phone: updated.phone, productName: item.name });
+      }
+    }
+    res.json(toDto(updated));
   } catch {
     res.status(404).json({ error: "Заявку не знайдено" });
   }

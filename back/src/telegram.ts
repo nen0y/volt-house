@@ -8,7 +8,7 @@ export interface LeadNotification {
   email?: string | null;
   interest?: string | null;
   message?: string | null;
-  items?: Array<{ id: string; name: string; price: number; quantity: number }> | null;
+  items?: Array<{ id: string; name: string; price: number; quantity: number; availability?: string; custom?: boolean }> | null;
   total?: number | null;
   createdAt: Date;
 }
@@ -51,6 +51,8 @@ function render(lead: LeadNotification): string {
     lines.push("🛍 <b>Замовлення:</b>");
     for (const it of lead.items) {
       lines.push(`• ${esc(it.name)} × ${it.quantity} — ${money(it.price * it.quantity)}`);
+      if (it.custom || it.availability === "unavailable") lines.push("  ⚠️ <b>Товар потрібно знайти</b>");
+      if (it.availability === "preorder") lines.push("  🕒 <b>Товар очікується</b>");
     }
     lines.push(`<b>Разом: ${money(lead.total)}</b>`);
   }
@@ -58,6 +60,21 @@ function render(lead: LeadNotification): string {
   lines.push("");
   lines.push(`🕒 ${esc(lead.createdAt.toLocaleString("uk-UA"))}`);
   return lines.join("\n");
+}
+
+export async function sendUnavailableProductTelegram(lead: Pick<LeadNotification, "id" | "name" | "phone"> & { productName: string }) {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return { ok: true, skipped: true };
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, parse_mode: "HTML", text: `⚠️ <b>Потрібно знайти товар</b>\n\n🛍 ${esc(lead.productName)}\n👤 ${esc(lead.name)}\n📞 ${esc(lead.phone)}\n🆔 ${esc(lead.id)}` }),
+    });
+    const data: any = await res.json().catch(() => ({}));
+    return { ok: res.ok && data.ok };
+  } catch (err) {
+    console.error("[telegram] unavailable product notification failed:", err);
+    return { ok: false };
+  }
 }
 
 /** Sends the lead to the configured Telegram group. Never throws. */

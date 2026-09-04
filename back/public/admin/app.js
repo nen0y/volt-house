@@ -12,6 +12,7 @@
   let installerCache = [];
   let pricingCache = null;
   let crmLeadCache = [];
+  let crmProductOptions = [];
   let financeCache = { participants: [], sales: [] };
   let adminEmail = "";
 
@@ -197,17 +198,52 @@
   $("refreshCrm").addEventListener("click", loadCrm);
   $("addCrmClient").addEventListener("click", openNewCrmClient);
 
-  function openNewCrmClient() {
+  async function loadCrmProductOptions() {
+    if (!crmProductOptions.length) crmProductOptions = await api("/api/leads/product-options");
+    return crmProductOptions;
+  }
+
+  const crmProductPickerHtml = () => `<div class="field"><label>Товари в заявці</label><div class="grid2"><select id="crm_product_select"><option value="">— Оберіть товар —</option>${crmProductOptions.map((product) => `<option value="${esc(product.id)}">${esc(product.name)} · ${product.availability === "in_stock" ? "є в наявності" : product.availability === "preorder" ? "очікується" : "немає в наявності"}</option>`).join("")}<option value="__custom__">Інший товар — немає в каталозі</option></select><input id="crm_product_quantity" type="number" min="1" value="1" placeholder="Кількість"></div><div id="crm_custom_product_wrap" style="display:none;margin-top:8px"><input id="crm_custom_product" placeholder="Вкажіть назву потрібного товару"></div><button class="btn-sm btn-ghost" type="button" id="crm_add_product" style="margin-top:8px">+ Додати товар</button><div id="crm_selected_products" style="margin-top:10px"></div></div>`;
+
+  function setupCrmProductPicker(initialItems = []) {
+    const selected = initialItems.map((item) => ({ ...item }));
+    const render = () => {
+      $("crm_selected_products").innerHTML = selected.length ? selected.map((item, index) => `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;background:${item.custom || item.availability === "unavailable" ? "#fff7ed" : "#f8fafc"};border-radius:7px;margin-top:5px"><span>${item.custom || item.availability === "unavailable" ? "⚠️ " : ""}${esc(item.name)} × ${item.quantity}${item.custom || item.availability === "unavailable" ? " · потрібно знайти" : item.availability === "preorder" ? " · очікується" : ""}</span><button type="button" class="btn-sm btn-danger" data-remove-crm-product="${index}">×</button></div>`).join("") : `<div class="muted">Товари ще не додані</div>`;
+      document.querySelectorAll("[data-remove-crm-product]").forEach((button) => button.addEventListener("click", () => { selected.splice(Number(button.dataset.removeCrmProduct), 1); render(); }));
+    };
+    $("crm_product_select").addEventListener("change", () => { $("crm_custom_product_wrap").style.display = $("crm_product_select").value === "__custom__" ? "block" : "none"; });
+    $("crm_add_product").addEventListener("click", () => {
+      const id = $("crm_product_select").value; const quantity = Math.max(1, Number($("crm_product_quantity").value) || 1);
+      if (!id) return;
+      if (id === "__custom__") {
+        const name = $("crm_custom_product").value.trim(); if (!name) return alert("Вкажіть назву товару");
+        selected.push({ id: `custom-${Date.now()}`, name, price: 0, quantity, availability: "unavailable", custom: true });
+      } else {
+        const product = crmProductOptions.find((option) => option.id === id); if (!product) return;
+        const existing = selected.find((item) => item.id === id); if (existing) existing.quantity += quantity;
+        else selected.push({ id: product.id, name: product.name, price: product.price, quantity, availability: product.availability });
+      }
+      $("crm_product_select").value = ""; $("crm_custom_product").value = ""; $("crm_custom_product_wrap").style.display = "none"; render();
+    });
+    render();
+    return () => selected;
+  }
+
+  async function openNewCrmClient() {
+    try { await loadCrmProductOptions(); } catch (err) { return alert(err.message); }
     openModal(`<h3>Новий клієнт</h3>
       <div class="grid2"><div class="field"><label>Ім’я *</label><input id="new_client_name"></div><div class="field"><label>Телефон *</label><input id="new_client_phone"></div></div>
       <div class="grid2"><div class="field"><label>Email</label><input id="new_client_email" type="email"></div><div class="field"><label>Тип звернення</label><select id="new_client_type"><option value="consultation">Консультація</option><option value="order">Замовлення</option><option value="callback">Зворотний дзвінок</option></select></div></div>
       <div class="field"><label>Що цікавить</label><input id="new_client_interest" placeholder="Наприклад: комплект для будинку"></div>
+      ${crmProductPickerHtml()}
       <div class="field"><label>Етап</label><select id="new_client_status">${CRM_STATUSES.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("")}</select></div>
       <div class="field"><label>Нотатки менеджера</label><textarea id="new_client_notes" rows="4"></textarea></div>
       <div class="error" id="new_client_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="new_client_cancel">Скасувати</button><button class="btn" id="new_client_save">Додати</button></div>`);
+    const getProducts = setupCrmProductPicker();
     $("new_client_cancel").addEventListener("click", closeModal);
     $("new_client_save").addEventListener("click", async () => {
-      const body = { type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), status: $("new_client_status").value, notes: $("new_client_notes").value };
+      const items = getProducts();
+      const body = { type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), items, total: items.reduce((sum, item) => sum + item.price * item.quantity, 0), status: $("new_client_status").value, notes: $("new_client_notes").value };
       try { await api("/api/leads/admin", { method: "POST", body: JSON.stringify(body) }); closeModal(); loadCrm(); }
       catch (err) { $("new_client_error").textContent = err.message; }
     });
@@ -282,8 +318,9 @@
     );
   }
 
-  function openLead(lead) {
+  async function openLead(lead) {
     if (!lead) return;
+    try { await loadCrmProductOptions(); } catch (err) { return alert(err.message); }
     const items = lead.items && lead.items.length
       ? `<div class="items" style="margin-bottom:16px">${lead.items.map((it) => `<div>• ${esc(it.name)} × ${it.quantity} — ${money(it.price * it.quantity)}</div>`).join("")}</div>`
       : "";
@@ -291,16 +328,17 @@
       <div class="field"><label>Контакт</label><div><a href="tel:${esc(lead.phone)}">${esc(lead.phone)}</a>${lead.email ? ` · ${esc(lead.email)}` : ""}</div></div>
       ${lead.interest ? `<div class="field"><label>Інтерес</label><div>${esc(lead.interest)}</div></div>` : ""}
       ${lead.message ? `<div class="field"><label>Повідомлення</label><div>${esc(lead.message)}</div></div>` : ""}
-      ${items}
+      ${crmProductPickerHtml()}
       <div class="field"><label>Тип звернення</label><select id="crm_type">${Object.entries(TYPE_LABEL).map(([value, label]) => `<option value="${value}" ${value === lead.type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
       <div class="field"><label>Нотатки менеджера</label><textarea id="crm_notes" rows="5" placeholder="Домовленості, наступний крок, бюджет…">${esc(lead.notes || "")}</textarea></div>
       <div class="error" id="crm_error"></div>
       <div class="modal-actions"><button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
+    const getProducts = setupCrmProductPicker(lead.items || []);
     $("crm_cancel").addEventListener("click", closeModal);
     $("crm_save").addEventListener("click", async () => {
       try {
-        await api("/api/leads/" + lead.id, { method: "PATCH", body: JSON.stringify({ type: $("crm_type").value, status: $("crm_status").value, notes: $("crm_notes").value }) });
+        await api("/api/leads/" + lead.id, { method: "PATCH", body: JSON.stringify({ type: $("crm_type").value, status: $("crm_status").value, notes: $("crm_notes").value, items: getProducts() }) });
         closeModal();
         loadCrm();
       } catch (err) { $("crm_error").textContent = err.message; }
