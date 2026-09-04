@@ -206,14 +206,31 @@
     return crmProductOptions;
   }
 
-  const crmProductPickerHtml = () => `<div class="field"><label>Товари в заявці</label><div class="grid2"><select id="crm_product_select"><option value="">— Оберіть товар —</option>${crmProductOptions.map((product) => `<option value="${esc(product.id)}">${esc(product.name)} · ${product.availability === "in_stock" ? "є в наявності" : product.availability === "preorder" ? "очікується" : "немає в наявності"}</option>`).join("")}<option value="__custom__">Інший товар — немає в каталозі</option></select><input id="crm_product_quantity" type="number" min="1" value="1" placeholder="Кількість"></div><div id="crm_custom_product_wrap" style="display:none;margin-top:8px"><label for="crm_custom_product">Назва товару, якого немає в базі</label><input id="crm_custom_product" placeholder="Наприклад: інвертор Deye 10 кВт"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn-sm btn-ghost" type="button" id="crm_add_product">+ Додати товар</button><button class="btn-sm btn-ghost" type="button" id="crm_add_custom_product">✎ Додати товар вручну</button></div><div id="crm_selected_products" style="margin-top:10px"></div></div>`;
+  const crmProductPickerHtml = () => `<div class="field"><label>Товари в заявці</label><input id="crm_product_search" type="search" autocomplete="off" placeholder="Пошук товару за назвою або моделлю…" style="margin-bottom:8px"><div class="grid2"><select id="crm_product_select"><option value="">— Оберіть товар —</option></select><input id="crm_product_quantity" type="number" min="1" value="1" placeholder="Кількість"></div><div id="crm_custom_product_wrap" style="display:none;margin-top:8px"><label for="crm_custom_product">Назва товару, якого немає в базі</label><input id="crm_custom_product" placeholder="Наприклад: інвертор Deye 10 кВт"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn-sm btn-ghost" type="button" id="crm_add_product">+ Додати товар</button><button class="btn-sm btn-ghost" type="button" id="crm_add_custom_product">✎ Додати товар вручну</button></div><div id="crm_selected_products" style="margin-top:10px"></div></div>`;
 
   function setupCrmProductPicker(initialItems = []) {
     const selected = initialItems.map((item) => ({ ...item }));
+    const availabilityLabel = (availability) => availability === "in_stock" ? "є в наявності" : availability === "preorder" ? "очікується" : "немає в наявності";
+    const renderProductOptions = (query = "") => {
+      const normalizedQuery = query.trim().toLocaleLowerCase("uk-UA");
+      const products = normalizedQuery ? crmProductOptions.filter((product) => product.name.toLocaleLowerCase("uk-UA").includes(normalizedQuery)) : crmProductOptions;
+      $("crm_product_select").innerHTML = `<option value="">${products.length ? "— Оберіть товар —" : "Товарів не знайдено"}</option>${products.map((product) => `<option value="${esc(product.id)}">${esc(product.name)} · ${availabilityLabel(product.availability)}</option>`).join("")}<option value="__custom__">Інший товар — немає в каталозі</option>`;
+    };
     const render = () => {
       $("crm_selected_products").innerHTML = selected.length ? selected.map((item, index) => `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;background:${item.custom || item.availability === "unavailable" ? "#fff7ed" : "#f8fafc"};border-radius:7px;margin-top:5px"><span>${item.custom || item.availability === "unavailable" ? "⚠️ " : ""}${esc(item.name)} × ${item.quantity}${item.custom || item.availability === "unavailable" ? " · потрібно знайти" : item.availability === "preorder" ? " · очікується" : ""}</span><button type="button" class="btn-sm btn-danger" data-remove-crm-product="${index}">×</button></div>`).join("") : `<div class="muted">Товари ще не додані</div>`;
       document.querySelectorAll("[data-remove-crm-product]").forEach((button) => button.addEventListener("click", () => { selected.splice(Number(button.dataset.removeCrmProduct), 1); render(); }));
     };
+    renderProductOptions();
+    $("crm_product_search").addEventListener("input", () => {
+      renderProductOptions($("crm_product_search").value);
+      $("crm_custom_product_wrap").style.display = "none";
+    });
+    $("crm_product_search").addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const availableOptions = [...$("crm_product_select").options].filter((option) => option.value && option.value !== "__custom__");
+      if (availableOptions.length === 1) $("crm_product_select").value = availableOptions[0].value;
+    });
     $("crm_product_select").addEventListener("change", () => { $("crm_custom_product_wrap").style.display = $("crm_product_select").value === "__custom__" ? "block" : "none"; });
     $("crm_add_custom_product").addEventListener("click", () => {
       $("crm_product_select").value = "__custom__";
@@ -231,7 +248,7 @@
         const existing = selected.find((item) => item.id === id); if (existing) existing.quantity += quantity;
         else selected.push({ id: product.id, name: product.name, price: product.price, quantity, availability: product.availability });
       }
-      $("crm_product_select").value = ""; $("crm_custom_product").value = ""; $("crm_custom_product_wrap").style.display = "none"; render();
+      $("crm_product_search").value = ""; renderProductOptions(); $("crm_custom_product").value = ""; $("crm_custom_product_wrap").style.display = "none"; render();
     });
     render();
     return () => selected;
