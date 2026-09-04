@@ -12,6 +12,8 @@
   let installerCache = [];
   let pricingCache = null;
   let crmLeadCache = [];
+  let crmLastMovedId = null;
+  let crmFilters = { type: "all", paymentStatus: "all", deliveryStatus: "all" };
   let crmProductOptions = [];
   let financeCache = { participants: [], sales: [] };
   let adminEmail = "";
@@ -281,10 +283,39 @@
     return CRM_STATUSES.includes(status) ? status : "new";
   }
 
+  function filteredLeads() {
+    return crmLeadCache.filter((l) => {
+      if (crmFilters.type !== "all" && l.type !== crmFilters.type) return false;
+      if (crmFilters.paymentStatus !== "all" && (l.paymentStatus || "unpaid") !== crmFilters.paymentStatus) return false;
+      if (crmFilters.deliveryStatus !== "all" && (l.deliveryStatus || "not_sent") !== crmFilters.deliveryStatus) return false;
+      return true;
+    });
+  }
+
+  function renderCrmFilters() {
+    const el = $("crmFilters");
+    if (!el) return;
+    const typeOpts = [["all", "Всі типи"], ...Object.entries(TYPE_LABEL)];
+    const payOpts = [["all", "Будь-яка оплата"], ...Object.entries(PAYMENT_STATUS_LABEL)];
+    const delOpts = [["all", "Будь-яка доставка"], ...Object.entries(DELIVERY_STATUS_LABEL)];
+    const chips = (opts, key) => opts.map(([v, l]) =>
+      `<button class="filter-chip${crmFilters[key] === v ? " active" : ""}" data-filter="${key}" data-value="${v}">${l}</button>`
+    ).join("");
+    el.innerHTML = `<div class="filter-group">${chips(typeOpts, "type")}</div><div class="filter-sep"></div><div class="filter-group">${chips(payOpts, "paymentStatus")}</div><div class="filter-sep"></div><div class="filter-group">${chips(delOpts, "deliveryStatus")}</div>`;
+    el.querySelectorAll(".filter-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        crmFilters[chip.dataset.filter] = chip.dataset.value;
+        renderCrmFilters();
+        renderKanban(filteredLeads());
+      });
+    });
+  }
+
   async function loadCrm() {
     try {
       const leads = await api("/api/leads?type=all&status=all");
       crmLeadCache = leads;
+      crmLastMovedId = null;
       const counts = Object.fromEntries(CRM_STATUSES.map((s) => [s, 0]));
       leads.forEach((l) => counts[normalizeLeadStatus(l.status)]++);
       $("crmStats").innerHTML = [
@@ -294,7 +325,8 @@
         ["Успішні", counts.won],
         ["Втрачено", counts.lost],
       ].map(([label, value]) => `<div class="stat"><div class="n">${value}</div><div class="l">${label}</div></div>`).join("");
-      renderKanban(leads);
+      renderCrmFilters();
+      renderKanban(filteredLeads());
     } catch (err) {
       $("kanbanBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
     }
@@ -303,6 +335,7 @@
   function renderKanban(leads) {
     $("kanbanBody").innerHTML = CRM_STATUSES.map((status) => {
       const rows = leads.filter((l) => normalizeLeadStatus(l.status) === status);
+      rows.sort((a, b) => (b.id === crmLastMovedId ? 1 : 0) - (a.id === crmLastMovedId ? 1 : 0));
       const cards = rows.map((l) => {
         const details = l.interest || (l.items && l.items.length ? `${l.items.length} товар(и)` : TYPE_LABEL[l.type] || l.type);
         return `<article class="lead-card" draggable="true" data-lead-id="${esc(l.id)}">
@@ -330,13 +363,18 @@
         e.preventDefault();
         const card = document.querySelector(".lead-card.dragging");
         if (!card) return;
+        const leadId = card.dataset.leadId;
+        const newStatus = col.dataset.dropStatus;
+        const lead = crmLeadCache.find((l) => l.id === leadId);
+        if (lead) lead.status = newStatus;
+        crmLastMovedId = leadId;
+        renderKanban(filteredLeads());
         try {
-          await api("/api/leads/" + card.dataset.leadId, {
+          await api("/api/leads/" + leadId, {
             method: "PATCH",
-            body: JSON.stringify({ status: col.dataset.dropStatus }),
+            body: JSON.stringify({ status: newStatus }),
           });
-          loadCrm();
-        } catch (err) { alert(err.message); }
+        } catch (err) { alert(err.message); loadCrm(); }
       });
     });
     document.querySelectorAll("[data-open-lead]").forEach((button) =>
