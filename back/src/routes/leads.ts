@@ -142,6 +142,24 @@ leadsRouter.post("/admin", requireAdmin, async (req, res) => {
       notes: d.notes,
     },
   });
+
+  // Manual CRM orders use a separate endpoint from storefront orders, so notify
+  // Telegram here as well. Delivery failures must not roll back the saved order.
+  if (lead.type === "order") {
+    await sendLeadTelegram({
+      id: lead.id,
+      type: lead.type,
+      name: lead.name,
+      phone: lead.phone,
+      email: lead.email,
+      interest: lead.interest,
+      message: lead.message,
+      items: parseItems(lead.items),
+      total: lead.total,
+      createdAt: lead.createdAt,
+    });
+  }
+
   for (const item of d.items || []) {
     if (item.custom || item.availability === "unavailable") await sendUnavailableProductTelegram({ id: lead.id, name: lead.name, phone: lead.phone, productName: item.name });
   }
