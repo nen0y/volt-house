@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCart } from "@/context/CartContext";
 import { products as localProducts } from "@/lib/data";
@@ -215,27 +215,42 @@ function RecommendationCard({
       </p>
 
       <div className="space-y-[10px] mb-[16px]">
-        {items.map(({ product: p, quantity }) => (
-          <div key={p.id} className="flex items-center justify-between gap-[12px]">
-            <div className="flex items-center gap-[10px] min-w-0">
-              <span className="text-[18px] shrink-0">
-                {p.category === rec.inverterCategory ? "⚡" : p.category === rec.stationCategory ? "🔌" : "🔋"}
-              </span>
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-white leading-tight line-clamp-1">
-                  {p.name}
-                  {quantity > 1 && <span className="text-slate-400"> × {quantity}</span>}
-                </p>
-                {p.badge && (
-                  <span className="text-[10px] text-amber-600 font-medium">{p.badge}</span>
-                )}
+        {items.map(({ product: p, quantity }) => {
+          const isInverter = inCategory(p, rec.inverterCategory);
+          const isStation = inCategory(p, rec.stationCategory);
+          const typeLabel = isInverter ? "Інвертор" : isStation ? "Зарядна станція" : "Акумулятор";
+          const icon = isInverter ? "⚡" : isStation ? "🔌" : "🔋";
+          const specs = [p.power, p.capacity].filter(Boolean).join(" · ");
+
+          return (
+            <div key={p.id} className="rounded-[8px] border border-white/10 bg-slate-800/70 p-[12px]">
+              <div className="flex items-start justify-between gap-[10px]">
+                <div className="flex min-w-0 items-center gap-[8px]">
+                  <span className="text-[18px] shrink-0" aria-hidden="true">{icon}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                    {typeLabel}
+                  </span>
+                  {quantity > 1 && (
+                    <span className="rounded-full bg-amber-400/15 px-[7px] py-[2px] text-[10px] font-bold text-amber-300">
+                      × {quantity}
+                    </span>
+                  )}
+                </div>
+                <span className="shrink-0 text-[13px] font-bold text-white">
+                  ${(p.price * quantity).toLocaleString("en-US")}
+                </span>
               </div>
+              <p className="mt-[7px] break-words text-[13px] font-semibold leading-[1.35] text-white">
+                {p.name}
+              </p>
+              {(specs || p.badge) && (
+                <p className="mt-[5px] text-[10px] leading-snug text-slate-400">
+                  {[specs, p.badge].filter(Boolean).join(" · ")}
+                </p>
+              )}
             </div>
-            <span className="text-[13px] font-bold text-slate-300 shrink-0">
-              ${(p.price * quantity).toLocaleString("en-US")}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Stats */}
@@ -294,21 +309,20 @@ export default function PowerCalculatorModal({
   const rec = calc?.recommendation ?? FALLBACK_REC;
   const productList = prods ?? localProducts;
 
+  const handleClose = useCallback(() => {
+    setSelected(new Set());
+    setAdded(false);
+    onClose();
+  }, [onClose]);
+
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") handleClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setSelected(new Set());
-      setAdded(false);
-    }
-  }, [isOpen]);
+  }, [handleClose, isOpen]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -330,8 +344,7 @@ export default function PowerCalculatorModal({
     });
     setAdded(true);
     setTimeout(() => {
-      setAdded(false);
-      onClose();
+      handleClose();
     }, 1500);
   };
 
@@ -346,10 +359,10 @@ export default function PowerCalculatorModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-[16px]">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
 
       {/* Modal */}
-      <div className="relative z-10 bg-white rounded-[12px] shadow-2xl w-full max-w-[900px] max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative z-10 bg-white rounded-[12px] shadow-2xl w-full max-w-[1040px] max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between px-[28px] pt-[24px] pb-[16px] shrink-0">
           <div>
@@ -361,7 +374,7 @@ export default function PowerCalculatorModal({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer ml-[16px] shrink-0 mt-[2px]"
             aria-label="Закрити"
           >
@@ -423,7 +436,7 @@ export default function PowerCalculatorModal({
           </div>
 
           {/* Right — summary panel */}
-          <div className="lg:w-[280px] shrink-0 bg-gray-50 border-t lg:border-t-0 lg:border-l border-gray-100 px-[24px] py-[24px] flex flex-col gap-[16px]">
+          <div className="lg:w-[340px] shrink-0 bg-gray-50 border-t lg:border-t-0 lg:border-l border-gray-100 px-[24px] py-[24px] flex flex-col gap-[16px]">
             <div>
               <div className="flex items-end justify-between mb-[8px]">
                 <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wider">
