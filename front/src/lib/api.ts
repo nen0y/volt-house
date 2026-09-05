@@ -74,6 +74,21 @@ export async function submitLead(
   payload: LeadPayload
 ): Promise<{ ok: boolean; id?: string; telegram?: boolean }> {
   const { data } = await api.post("/api/leads", payload);
+  if (data?.ok !== true) {
+    throw new Error("Lead was not accepted");
+  }
+  // Track only confirmed submissions from any of the site's lead forms.
+  // Analytics must never turn a saved lead into a failed submission in the UI.
+  try {
+    if (typeof window !== "undefined") {
+      const pixelWindow = window as Window & {
+        fbq?: (command: "track", event: "Lead") => void;
+      };
+      pixelWindow.fbq?.("track", "Lead");
+    }
+  } catch {
+    // The lead is already saved, even if tracking is unavailable.
+  }
   return data;
 }
 
