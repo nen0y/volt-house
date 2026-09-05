@@ -47,6 +47,12 @@ export default function Navbar() {
     };
   }, []);
 
+  useEffect(() => {
+    const openCart = () => setCartOpen(true);
+    window.addEventListener("e-kit:open-cart", openCart);
+    return () => window.removeEventListener("e-kit:open-cart", openCart);
+  }, []);
+
   return (
     <>
       <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />

@@ -59,7 +59,7 @@ export default function HomeSections() {
       : s.productIds
       .map((id) => all.find((p) => p.id === id))
       .filter((p): p is Product => Boolean(p));
-    return sortByPrice(sectionProducts);
+    return s.mode === "category" ? sortByPrice(sectionProducts) : sectionProducts;
   };
 
   let productSectionIdx = 0;
@@ -87,12 +87,12 @@ export default function HomeSections() {
                   >
                     {s.ctaLabel || "Замовити дзвінок"}
                   </button>
-                  <a
+                  <Link
                     href="/#contact"
                     className="border border-white/70 text-white text-[14px] font-semibold rounded-full px-[28px] py-[12px] hover:bg-white/10 transition-colors"
                   >
                     Отримати консультацію
-                  </a>
+                  </Link>
                 </div>
               </div>
             </section>

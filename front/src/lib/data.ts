@@ -6,6 +6,32 @@ import type { Product, Testimonial } from "@/types";
 // illustrations are shown instead).
 export const products: Product[] = [
   {
+    id: "deye-kit-sun-6k-se-f5-pro-c",
+    name: "Комплект Deye 6 кВт + SE-F5-PRO-C 5,12 кВт·год",
+    category: "kits",
+    categoryKeys: ["kits"],
+    brandSlug: "deye",
+    brand: { slug: "deye", name: "Deye", country: "Китай" },
+    price: 2148,
+    power: "6 кВт",
+    capacity: "5,12 кВт·год",
+    warranty: "",
+    badge: "Готовий комплект для дому",
+    features: [
+      "Гібридний інвертор Deye SUN-6K-SG05LP1-EU, 1 фаза",
+      "Настінний LiFePO₄ акумулятор Deye SE-F5-PRO-C",
+      "Корисна ємність системи: 5,12 кВт·год",
+      "Робота on-grid та off-grid, підтримка генератора",
+      "Можливість підключення сонячних панелей",
+      "Вбудована BMS, комунікація CAN / RS485",
+    ],
+    image: "/uploads/deye-deye-sun-8k-sg-lp1-1-faza.png",
+    images: [
+      "/uploads/deye-deye-sun-8k-sg-lp1-1-faza.png",
+      "/uploads/series-se-f5.jpg",
+    ],
+  },
+  {
     id: "deye-deye-sun-8k-sg-lp1-1-faza",
     name: "Deye SUN-8K SG..LP1 (1 фаза)",
     category: "inverter",

@@ -16,6 +16,7 @@ export interface SeedProduct {
   badge?: string;
   features: string[];
   image: string;
+  images?: string[];
 }
 
 export interface SeedTestimonial {
@@ -28,7 +29,34 @@ export interface SeedTestimonial {
   product: string;
 }
 
-export const products: SeedProduct[] = [];
+export const FEATURED_KIT_ID = "deye-kit-sun-6k-se-f5-pro-c";
+
+export const products: SeedProduct[] = [
+  {
+    id: FEATURED_KIT_ID,
+    name: "Комплект Deye 6 кВт + SE-F5-PRO-C 5,12 кВт·год",
+    category: "kits",
+    price: 2148,
+    power: "6 кВт",
+    capacity: "5,12 кВт·год",
+    warranty: "",
+    badge: "Готовий комплект для дому",
+    features: [
+      "Гібридний інвертор Deye SUN-6K-SG05LP1-EU, 1 фаза",
+      "Настінний LiFePO₄ акумулятор Deye SE-F5-PRO-C",
+      "Корисна ємність системи: 5,12 кВт·год",
+      "Робота on-grid та off-grid, підтримка генератора",
+      "Можливість підключення сонячних панелей",
+      "Вбудована BMS, комунікація CAN / RS485",
+      "Сумісні компоненти в одному готовому рішенні",
+    ],
+    image: "/uploads/deye-deye-sun-8k-sg-lp1-1-faza.png",
+    images: [
+      "/uploads/deye-deye-sun-8k-sg-lp1-1-faza.png",
+      "/uploads/series-se-f5.jpg",
+    ],
+  },
+];
 
 // No seeded reviews — the storefront hides the reviews section when there are
 // none. Add genuine customer reviews via the admin API (POST /api/testimonials)
@@ -133,6 +161,15 @@ export interface SeedHomeSection {
 
 export const homeSections: SeedHomeSection[] = [
   {
+    title: "Готовий комплект Deye для дому",
+    subtitle: "Інвертор 6 кВт і LiFePO₄ батарея 5,12 кВт·год — сумісне рішення для резервного живлення",
+    mode: "products",
+    category: "",
+    productIds: [FEATURED_KIT_ID, "deye-deye-sun-6k-sg-lp1-1-faza", "deye-deye-se-f5-pro-c"],
+    ctaLabel: "Переглянути комплект",
+    ctaHref: `/products/${FEATURED_KIT_ID}`,
+  },
+  {
     title: "Новинки",
     subtitle: "",
     mode: "products",
@@ -200,10 +237,10 @@ export const homeSections: SeedHomeSection[] = [
 export const contentBlocks: SeedContentBlock[] = [
   {
     key: "hero",
-    heading: "Deye SUN-8K — гібридний інвертор",
-    subheading: "Забезпечте свій дім електроенергією під час будь-якого відключення",
-    body: "Хіт продажів",
-    productIds: ["deye-deye-sun-8k-sg-lp1-1-faza"],
+    heading: "Комплект Deye 6 кВт + батарея 5,12 кВт·год",
+    subheading: "Готове рішення для резервного живлення дому з можливістю підключення сонячних панелей",
+    body: "Готовий комплект для дому",
+    productIds: [FEATURED_KIT_ID],
     sortOrder: 0,
   },
   {

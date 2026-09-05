@@ -10,6 +10,7 @@ import {
   calculatorConfig,
   categories,
   homeSections,
+  FEATURED_KIT_ID,
 } from "./data";
 
 async function main() {
@@ -30,6 +31,7 @@ async function main() {
       badge: p.badge ?? null,
       features: JSON.stringify(p.features),
       image: p.image,
+      images: JSON.stringify(p.images ?? []),
       sortOrder: order++,
     };
     await prisma.product.upsert({
@@ -168,6 +170,15 @@ async function main() {
       country: "Китай",
       description: "Інвертори, акумулятори та системи накопичення енергії Deye.",
     },
+    update: {},
+  });
+  await prisma.product.update({
+    where: { id: FEATURED_KIT_ID },
+    data: { brandSlug: "deye" },
+  });
+  await prisma.productCategoryLink.upsert({
+    where: { productId_categoryKey: { productId: FEATURED_KIT_ID, categoryKey: "kits" } },
+    create: { productId: FEATURED_KIT_ID, categoryKey: "kits" },
     update: {},
   });
   console.log("[seed] Brand Deye ensured");
