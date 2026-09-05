@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import JsonLd from "@/components/JsonLd";
 import Providers from "@/components/Providers";
@@ -87,6 +88,31 @@ export default function RootLayout({
         <JsonLd data={websiteSchema()} />
       </head>
       <body className="min-h-full flex flex-col bg-white text-slate-900">
+        <Script id="meta-pixel" strategy="afterInteractive">
+          {`
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)}(window, document,'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            fbq('init', '1608866597505963');
+            fbq('track', 'PageView');
+          `}
+        </Script>
+        <noscript>
+          {/* Meta requires a plain tracking image when JavaScript is disabled. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            height="1"
+            width="1"
+            style={{ display: "none" }}
+            src="https://www.facebook.com/tr?id=1608866597505963&ev=PageView&noscript=1"
+            alt=""
+          />
+        </noscript>
         <Providers>{children}</Providers>
       </body>
     </html>
