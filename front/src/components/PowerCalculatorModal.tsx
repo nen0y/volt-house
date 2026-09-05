@@ -385,9 +385,9 @@ export default function PowerCalculatorModal({
         </div>
 
         {/* Body */}
-        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
+        <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
           {/* Left — appliance grid */}
-          <div className="flex-1 overflow-y-auto px-[28px] pb-[24px]">
+          <div className="shrink-0 px-[28px] pb-[24px] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {groups.map(({ key, label }) => {
               const items = appliances.filter((a) => a.group === key);
               if (items.length === 0) return null;
@@ -436,7 +436,7 @@ export default function PowerCalculatorModal({
           </div>
 
           {/* Right — summary panel */}
-          <div className="lg:w-[340px] shrink-0 bg-gray-50 border-t lg:border-t-0 lg:border-l border-gray-100 px-[24px] py-[24px] flex flex-col gap-[16px]">
+          <div className="shrink-0 bg-gray-50 border-t border-gray-100 px-[24px] py-[24px] flex flex-col gap-[16px] lg:min-h-0 lg:w-[340px] lg:overflow-y-auto lg:border-t-0 lg:border-l">
             <div>
               <div className="flex items-end justify-between mb-[8px]">
                 <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wider">
@@ -460,7 +460,7 @@ export default function PowerCalculatorModal({
             </div>
 
             {selected.size > 0 && (
-              <div className="flex-1 overflow-y-auto">
+              <div className="max-h-[140px] shrink-0 overflow-y-auto">
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-[8px]">
                   Обрано ({selected.size})
                 </p>
