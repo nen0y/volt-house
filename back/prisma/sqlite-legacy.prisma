@@ -65,7 +65,7 @@ model Lead {
   message String?
   items String?
   total Int?
-  status String @default("new")
+  status String @default("new") // new | contacted | sourcing | proposal | won | lost
   notes String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt

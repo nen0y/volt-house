@@ -49,13 +49,14 @@
   const STATUS_LABEL = {
     new: "Необроблені",
     contacted: "Зв’язались",
+    sourcing: "Шукаємо товар",
     proposal: "Пропозиція",
     won: "Успішно",
     lost: "Втрачено",
     in_progress: "Зв’язались",
     done: "Успішно",
   };
-  const CRM_STATUSES = ["new", "contacted", "proposal", "won", "lost"];
+  const CRM_STATUSES = ["new", "contacted", "sourcing", "proposal", "won", "lost"];
   const PAYMENT_STATUS_LABEL = { unpaid: "Не оплачено", partial: "Частково оплачено", paid: "Оплачено" };
   const DELIVERY_STATUS_LABEL = { not_sent: "Не відправлено", preparing: "Готується", sent: "Відправлено", received: "Отримано", returned: "Повернено" };
   const statusOptions = (labels, selected) => Object.entries(labels).map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join("");
@@ -321,7 +322,7 @@
       $("crmStats").innerHTML = [
         ["Усього клієнтів", leads.length],
         ["Необроблені", counts.new],
-        ["У роботі", counts.contacted + counts.proposal],
+        ["У роботі", counts.contacted + counts.sourcing + counts.proposal],
         ["Успішні", counts.won],
         ["Втрачено", counts.lost],
       ].map(([label, value]) => `<div class="stat"><div class="n">${value}</div><div class="l">${label}</div></div>`).join("");

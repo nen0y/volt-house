@@ -84,6 +84,7 @@
     .b-consultation { background: #f5f3ff; color: #7c3aed; }
     .b-callback { background: #ecfdf5; color: var(--green); }
     .s-new { background: #fef3c7; color: var(--amber); }
+    .s-sourcing { background: #ede9fe; color: #6d28d9; }
     .s-in_progress { background: #dbeafe; color: var(--blue); }
     .s-done { background: #dcfce7; color: var(--green); }
     .s-unpaid, .s-returned { background: #fee2e2; color: var(--red); }
@@ -153,7 +154,7 @@
     .filter-chip.active { background: var(--brand); color: #111; border-color: var(--brand); }
 
     /* CRM kanban */
-    .kanban { display: grid; grid-template-columns: repeat(5, minmax(245px, 1fr)); gap: 12px; overflow-x: auto;
+    .kanban { display: grid; grid-template-columns: repeat(6, minmax(245px, 1fr)); gap: 12px; overflow-x: auto;
       padding-bottom: 12px; align-items: start; }
     .kanban-col { background: #e9edf2; border-radius: 10px; padding: 10px; min-height: 420px; }
     .kanban-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 11px;
@@ -207,7 +208,7 @@
       .nav-group { display: none; }
       .tab { width: auto; white-space: nowrap; }
       .wrap { margin: 0; padding: 18px 14px 40px; }
-      .kanban { grid-template-columns: repeat(5, 260px); }
+      .kanban { grid-template-columns: repeat(6, 260px); }
       .page-head { flex-direction: column; }
     }
   </style>
@@ -330,6 +331,7 @@
             <option value="all">Усі статуси</option>
             <option value="new">Необроблені</option>
             <option value="contacted">Зв’язались</option>
+            <option value="sourcing">Шукаємо товар</option>
             <option value="proposal">Пропозиція</option>
             <option value="won">Успішно</option>
             <option value="lost">Втрачено</option>
