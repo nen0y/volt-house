@@ -201,6 +201,25 @@
     .margin-label { display: block; color: var(--slate-400); font-size: 10px; margin-top: 3px; }
     .price-cell-meta { min-height: 42px; }
 
+    /* CRM list view */
+    .crm-list { display: grid; gap: 8px; }
+    .crm-row { background: #fff; border: 1px solid var(--slate-200); border-radius: 10px; padding: 14px 16px; display: grid; grid-template-columns: 190px 170px 130px 1fr 90px; gap: 12px; align-items: start; }
+    .client-name { font-weight: 700; font-size: 14px; margin: 5px 0 3px; }
+    .client-stage-label { font-size: 12px; color: var(--slate-400); font-weight: 400; }
+    .notes-clamp { font-size: 13px; color: var(--slate-600); line-height: 1.55; word-break: break-word; }
+    .notes-more { font-size: 12px; color: var(--blue); cursor: pointer; border: none; background: none; padding: 2px 0; display: block; margin-top: 2px; }
+    .add-notes-btn { font-size: 12px; color: var(--slate-400); cursor: pointer; border: 1px dashed var(--slate-300); border-radius: 6px; padding: 5px 10px; background: none; white-space: nowrap; transition: all .15s; }
+    .add-notes-btn:hover { border-color: var(--blue); color: var(--blue); background: #eff6ff; }
+    .stage-tab { flex-shrink: 0; padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; border: none; color: var(--slate-600); cursor: pointer; white-space: nowrap; background: #fff; transition: all .15s; }
+    .stage-tab:hover { background: var(--slate-200); }
+    .stage-tab.active { background: var(--slate-900); color: #fff; }
+    .stage-tab .cnt { display: inline-block; min-width: 18px; padding: 1px 5px; border-radius: 999px; font-size: 11px; margin-left: 4px; text-align: center; font-weight: 600; }
+    .stage-tab.active .cnt { background: rgba(255,255,255,.2); }
+    .stage-tab:not(.active) .cnt { background: var(--slate-100); color: var(--slate-500); }
+    #crmStageTabs { scrollbar-width: none; }
+    #crmStageTabs::-webkit-scrollbar { display: none; }
+    #crmSearch:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+
     @media (max-width: 760px) {
       .topbar { padding: 0 12px; }
       .topbar .who { display: none; }
@@ -210,6 +229,7 @@
       .wrap { margin: 0; padding: 18px 14px 40px; }
       .kanban { grid-template-columns: repeat(6, 260px); }
       .page-head { flex-direction: column; }
+      .crm-row { grid-template-columns: 1fr; gap: 8px; }
     }
   </style>
 </head>
@@ -257,9 +277,7 @@
       <div class="tabs">
         <div class="nav-group">CRM</div>
         <button class="tab active" data-tab="crm"><span class="tab-icon">▦</span> Канбан клієнтів</button>
-        <button class="tab" data-tab="leads"><span class="tab-icon">☷</span> Усі заявки</button>
         <button class="tab" data-tab="installers"><span class="tab-icon">⚒</span> Інсталятори</button>
-        <button class="tab" data-tab="finance"><span class="tab-icon">₴</span> Фінанси</button>
         <div class="nav-group">Закупівлі</div>
         <button class="tab" data-tab="suppliers"><span class="tab-icon">◆</span> Постачальники</button>
         <button class="tab" data-tab="pricing"><span class="tab-icon">▦</span> Матриця цін</button>
@@ -282,29 +300,22 @@
           <div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" id="refreshCrm">↻ Оновити</button><button class="btn btn-sm" id="addCrmClient">+ Додати клієнта</button></div>
         </div>
         <div class="stats" id="crmStats"></div>
-        <div class="crm-filters" id="crmFilters"></div>
-        <div class="kanban" id="kanbanBody"></div>
-      </section>
-
-      <!-- Finance -->
-      <section id="tab-finance" style="display:none">
-        <div class="page-head">
-          <div><h1>Фінанси · Розподіл коштів</h1><p>Повернення витрат і розподіл прибутку: порівну за замовчуванням або за власними частками.</p></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-ghost" id="addFinanceTransfer">⇄ Передати кошти</button><button class="btn btn-sm btn-ghost" id="addFinanceExpense">− Додати витрату</button><button class="btn btn-sm" id="addFinanceIncome">+ Додати надходження</button></div>
+        <!-- Sticky search + stage bar -->
+        <div style="position:sticky;top:60px;z-index:8;background:var(--slate-100);padding:8px 0 0;margin-bottom:0">
+          <div style="position:relative;margin-bottom:10px">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--slate-400);font-size:16px;pointer-events:none">⌕</span>
+            <input type="search" id="crmSearch" placeholder="Пошук за ім'ям, телефоном або нотаткою…" style="width:100%;padding:10px 14px 10px 36px;border:1px solid var(--slate-200);border-radius:10px;background:#fff;font-size:14px;outline:none" />
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div id="crmStageTabs" style="display:flex;gap:4px;overflow-x:auto;flex:1;min-width:0"></div>
+            <div style="flex-shrink:0;display:flex;border:1px solid var(--slate-200);border-radius:8px;overflow:hidden;background:#fff">
+              <button id="viewList" style="padding:7px 12px;border:none;font-size:13px;font-weight:600;cursor:pointer;background:var(--slate-900);color:#fff">Список</button>
+              <button id="viewKanban" style="padding:7px 12px;border:none;font-size:13px;font-weight:600;cursor:pointer;border-left:1px solid var(--slate-200);background:#fff;color:var(--slate-500)">Канбан</button>
+            </div>
+          </div>
         </div>
-        <div class="card" style="padding:16px;margin-bottom:18px">
-          <div style="font-weight:700;margin-bottom:10px">Троє учасників</div>
-          <div id="financeParticipants" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px"></div>
-          <div style="margin-top:10px"><button class="btn btn-sm btn-ghost" id="saveFinanceParticipants">Зберегти імена</button></div>
-        </div>
-        <div class="stats" id="financeStats"></div>
-        <div class="card" style="padding:16px;margin:18px 0"><h3 style="margin-bottom:6px">Що робити зараз</h3><p class="muted" style="margin-bottom:12px">Підказка формується лише за фактично отриманими коштами.</p><div id="financeSettlement"></div></div>
-        <h3 style="margin:18px 0 10px">1. Надходження від клієнтів</h3>
-        <div class="admin-table-wrap" id="financeIncomeBody"></div>
-        <h3 style="margin:22px 0 10px">2. Витрати команди</h3>
-        <div class="admin-table-wrap" id="financeExpenseBody"></div>
-        <h3 style="margin:22px 0 10px">3. Передачі між учасниками</h3>
-        <div class="admin-table-wrap" id="financeTransferBody"></div>
+        <div class="crm-filters" id="crmFilters" style="margin-bottom:14px"></div>
+        <div id="kanbanBody"></div>
       </section>
 
       <!-- Installers -->
@@ -314,32 +325,6 @@
           <button class="btn btn-sm" id="addInstaller">+ Додати інсталятора</button>
         </div>
         <div class="admin-table-wrap" id="installersBody"></div>
-      </section>
-
-      <!-- Leads -->
-      <section id="tab-leads" style="display:none">
-        <div class="page-head"><div><h1>Усі заявки</h1><p>Повний список звернень із сайту.</p></div></div>
-        <div class="stats" id="stats"></div>
-        <div class="toolbar">
-          <select id="filterType">
-            <option value="all">Усі типи</option>
-            <option value="order">Замовлення</option>
-            <option value="consultation">Консультації</option>
-            <option value="callback">Дзвінки</option>
-          </select>
-          <select id="filterStatus">
-            <option value="all">Усі статуси</option>
-            <option value="new">Необроблені</option>
-            <option value="contacted">Зв’язались</option>
-            <option value="sourcing">Шукаємо товар</option>
-            <option value="proposal">Пропозиція</option>
-            <option value="won">Успішно</option>
-            <option value="lost">Втрачено</option>
-          </select>
-          <div class="spacer"></div>
-          <button class="btn btn-sm btn-ghost" id="refreshLeads">↻ Оновити</button>
-        </div>
-        <div class="card"><div id="leadsBody"></div></div>
       </section>
 
       <!-- Suppliers -->

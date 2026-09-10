@@ -14,6 +14,10 @@
   let crmLeadCache = [];
   let crmLastMovedId = null;
   let crmFilters = { type: "all", paymentStatus: "all", deliveryStatus: "all" };
+  let crmSearch = "";
+  let crmStage = "all";
+  let crmPrevStage = "all";
+  let crmViewMode = "list";
   let crmProductOptions = [];
   let financeCache = { participants: [], sales: [] };
   let adminEmail = "";
@@ -131,7 +135,7 @@
   $("logout").addEventListener("click", logout);
 
   // ── tabs ──────────────────────────────────────────────────────────────────
-  const ALL_TABS = ["crm", "leads", "installers", "finance", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
+  const ALL_TABS = ["crm", "installers", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
 
   function activateTab(tab) {
     if (!ALL_TABS.includes(tab)) tab = "crm";
@@ -143,9 +147,7 @@
     url.searchParams.set("tab", tab);
     history.replaceState(null, "", url);
     if (tab === "crm") loadCrm();
-    if (tab === "leads") loadLeads();
     if (tab === "installers") loadInstallers();
-    if (tab === "finance") loadFinanceLedger();
     if (tab === "suppliers") loadSuppliers();
     if (tab === "pricing") loadPricing();
     if (tab === "products") loadProducts();
@@ -203,6 +205,16 @@
   // ── CRM kanban ────────────────────────────────────────────────────────────
   $("refreshCrm").addEventListener("click", loadCrm);
   $("addCrmClient").addEventListener("click", openNewCrmClient);
+  $("crmSearch").addEventListener("input", (e) => {
+    const q = e.target.value;
+    if (!crmSearch && q) crmPrevStage = crmStage;
+    crmSearch = q;
+    if (!crmSearch) crmStage = crmPrevStage;
+    renderStageTabs();
+    renderCrmContent(filteredLeads());
+  });
+  $("viewList").addEventListener("click", () => { crmViewMode = "list"; renderStageTabs(); renderCrmContent(filteredLeads()); });
+  $("viewKanban").addEventListener("click", () => { crmViewMode = "kanban"; renderStageTabs(); renderCrmContent(filteredLeads()); });
 
   async function loadCrmProductOptions() {
     if (!crmProductOptions.length) crmProductOptions = await api("/api/leads/product-options");
@@ -285,10 +297,18 @@
   }
 
   function filteredLeads() {
+    const q = crmSearch.trim().toLocaleLowerCase("uk-UA");
     return crmLeadCache.filter((l) => {
       if (crmFilters.type !== "all" && l.type !== crmFilters.type) return false;
       if (crmFilters.paymentStatus !== "all" && (l.paymentStatus || "unpaid") !== crmFilters.paymentStatus) return false;
       if (crmFilters.deliveryStatus !== "all" && (l.deliveryStatus || "not_sent") !== crmFilters.deliveryStatus) return false;
+      if (q) {
+        return (l.name || "").toLocaleLowerCase("uk-UA").includes(q) ||
+               (l.phone || "").toLocaleLowerCase("uk-UA").includes(q) ||
+               (l.notes || "").toLocaleLowerCase("uk-UA").includes(q) ||
+               (l.interest || "").toLocaleLowerCase("uk-UA").includes(q);
+      }
+      if (crmStage !== "all") return normalizeLeadStatus(l.status) === crmStage;
       return true;
     });
   }
@@ -307,7 +327,7 @@
       chip.addEventListener("click", () => {
         crmFilters[chip.dataset.filter] = chip.dataset.value;
         renderCrmFilters();
-        renderKanban(filteredLeads());
+        renderCrmContent(filteredLeads());
       });
     });
   }
@@ -326,8 +346,9 @@
         ["Успішні", counts.won],
         ["Втрачено", counts.lost],
       ].map(([label, value]) => `<div class="stat"><div class="n">${value}</div><div class="l">${label}</div></div>`).join("");
+      renderStageTabs();
       renderCrmFilters();
-      renderKanban(filteredLeads());
+      renderCrmContent(filteredLeads());
     } catch (err) {
       $("kanbanBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
     }
@@ -377,6 +398,103 @@
           });
         } catch (err) { alert(err.message); loadCrm(); }
       });
+    });
+    document.querySelectorAll("[data-open-lead]").forEach((button) =>
+      button.addEventListener("click", () => openLead(crmLeadCache.find((l) => l.id === button.dataset.openLead)))
+    );
+  }
+
+  function renderStageTabs() {
+    const tabsEl = document.getElementById("crmStageTabs");
+    if (!tabsEl) return;
+    const stageCounts = Object.fromEntries(CRM_STATUSES.map((s) => [s, 0]));
+    crmLeadCache.forEach((l) => stageCounts[normalizeLeadStatus(l.status)]++);
+    const stages = [["all", "Усі", crmLeadCache.length], ...CRM_STATUSES.map((s) => [s, STATUS_LABEL[s], stageCounts[s]])];
+    const isSearching = !!crmSearch.trim();
+    tabsEl.innerHTML = stages.map(([val, label, count]) =>
+      `<button class="stage-tab${crmStage === val && !isSearching ? " active" : ""}" data-stage="${val}">${esc(label)}<span class="cnt">${count}</span></button>`
+    ).join("");
+    tabsEl.querySelectorAll(".stage-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        crmSearch = "";
+        const searchEl = document.getElementById("crmSearch");
+        if (searchEl) searchEl.value = "";
+        crmStage = btn.dataset.stage;
+        crmPrevStage = crmStage;
+        renderStageTabs();
+        renderCrmContent(filteredLeads());
+      });
+    });
+    const vl = document.getElementById("viewList");
+    const vk = document.getElementById("viewKanban");
+    if (vl && vk) {
+      vl.style.background = crmViewMode === "list" ? "var(--slate-900)" : "#fff";
+      vl.style.color = crmViewMode === "list" ? "#fff" : "var(--slate-500)";
+      vk.style.background = crmViewMode === "kanban" ? "var(--slate-900)" : "#fff";
+      vk.style.color = crmViewMode === "kanban" ? "#fff" : "var(--slate-500)";
+    }
+  }
+
+  function renderCrmContent(leads) {
+    const el = $("kanbanBody");
+    if (crmViewMode === "kanban") {
+      el.className = "kanban";
+      renderKanban(leads);
+    } else {
+      el.className = "crm-list";
+      renderList(leads);
+    }
+  }
+
+  function renderList(leads) {
+    const el = $("kanbanBody");
+    const isSearching = !!crmSearch.trim();
+    if (!leads.length) {
+      el.innerHTML = `<div class="empty" style="padding:48px;text-align:center">Нічого не знайдено</div>`;
+      return;
+    }
+    const NOTES_LIMIT = 250;
+    el.innerHTML = leads.map((l) => {
+      const stage = normalizeLeadStatus(l.status);
+      const details = l.interest || (l.items && l.items.length ? `${l.items.length} товар(и)` : TYPE_LABEL[l.type] || l.type);
+      const showStage = isSearching || crmStage === "all";
+      const stageHtml = showStage ? ` <span class="client-stage-label">· ${esc(STATUS_LABEL[stage])}</span>` : "";
+      const truncated = l.notes && l.notes.length > NOTES_LIMIT;
+      const notesHtml = l.notes
+        ? (truncated
+          ? `<div class="notes-clamp" id="ntxt-${esc(l.id)}">${esc(l.notes.slice(0, NOTES_LIMIT))}…</div><button class="notes-more" data-expand="${esc(l.id)}">Більше</button>`
+          : `<div class="notes-clamp">${esc(l.notes)}</div>`)
+        : `<button class="add-notes-btn" data-add-notes="${esc(l.id)}">Додати опис</button>`;
+      return `<div class="crm-row">
+        <div>
+          <div><span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span></div>
+          <div class="client-name">${esc(l.name)}${stageHtml}</div>
+          <a href="tel:${esc(l.phone)}" style="color:var(--blue);font-size:13px">${esc(l.phone)}</a>
+        </div>
+        <div>
+          <div style="font-size:13px;color:var(--slate-700)">${esc(details || "")}</div>
+          <div style="font-size:12px;color:var(--slate-400);margin-top:3px">${dt(l.createdAt)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <span class="badge s-${esc(l.paymentStatus || "unpaid")}">${esc(PAYMENT_STATUS_LABEL[l.paymentStatus] || PAYMENT_STATUS_LABEL.unpaid)}</span>
+          <span class="badge s-${esc(l.deliveryStatus || "not_sent")}">${esc(DELIVERY_STATUS_LABEL[l.deliveryStatus] || DELIVERY_STATUS_LABEL.not_sent)}</span>
+        </div>
+        <div>${notesHtml}</div>
+        <div><button class="btn-sm btn-ghost" data-open-lead="${esc(l.id)}">Відкрити</button></div>
+      </div>`;
+    }).join("");
+
+    document.querySelectorAll("[data-expand]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const lead = crmLeadCache.find((l) => l.id === btn.dataset.expand);
+        if (!lead) return;
+        const textEl = document.getElementById("ntxt-" + btn.dataset.expand);
+        if (textEl) textEl.textContent = lead.notes;
+        btn.remove();
+      });
+    });
+    document.querySelectorAll("[data-add-notes]").forEach((btn) => {
+      btn.addEventListener("click", () => openLead(crmLeadCache.find((l) => l.id === btn.dataset.addNotes)));
     });
     document.querySelectorAll("[data-open-lead]").forEach((button) =>
       button.addEventListener("click", () => openLead(crmLeadCache.find((l) => l.id === button.dataset.openLead)))
@@ -494,7 +612,8 @@
     }));
   }
 
-  $("saveFinanceParticipants").addEventListener("click", async () => {
+  const _sfp = $("saveFinanceParticipants");
+  if (_sfp) _sfp.addEventListener("click", async () => {
     const participants = financeCache.participants.map((person) => ({ id: person.id, name: document.querySelector(`[data-finance-person="${person.id}"]`).value.trim() }));
     if (participants.some((person) => !person.name)) return alert("Вкажіть усі три імені");
     try { await api("/api/finance/participants", { method: "PUT", body: JSON.stringify({ participants }) }); loadFinanceLedger(); }
@@ -686,9 +805,9 @@
     });
   }
 
-  $("addFinanceIncome").addEventListener("click", () => financeIncomeModal(null));
-  $("addFinanceExpense").addEventListener("click", () => financeExpenseModal(null));
-  $("addFinanceTransfer").addEventListener("click", financeTransferModal);
+  if ($("addFinanceIncome")) $("addFinanceIncome").addEventListener("click", () => financeIncomeModal(null));
+  if ($("addFinanceExpense")) $("addFinanceExpense").addEventListener("click", () => financeExpenseModal(null));
+  if ($("addFinanceTransfer")) $("addFinanceTransfer").addEventListener("click", financeTransferModal);
 
   // ── Installers ────────────────────────────────────────────────────────────
   $("addInstaller").addEventListener("click", () => installerModal(null));
@@ -940,9 +1059,9 @@
   }
 
   // ── leads ─────────────────────────────────────────────────────────────────
-  $("refreshLeads").addEventListener("click", loadLeads);
-  $("filterType").addEventListener("change", loadLeads);
-  $("filterStatus").addEventListener("change", loadLeads);
+  if ($("refreshLeads")) $("refreshLeads").addEventListener("click", loadLeads);
+  if ($("filterType")) $("filterType").addEventListener("change", loadLeads);
+  if ($("filterStatus")) $("filterStatus").addEventListener("change", loadLeads);
 
   async function loadLeads() {
     try {
