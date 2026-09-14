@@ -68,11 +68,28 @@ jobs:
             -f docker-compose.https.yml \
             config --quiet
 
-          docker compose \
-            -f docker-compose.yml \
-            -f docker-compose.prod.yml \
-            -f docker-compose.https.yml \
-            up -d --build --force-recreate
+          # Docker Hub can occasionally time out while issuing an anonymous
+          # pull token. Retry the complete build so a transient registry/network
+          # failure does not abort an otherwise healthy deployment.
+          DEPLOY_OK=0
+          for ATTEMPT in 1 2 3; do
+            echo "Docker Compose build attempt ${ATTEMPT}/3"
+            if docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              -f docker-compose.https.yml \
+              up -d --build --force-recreate; then
+              DEPLOY_OK=1
+              break
+            fi
+            if [ "$ATTEMPT" -lt 3 ]; then
+              sleep $((ATTEMPT * 15))
+            fi
+          done
+          if [ "$DEPLOY_OK" -ne 1 ]; then
+            echo "Docker Compose build failed after 3 attempts"
+            exit 1
+          fi
 
           docker compose \
             -f docker-compose.yml \
