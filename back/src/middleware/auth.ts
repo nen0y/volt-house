@@ -23,7 +23,11 @@ export async function requireAdmin(req: AuthedRequest, res: Response, next: Next
       select: { id: true, email: true, name: true, role: true, active: true },
     });
     if (!user || !user.active) return res.status(401).json({ error: "Обліковий запис вимкнено" });
-    const managerAllowed = req.originalUrl.startsWith("/api/leads") || req.originalUrl.startsWith("/api/auth");
+    const managerAllowed = req.originalUrl.startsWith("/api/leads") ||
+      req.originalUrl.startsWith("/api/auth") ||
+      req.originalUrl.startsWith("/api/crm/installers") ||
+      req.originalUrl.startsWith("/api/crm/price-matrix") ||
+      req.originalUrl.startsWith("/api/crm/prices");
     if (user.role === "manager" && !managerAllowed) {
       return res.status(403).json({ error: "У вас немає доступу до цього розділу" });
     }

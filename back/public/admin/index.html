@@ -277,10 +277,10 @@
       <div class="tabs">
         <div class="nav-group">CRM</div>
         <button class="tab active" data-tab="crm"><span class="tab-icon">▦</span> Канбан клієнтів</button>
-        <button class="tab" data-admin-only data-tab="installers"><span class="tab-icon">⚒</span> Інсталятори</button>
-        <div class="nav-group" data-admin-only>Закупівлі</div>
+        <button class="tab" data-tab="installers"><span class="tab-icon">⚒</span> Інсталятори</button>
+        <div class="nav-group">Закупівлі</div>
         <button class="tab" data-admin-only data-tab="suppliers"><span class="tab-icon">◆</span> Постачальники</button>
-        <button class="tab" data-admin-only data-tab="pricing"><span class="tab-icon">▦</span> Матриця цін</button>
+        <button class="tab" data-tab="pricing"><span class="tab-icon">▦</span> Матриця цін</button>
         <div class="nav-group" data-admin-only>Сайт</div>
         <button class="tab" data-admin-only data-tab="products"><span class="tab-icon">▣</span> Товари</button>
         <button class="tab" data-admin-only data-tab="brands"><span class="tab-icon">◉</span> Бренди</button>
@@ -340,7 +340,7 @@
       <section id="tab-pricing" style="display:none">
         <div class="page-head">
           <div><h1>Матриця закупівельних цін</h1><p>Найкраща доступна ціна кожного товару виділяється зеленим.</p></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm" id="syncRetailPrices">+20% → ціни товарів</button><button class="btn btn-sm btn-ghost" id="refreshPricing">↻ Оновити</button></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm" data-admin-only id="syncRetailPrices">+20% → ціни товарів</button><button class="btn btn-sm btn-ghost" id="refreshPricing">↻ Оновити</button></div>
         </div>
         <div class="toolbar">
           <input id="pricingSearch" type="search" placeholder="Пошук товару…">

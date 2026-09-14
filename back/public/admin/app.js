@@ -90,7 +90,7 @@
     document.querySelectorAll("[data-admin-only]").forEach((el) => { el.style.display = admin.role === "admin" ? "" : "none"; });
     if (admin.role === "admin") loadSeoSetting();
     const savedTab = new URL(location.href).searchParams.get("tab") || "crm";
-    activateTab(admin.role === "manager" ? "crm" : savedTab);
+    activateTab(savedTab);
   }
   function logout() {
     token = null;
@@ -140,9 +140,10 @@
 
   // ── tabs ──────────────────────────────────────────────────────────────────
   const ALL_TABS = ["crm", "installers", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
+  const MANAGER_TABS = ["crm", "installers", "pricing"];
 
   function activateTab(tab) {
-    if (currentAdmin?.role === "manager") tab = "crm";
+    if (currentAdmin?.role === "manager" && !MANAGER_TABS.includes(tab)) tab = "crm";
     if (!ALL_TABS.includes(tab)) tab = "crm";
     document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
     const btn = document.querySelector(`.tab[data-tab="${tab}"]`);
@@ -375,7 +376,7 @@
     const chips = (opts, key) => opts.map(([v, l]) =>
       `<button class="filter-chip${crmFilters[key] === v ? " active" : ""}" data-filter="${key}" data-value="${v}">${l}</button>`
     ).join("");
-    const managerFilter = currentAdmin?.role === "admin" ? `<div class="filter-sep"></div><select id="crmManagerFilter" style="padding:6px 10px;border:1px solid var(--slate-200);border-radius:8px;background:#fff"><option value="all" ${crmFilters.managerId === "all" ? "selected" : ""}>Усі менеджери</option><option value="unassigned" ${crmFilters.managerId === "unassigned" ? "selected" : ""}>Не призначено</option>${managerCache.map((manager) => `<option value="${esc(manager.id)}" ${crmFilters.managerId === manager.id ? "selected" : ""}>${esc(manager.name || manager.email)}</option>`).join("")}</select>` : "";
+    const managerFilter = `<div class="filter-sep"></div><select id="crmManagerFilter" style="padding:6px 10px;border:1px solid var(--slate-200);border-radius:8px;background:#fff"><option value="all" ${crmFilters.managerId === "all" ? "selected" : ""}>Усі менеджери</option><option value="unassigned" ${crmFilters.managerId === "unassigned" ? "selected" : ""}>Не призначено</option>${managerCache.map((manager) => `<option value="${esc(manager.id)}" ${crmFilters.managerId === manager.id ? "selected" : ""}>${esc(manager.name || manager.email)}</option>`).join("")}</select>`;
     el.innerHTML = `<div class="filter-group">${chips(typeOpts, "type")}</div><div class="filter-sep"></div><div class="filter-group">${chips(payOpts, "paymentStatus")}</div><div class="filter-sep"></div><div class="filter-group">${chips(delOpts, "deliveryStatus")}</div>${managerFilter}`;
     el.querySelectorAll(".filter-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
@@ -390,7 +391,7 @@
 
   async function loadCrm() {
     try {
-      if (currentAdmin?.role === "admin") managerCache = await api("/api/auth/users");
+      managerCache = await api(currentAdmin?.role === "admin" ? "/api/auth/users" : "/api/leads/managers");
       const leads = await api("/api/leads?type=all&status=all");
       crmLeadCache = leads;
       crmLastMovedId = null;
@@ -411,6 +412,27 @@
     }
   }
 
+  function leadActionsHtml(lead) {
+    const isAdmin = currentAdmin?.role === "admin";
+    const isMine = lead.managerId === currentAdmin?.id;
+    if (isAdmin || isMine) return `<button class="btn-sm btn-ghost" data-open-lead="${esc(lead.id)}">Відкрити</button>`;
+    if (!lead.managerId) return `<button class="btn-sm" data-claim-lead="${esc(lead.id)}">Взяти собі</button>`;
+    return `<span class="muted" style="font-size:11px">Заявка в роботі</span>`;
+  }
+
+  function bindLeadActions() {
+    document.querySelectorAll("[data-claim-lead]").forEach((button) => button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await api("/api/leads/" + button.dataset.claimLead, { method: "PATCH", body: JSON.stringify({ managerId: currentAdmin.id }) });
+        await loadCrm();
+      } catch (err) { alert(err.message); await loadCrm(); }
+    }));
+    document.querySelectorAll("[data-open-lead]").forEach((button) =>
+      button.addEventListener("click", () => openLead(crmLeadCache.find((lead) => lead.id === button.dataset.openLead)))
+    );
+  }
+
   function renderKanban(leads) {
     $("kanbanBody").innerHTML = CRM_STATUSES.map((status) => {
       const rows = leads.filter((l) => normalizeLeadStatus(l.status) === status);
@@ -418,14 +440,15 @@
       const cards = rows.map((l) => {
         const details = l.interest || (l.items && l.items.length ? `${l.items.length} товар(и)` : TYPE_LABEL[l.type] || l.type);
         const managerLine = status === "won" ? `Продаж: ${l.soldBy?.name || l.soldBy?.email || "не вказано"}` : `Менеджер: ${l.manager?.name || l.manager?.email || "не призначено"}`;
-        return `<article class="lead-card" draggable="true" data-lead-id="${esc(l.id)}">
+        const canMove = currentAdmin?.role === "admin" || l.managerId === currentAdmin?.id;
+        return `<article class="lead-card" draggable="${canMove ? "true" : "false"}" data-lead-id="${esc(l.id)}">
           <span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span>
           <h4>${esc(l.name)}</h4>
           <div class="lead-meta"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br>${esc(details || "Без деталей")}<br>${dt(l.createdAt)}</div>
           <div style="font-size:12px;font-weight:700;margin-top:7px">${esc(managerLine)}</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"><span class="badge s-${esc(l.paymentStatus || "unpaid")}">${esc(PAYMENT_STATUS_LABEL[l.paymentStatus] || PAYMENT_STATUS_LABEL.unpaid)}</span><span class="badge s-${esc(l.deliveryStatus || "not_sent")}">${esc(DELIVERY_STATUS_LABEL[l.deliveryStatus] || DELIVERY_STATUS_LABEL.not_sent)}</span></div>
           ${l.notes ? `<div class="items">${esc(l.notes).slice(0, 90)}</div>` : ""}
-          <div class="lead-actions"><button class="btn-sm btn-ghost" data-open-lead="${esc(l.id)}">Відкрити</button></div>
+          <div class="lead-actions">${leadActionsHtml(l)}</div>
         </article>`;
       }).join("");
       return `<div class="kanban-col" data-drop-status="${status}">
@@ -434,7 +457,7 @@
       </div>`;
     }).join("");
 
-    document.querySelectorAll(".lead-card").forEach((card) => {
+    document.querySelectorAll('.lead-card[draggable="true"]').forEach((card) => {
       card.addEventListener("dragstart", () => card.classList.add("dragging"));
       card.addEventListener("dragend", () => card.classList.remove("dragging"));
     });
@@ -461,9 +484,7 @@
         } catch (err) { alert(err.message); loadCrm(); }
       });
     });
-    document.querySelectorAll("[data-open-lead]").forEach((button) =>
-      button.addEventListener("click", () => openLead(crmLeadCache.find((l) => l.id === button.dataset.openLead)))
-    );
+    bindLeadActions();
   }
 
   function renderStageTabs() {
@@ -522,11 +543,12 @@
       const showStage = isSearching || crmStage === "all";
       const stageHtml = showStage ? ` <span class="client-stage-label">· ${esc(STATUS_LABEL[stage])}</span>` : "";
       const truncated = l.notes && l.notes.length > NOTES_LIMIT;
+      const canEdit = currentAdmin?.role === "admin" || l.managerId === currentAdmin?.id;
       const notesHtml = l.notes
         ? (truncated
           ? `<div class="notes-clamp" id="ntxt-${esc(l.id)}">${esc(l.notes.slice(0, NOTES_LIMIT))}…</div><button class="notes-more" data-expand="${esc(l.id)}">Більше</button>`
           : `<div class="notes-clamp">${esc(l.notes)}</div>`)
-        : `<button class="add-notes-btn" data-add-notes="${esc(l.id)}">Додати опис</button>`;
+        : canEdit ? `<button class="add-notes-btn" data-add-notes="${esc(l.id)}">Додати опис</button>` : `<span class="muted">Немає нотаток</span>`;
       const managerName = stage === "won" ? (l.soldBy?.name || l.soldBy?.email || "Не вказано") : (l.manager?.name || l.manager?.email || "Не призначено");
       return `<div class="crm-row">
         <div>
@@ -544,7 +566,7 @@
           <span class="badge s-${esc(l.deliveryStatus || "not_sent")}">${esc(DELIVERY_STATUS_LABEL[l.deliveryStatus] || DELIVERY_STATUS_LABEL.not_sent)}</span>
         </div>
         <div>${notesHtml}</div>
-        <div><button class="btn-sm btn-ghost" data-open-lead="${esc(l.id)}">Відкрити</button></div>
+        <div>${leadActionsHtml(l)}</div>
       </div>`;
     }).join("");
 
@@ -560,9 +582,7 @@
     document.querySelectorAll("[data-add-notes]").forEach((btn) => {
       btn.addEventListener("click", () => openLead(crmLeadCache.find((l) => l.id === btn.dataset.addNotes)));
     });
-    document.querySelectorAll("[data-open-lead]").forEach((button) =>
-      button.addEventListener("click", () => openLead(crmLeadCache.find((l) => l.id === button.dataset.openLead)))
-    );
+    bindLeadActions();
   }
 
   async function openLead(lead) {

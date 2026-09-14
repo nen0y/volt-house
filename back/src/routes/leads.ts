@@ -83,9 +83,7 @@ leadsRouter.get("/", requireAdmin, async (req: AuthedRequest, res) => {
   const status =
     typeof req.query.status === "string" && req.query.status !== "all" ? req.query.status : undefined;
   const requestedManager = typeof req.query.managerId === "string" ? req.query.managerId : undefined;
-  const managerWhere = req.admin!.role === "manager"
-    ? { managerId: req.admin!.id }
-    : requestedManager === "unassigned" ? { managerId: null }
+  const managerWhere = requestedManager === "unassigned" ? { managerId: null }
       : requestedManager && requestedManager !== "all" ? { managerId: requestedManager } : {};
   const rows = await prisma.lead.findMany({
     where: { ...(type ? { type } : {}), ...(status ? { status } : {}), ...managerWhere },
@@ -111,16 +109,24 @@ leadsRouter.get("/product-options", requireAdmin, async (_req, res) => {
 });
 
 // GET /api/leads/stats  (admin)
-leadsRouter.get("/stats", requireAdmin, async (req: AuthedRequest, res) => {
-  const scope = req.admin!.role === "manager" ? { managerId: req.admin!.id } : {};
+leadsRouter.get("/stats", requireAdmin, async (_req, res) => {
   const [total, orders, consultations, callbacks, fresh] = await Promise.all([
-    prisma.lead.count({ where: scope }),
-    prisma.lead.count({ where: { ...scope, type: "order" } }),
-    prisma.lead.count({ where: { ...scope, type: "consultation" } }),
-    prisma.lead.count({ where: { ...scope, type: "callback" } }),
-    prisma.lead.count({ where: { ...scope, status: "new" } }),
+    prisma.lead.count(),
+    prisma.lead.count({ where: { type: "order" } }),
+    prisma.lead.count({ where: { type: "consultation" } }),
+    prisma.lead.count({ where: { type: "callback" } }),
+    prisma.lead.count({ where: { status: "new" } }),
   ]);
   res.json({ total, orders, consultations, callbacks, new: fresh });
+});
+
+leadsRouter.get("/managers", requireAdmin, async (_req, res) => {
+  const managers = await prisma.adminUser.findMany({
+    where: { role: "manager", active: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  res.json(managers);
 });
 
 const manualLeadSchema = leadSchema.extend({
@@ -225,11 +231,19 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     return res.status(400).json({ error: "Некоректні дані" });
   }
   try {
-    const previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
+    let previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
-    if (req.admin!.role === "manager" && previous.managerId !== req.admin!.id) return res.status(403).json({ error: "Ця заявка призначена іншому менеджеру" });
     const { items, email, interest, message, managerId, total, ...fields } = parsed.data;
-    if (managerId !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Менеджера може призначати лише адміністратор" });
+    if (req.admin!.role === "manager") {
+      if (managerId !== undefined && managerId !== req.admin!.id) return res.status(403).json({ error: "Ви можете призначити заявку лише собі" });
+      if (previous.managerId && previous.managerId !== req.admin!.id) return res.status(409).json({ error: "Цю заявку вже взяв інший менеджер" });
+      if (!previous.managerId && managerId !== req.admin!.id) return res.status(409).json({ error: "Спочатку натисніть «Взяти собі»" });
+      if (!previous.managerId && managerId === req.admin!.id) {
+        const claimed = await prisma.lead.updateMany({ where: { id: previous.id, managerId: null }, data: { managerId: req.admin!.id } });
+        if (!claimed.count) return res.status(409).json({ error: "Цю заявку щойно взяв інший менеджер" });
+        previous = { ...previous, managerId: req.admin!.id };
+      }
+    }
     if (managerId) {
       const manager = await prisma.adminUser.findFirst({ where: { id: managerId, role: "manager", active: true } });
       if (!manager) return res.status(400).json({ error: "Оберіть активного менеджера" });
