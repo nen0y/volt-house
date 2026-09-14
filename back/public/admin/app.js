@@ -54,6 +54,7 @@
   const TYPE_LABEL = { order: "Замовлення", consultation: "Консультація", callback: "Дзвінок" };
   const STATUS_LABEL = {
     new: "Необроблені",
+    no_answer: "Недозвон",
     contacted: "Зв’язались",
     sourcing: "Шукаємо товар",
     proposal: "Пропозиція",
@@ -62,7 +63,7 @@
     in_progress: "Зв’язались",
     done: "Успішно",
   };
-  const CRM_STATUSES = ["new", "contacted", "sourcing", "proposal", "won", "lost"];
+  const CRM_STATUSES = ["new", "no_answer", "contacted", "sourcing", "proposal", "won", "lost"];
   const PAYMENT_STATUS_LABEL = { unpaid: "Не оплачено", partial: "Частково оплачено", paid: "Оплачено" };
   const DELIVERY_STATUS_LABEL = { not_sent: "Не відправлено", preparing: "Готується", sent: "Відправлено", received: "Отримано", returned: "Повернено" };
   const statusOptions = (labels, selected) => Object.entries(labels).map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join("");
@@ -434,7 +435,10 @@
   }
 
   function renderKanban(leads) {
-    $("kanbanBody").innerHTML = CRM_STATUSES.map((status) => {
+    const statuses = crmSearch.trim() || crmStage === "all" ? CRM_STATUSES : [crmStage];
+    const board = $("kanbanBody");
+    board.classList.toggle("kanban-filtered", statuses.length === 1);
+    board.innerHTML = statuses.map((status) => {
       const rows = leads.filter((l) => normalizeLeadStatus(l.status) === status);
       rows.sort((a, b) => (b.id === crmLastMovedId ? 1 : 0) - (a.id === crmLastMovedId ? 1 : 0));
       const cards = rows.map((l) => {

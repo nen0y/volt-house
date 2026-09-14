@@ -84,7 +84,7 @@ model Lead {
   message   String?
   items     String? // JSON-encoded [{ id, name, price, quantity }]
   total     Int?
-  status    String   @default("new") // new | contacted | sourcing | proposal | won | lost
+  status    String   @default("new") // new | no_answer | contacted | sourcing | proposal | won | lost
   paymentStatus  String   @default("unpaid") // unpaid | partial | paid
   deliveryStatus String   @default("not_sent") // not_sent | preparing | sent | received | returned
   notes     String   @default("")

@@ -154,14 +154,17 @@
     .filter-chip.active { background: var(--brand); color: #111; border-color: var(--brand); }
 
     /* CRM kanban */
-    .kanban { display: grid; grid-template-columns: repeat(6, minmax(245px, 1fr)); gap: 12px; overflow-x: auto;
-      padding-bottom: 12px; align-items: start; }
-    .kanban-col { background: #e9edf2; border-radius: 10px; padding: 10px; min-height: 420px; }
+    .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 1fr); gap: 12px; overflow-x: auto;
+      padding-bottom: 12px; align-items: start; max-width: 100%; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
+    .kanban.kanban-filtered { grid-auto-columns: minmax(0, 1fr); }
+    .kanban-filtered .kanban-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+    .kanban-col { min-width: 0; scroll-snap-align: start; background: #e9edf2; border-radius: 10px; padding: 10px; min-height: 420px; }
     .kanban-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 11px;
       font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    .s-no_answer { background: #fff7ed; color: #c2410c; }
     .kanban-count { background: #fff; border-radius: 999px; min-width: 23px; padding: 3px 7px; text-align: center; }
-    .kanban-list { display: grid; gap: 8px; min-height: 360px; }
-    .lead-card { background: #fff; border: 1px solid #dce2e8; border-radius: 8px; padding: 12px;
+    .kanban-list { display: grid; gap: 8px; min-height: 360px; align-content: start; }
+    .lead-card { min-width: 0; overflow-wrap: anywhere; background: #fff; border: 1px solid #dce2e8; border-radius: 8px; padding: 12px;
       box-shadow: 0 1px 2px rgba(15,23,42,.04); cursor: grab; }
     .lead-card:active { cursor: grabbing; }
     .lead-card.dragging { opacity: .45; }
@@ -227,7 +230,10 @@
       .nav-group { display: none; }
       .tab { width: auto; white-space: nowrap; }
       .wrap { margin: 0; padding: 18px 14px 40px; }
-      .kanban { grid-template-columns: repeat(6, 260px); }
+      .kanban { grid-auto-columns: min(85vw, 320px); gap: 10px; }
+      .crm-stage-bar { flex-wrap: wrap; }
+      .crm-stage-bar #crmStageTabs { flex-basis: 100% !important; }
+      .lead-actions button, .stage-tab, #viewList, #viewKanban { min-height: 44px; }
       .page-head { flex-direction: column; }
       .crm-row { grid-template-columns: 1fr; gap: 8px; }
     }
@@ -306,7 +312,7 @@
             <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--slate-400);font-size:16px;pointer-events:none">⌕</span>
             <input type="search" id="crmSearch" placeholder="Пошук за ім'ям, телефоном або нотаткою…" style="width:100%;padding:10px 14px 10px 36px;border:1px solid var(--slate-200);border-radius:10px;background:#fff;font-size:14px;outline:none" />
           </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <div class="crm-stage-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
             <div id="crmStageTabs" style="display:flex;gap:4px;overflow-x:auto;flex:1;min-width:0"></div>
             <div style="flex-shrink:0;display:flex;border:1px solid var(--slate-200);border-radius:8px;overflow:hidden;background:#fff">
               <button id="viewList" style="padding:7px 12px;border:none;font-size:13px;font-weight:600;cursor:pointer;background:var(--slate-900);color:#fff">Список</button>
