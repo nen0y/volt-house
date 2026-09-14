@@ -13,7 +13,7 @@
   let pricingCache = null;
   let crmLeadCache = [];
   let crmLastMovedId = null;
-  let crmFilters = { type: "all", paymentStatus: "all", deliveryStatus: "all" };
+  let crmFilters = { type: "all", paymentStatus: "all", deliveryStatus: "all", managerId: "all" };
   let crmSearch = "";
   let crmStage = "all";
   let crmPrevStage = "all";
@@ -21,6 +21,8 @@
   let crmProductOptions = [];
   let financeCache = { participants: [], sales: [] };
   let adminEmail = "";
+  let currentAdmin = null;
+  let managerCache = [];
 
   // ── helpers ────────────────────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -79,14 +81,16 @@
   }
 
   // ── auth ────────────────────────────────────────────────────────────────────
-  function showApp(email) {
-    adminEmail = email;
+  function showApp(admin) {
+    currentAdmin = admin;
+    adminEmail = admin.email;
     $("login").style.display = "none";
     $("app").style.display = "block";
-    $("who").textContent = email;
-    loadSeoSetting();
+    $("who").textContent = `${admin.name || admin.email}${admin.role === "manager" ? " · менеджер" : ""}`;
+    document.querySelectorAll("[data-admin-only]").forEach((el) => { el.style.display = admin.role === "admin" ? "" : "none"; });
+    if (admin.role === "admin") loadSeoSetting();
     const savedTab = new URL(location.href).searchParams.get("tab") || "crm";
-    activateTab(savedTab);
+    activateTab(admin.role === "manager" ? "crm" : savedTab);
   }
   function logout() {
     token = null;
@@ -127,7 +131,7 @@
       });
       token = data.token;
       localStorage.setItem(TOKEN_KEY, token);
-      showApp(data.admin.email);
+      showApp(data.admin);
     } catch (err) {
       $("loginError").textContent = err.message;
     }
@@ -138,6 +142,7 @@
   const ALL_TABS = ["crm", "installers", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
 
   function activateTab(tab) {
+    if (currentAdmin?.role === "manager") tab = "crm";
     if (!ALL_TABS.includes(tab)) tab = "crm";
     document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
     const btn = document.querySelector(`.tab[data-tab="${tab}"]`);
@@ -172,6 +177,8 @@
     $("securityConfirmPassword").value = "";
     $("securityError").textContent = "";
     $("securitySuccess").textContent = "";
+    if (!$("managerStatsMonth").value) $("managerStatsMonth").value = new Date().toISOString().slice(0, 7);
+    loadManagers();
   }
 
   $("securitySave").addEventListener("click", async () => {
@@ -191,8 +198,9 @@
       });
       token = data.token;
       localStorage.setItem(TOKEN_KEY, token);
+      currentAdmin = data.admin;
       adminEmail = data.admin.email;
-      $("who").textContent = adminEmail;
+      $("who").textContent = data.admin.name || adminEmail;
       $("securityCurrentPassword").value = "";
       $("securityNewPassword").value = "";
       $("securityConfirmPassword").value = "";
@@ -201,6 +209,46 @@
       $("securityError").textContent = err.message;
     }
   });
+
+  async function loadManagers() {
+    if (currentAdmin?.role !== "admin") return;
+    try {
+      const [users, stats] = await Promise.all([
+        api("/api/auth/users"),
+        api("/api/leads/manager-stats?month=" + encodeURIComponent($("managerStatsMonth").value)),
+      ]);
+      managerCache = users;
+      const totals = Object.fromEntries(stats.managers.map((row) => [row.id, row]));
+      $("managersBody").innerHTML = users.length ? `<table><thead><tr><th>Менеджер</th><th>Доступ</th><th>Успішних</th><th>Продажі</th><th>Ставка</th><th>Зарплата</th><th></th></tr></thead><tbody>${users.map((user) => {
+        const stat = totals[user.id] || { wonCount: 0, salesTotal: 0, salary: 0 };
+        return `<tr><td><strong>${esc(user.name)}</strong><div class="muted">${esc(user.email)}</div></td><td><span class="badge ${user.active ? "s-paid" : "s-unpaid"}">${user.active ? "Активний" : "Вимкнений"}</span></td><td>${stat.wonCount}</td><td>${money(stat.salesTotal)}</td><td>${Number(user.commissionPercent).toLocaleString("uk-UA")}%</td><td><strong>${money(stat.salary)}</strong></td><td><button class="btn-sm btn-ghost" data-edit-manager="${esc(user.id)}">Редагувати</button></td></tr>`;
+      }).join("")}</tbody></table>` : `<div class="empty">Менеджерів ще немає</div>`;
+      document.querySelectorAll("[data-edit-manager]").forEach((button) => button.addEventListener("click", () => managerModal(managerCache.find((user) => user.id === button.dataset.editManager))));
+      renderCrmFilters();
+    } catch (err) { $("managersBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  }
+
+  function managerModal(existing) {
+    openModal(`<h3>${existing ? "Редагувати менеджера" : "Новий менеджер"}</h3>
+      <div class="field"><label>Ім’я *</label><input id="manager_name" value="${esc(existing?.name || "")}"></div>
+      <div class="field"><label>Email для входу *</label><input id="manager_email" type="email" value="${esc(existing?.email || "")}"></div>
+      <div class="grid2"><div class="field"><label>${existing ? "Новий пароль" : "Пароль *"}</label><input id="manager_password" type="password" minlength="8" placeholder="Мінімум 8 символів"></div><div class="field"><label>Відсоток від продажів</label><input id="manager_commission" type="number" min="0" max="100" step="0.1" value="${esc(existing?.commissionPercent ?? 0)}"></div></div>
+      ${existing ? `<label style="display:flex;gap:8px;align-items:center;margin:4px 0 16px"><input id="manager_active" type="checkbox" ${existing.active ? "checked" : ""}> Доступ активний</label>` : ""}
+      <div class="error" id="manager_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="manager_cancel">Скасувати</button><button class="btn" id="manager_save">Зберегти</button></div>`);
+    $("manager_cancel").addEventListener("click", closeModal);
+    $("manager_save").addEventListener("click", async () => {
+      const password = $("manager_password").value;
+      const body = { name: $("manager_name").value.trim(), email: $("manager_email").value.trim(), commissionPercent: Number($("manager_commission").value) || 0, ...(password ? { password } : {}), ...(existing ? { active: $("manager_active").checked } : {}) };
+      if (!body.name || !body.email || (!existing && password.length < 8)) return $("manager_error").textContent = "Заповніть ім’я, email і пароль від 8 символів";
+      try {
+        await api(existing ? "/api/auth/users/" + existing.id : "/api/auth/users", { method: existing ? "PATCH" : "POST", body: JSON.stringify(body) });
+        closeModal(); await loadManagers();
+      } catch (err) { $("manager_error").textContent = err.message; }
+    });
+  }
+
+  $("addManager").addEventListener("click", () => managerModal(null));
+  $("managerStatsMonth").addEventListener("change", loadManagers);
 
   // ── CRM kanban ────────────────────────────────────────────────────────────
   $("refreshCrm").addEventListener("click", loadCrm);
@@ -276,7 +324,9 @@
       <div class="grid2"><div class="field"><label>Email</label><input id="new_client_email" type="email"></div><div class="field"><label>Тип звернення</label><select id="new_client_type"><option value="consultation">Консультація</option><option value="order">Замовлення</option><option value="callback">Зворотний дзвінок</option></select></div></div>
       <div class="field"><label>Що цікавить</label><input id="new_client_interest" placeholder="Наприклад: комплект для будинку"></div>
       ${crmProductPickerHtml()}
+      <div class="field"><label>Сума продажу, $</label><input id="new_client_total" type="number" min="0" step="1" placeholder="Заповниться з товарів автоматично"></div>
       <div class="field"><label>Етап</label><select id="new_client_status">${CRM_STATUSES.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("")}</select></div>
+      ${currentAdmin?.role === "admin" ? `<div class="field"><label>Відповідальний менеджер</label><select id="new_client_manager"><option value="">Не призначено</option>${managerCache.filter((m) => m.active).map((m) => `<option value="${esc(m.id)}">${esc(m.name || m.email)}</option>`).join("")}</select></div>` : ""}
       <div class="grid2"><div class="field"><label>Оплата</label><select id="new_client_payment_status">${statusOptions(PAYMENT_STATUS_LABEL, "unpaid")}</select></div><div class="field"><label>Доставка</label><select id="new_client_delivery_status">${statusOptions(DELIVERY_STATUS_LABEL, "not_sent")}</select></div></div>
       <div class="field"><label>Нотатки менеджера</label><textarea id="new_client_notes" rows="4"></textarea></div>
       <div class="error" id="new_client_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="new_client_cancel">Скасувати</button><button class="btn" id="new_client_save">Додати</button></div>`);
@@ -284,7 +334,8 @@
     $("new_client_cancel").addEventListener("click", closeModal);
     $("new_client_save").addEventListener("click", async () => {
       const items = getProducts();
-      const body = { type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), items, total: items.reduce((sum, item) => sum + item.price * item.quantity, 0), status: $("new_client_status").value, paymentStatus: $("new_client_payment_status").value, deliveryStatus: $("new_client_delivery_status").value, notes: $("new_client_notes").value };
+      const calculatedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const body = { type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), items, total: $("new_client_total").value === "" ? calculatedTotal : Number($("new_client_total").value), status: $("new_client_status").value, paymentStatus: $("new_client_payment_status").value, deliveryStatus: $("new_client_delivery_status").value, notes: $("new_client_notes").value, ...(currentAdmin?.role === "admin" ? { managerId: $("new_client_manager").value || null } : {}) };
       try { await api("/api/leads/admin", { method: "POST", body: JSON.stringify(body) }); closeModal(); loadCrm(); }
       catch (err) { $("new_client_error").textContent = err.message; }
     });
@@ -302,6 +353,8 @@
       if (crmFilters.type !== "all" && l.type !== crmFilters.type) return false;
       if (crmFilters.paymentStatus !== "all" && (l.paymentStatus || "unpaid") !== crmFilters.paymentStatus) return false;
       if (crmFilters.deliveryStatus !== "all" && (l.deliveryStatus || "not_sent") !== crmFilters.deliveryStatus) return false;
+      if (crmFilters.managerId === "unassigned" && l.managerId) return false;
+      if (crmFilters.managerId !== "all" && crmFilters.managerId !== "unassigned" && l.managerId !== crmFilters.managerId) return false;
       if (q) {
         return (l.name || "").toLocaleLowerCase("uk-UA").includes(q) ||
                (l.phone || "").toLocaleLowerCase("uk-UA").includes(q) ||
@@ -322,7 +375,8 @@
     const chips = (opts, key) => opts.map(([v, l]) =>
       `<button class="filter-chip${crmFilters[key] === v ? " active" : ""}" data-filter="${key}" data-value="${v}">${l}</button>`
     ).join("");
-    el.innerHTML = `<div class="filter-group">${chips(typeOpts, "type")}</div><div class="filter-sep"></div><div class="filter-group">${chips(payOpts, "paymentStatus")}</div><div class="filter-sep"></div><div class="filter-group">${chips(delOpts, "deliveryStatus")}</div>`;
+    const managerFilter = currentAdmin?.role === "admin" ? `<div class="filter-sep"></div><select id="crmManagerFilter" style="padding:6px 10px;border:1px solid var(--slate-200);border-radius:8px;background:#fff"><option value="all" ${crmFilters.managerId === "all" ? "selected" : ""}>Усі менеджери</option><option value="unassigned" ${crmFilters.managerId === "unassigned" ? "selected" : ""}>Не призначено</option>${managerCache.map((manager) => `<option value="${esc(manager.id)}" ${crmFilters.managerId === manager.id ? "selected" : ""}>${esc(manager.name || manager.email)}</option>`).join("")}</select>` : "";
+    el.innerHTML = `<div class="filter-group">${chips(typeOpts, "type")}</div><div class="filter-sep"></div><div class="filter-group">${chips(payOpts, "paymentStatus")}</div><div class="filter-sep"></div><div class="filter-group">${chips(delOpts, "deliveryStatus")}</div>${managerFilter}`;
     el.querySelectorAll(".filter-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
         crmFilters[chip.dataset.filter] = chip.dataset.value;
@@ -330,10 +384,13 @@
         renderCrmContent(filteredLeads());
       });
     });
+    const managerSelect = $("crmManagerFilter");
+    if (managerSelect) managerSelect.addEventListener("change", () => { crmFilters.managerId = managerSelect.value; renderCrmContent(filteredLeads()); });
   }
 
   async function loadCrm() {
     try {
+      if (currentAdmin?.role === "admin") managerCache = await api("/api/auth/users");
       const leads = await api("/api/leads?type=all&status=all");
       crmLeadCache = leads;
       crmLastMovedId = null;
@@ -360,10 +417,12 @@
       rows.sort((a, b) => (b.id === crmLastMovedId ? 1 : 0) - (a.id === crmLastMovedId ? 1 : 0));
       const cards = rows.map((l) => {
         const details = l.interest || (l.items && l.items.length ? `${l.items.length} товар(и)` : TYPE_LABEL[l.type] || l.type);
+        const managerLine = status === "won" ? `Продаж: ${l.soldBy?.name || l.soldBy?.email || "не вказано"}` : `Менеджер: ${l.manager?.name || l.manager?.email || "не призначено"}`;
         return `<article class="lead-card" draggable="true" data-lead-id="${esc(l.id)}">
           <span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span>
           <h4>${esc(l.name)}</h4>
           <div class="lead-meta"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br>${esc(details || "Без деталей")}<br>${dt(l.createdAt)}</div>
+          <div style="font-size:12px;font-weight:700;margin-top:7px">${esc(managerLine)}</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"><span class="badge s-${esc(l.paymentStatus || "unpaid")}">${esc(PAYMENT_STATUS_LABEL[l.paymentStatus] || PAYMENT_STATUS_LABEL.unpaid)}</span><span class="badge s-${esc(l.deliveryStatus || "not_sent")}">${esc(DELIVERY_STATUS_LABEL[l.deliveryStatus] || DELIVERY_STATUS_LABEL.not_sent)}</span></div>
           ${l.notes ? `<div class="items">${esc(l.notes).slice(0, 90)}</div>` : ""}
           <div class="lead-actions"><button class="btn-sm btn-ghost" data-open-lead="${esc(l.id)}">Відкрити</button></div>
@@ -392,10 +451,13 @@
         crmLastMovedId = leadId;
         renderKanban(filteredLeads());
         try {
-          await api("/api/leads/" + leadId, {
+          const updated = await api("/api/leads/" + leadId, {
             method: "PATCH",
             body: JSON.stringify({ status: newStatus }),
           });
+          const index = crmLeadCache.findIndex((row) => row.id === leadId);
+          if (index >= 0) crmLeadCache[index] = updated;
+          renderKanban(filteredLeads());
         } catch (err) { alert(err.message); loadCrm(); }
       });
     });
@@ -465,6 +527,7 @@
           ? `<div class="notes-clamp" id="ntxt-${esc(l.id)}">${esc(l.notes.slice(0, NOTES_LIMIT))}…</div><button class="notes-more" data-expand="${esc(l.id)}">Більше</button>`
           : `<div class="notes-clamp">${esc(l.notes)}</div>`)
         : `<button class="add-notes-btn" data-add-notes="${esc(l.id)}">Додати опис</button>`;
+      const managerName = stage === "won" ? (l.soldBy?.name || l.soldBy?.email || "Не вказано") : (l.manager?.name || l.manager?.email || "Не призначено");
       return `<div class="crm-row">
         <div>
           <div><span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span></div>
@@ -475,6 +538,7 @@
           <div style="font-size:13px;color:var(--slate-700)">${esc(details || "")}</div>
           <div style="font-size:12px;color:var(--slate-400);margin-top:3px">${dt(l.createdAt)}</div>
         </div>
+        <div><div class="muted" style="font-size:11px">${stage === "won" ? "Продав" : "Менеджер"}</div><strong style="font-size:13px">${esc(managerName)}</strong></div>
         <div style="display:flex;flex-direction:column;gap:4px">
           <span class="badge s-${esc(l.paymentStatus || "unpaid")}">${esc(PAYMENT_STATUS_LABEL[l.paymentStatus] || PAYMENT_STATUS_LABEL.unpaid)}</span>
           <span class="badge s-${esc(l.deliveryStatus || "not_sent")}">${esc(DELIVERY_STATUS_LABEL[l.deliveryStatus] || DELIVERY_STATUS_LABEL.not_sent)}</span>
@@ -510,15 +574,18 @@
       <div class="field"><label>Інтерес</label><input id="crm_interest" value="${esc(lead.interest || "")}" placeholder="Що цікавить клієнта"></div>
       <div class="field"><label>Повідомлення</label><textarea id="crm_message" rows="3" placeholder="Повідомлення клієнта">${esc(lead.message || "")}</textarea></div>
       ${crmProductPickerHtml()}
+      <div class="field"><label>Сума продажу, $</label><input id="crm_total" type="number" min="0" step="1" value="${esc(lead.total ?? "")}" placeholder="Потрібна для розрахунку зарплати"></div>
       <div class="field"><label>Тип звернення</label><select id="crm_type">${Object.entries(TYPE_LABEL).map(([value, label]) => `<option value="${value}" ${value === lead.type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
+      ${currentAdmin?.role === "admin" ? `<div class="field"><label>Відповідальний менеджер</label><select id="crm_manager"><option value="">Не призначено</option>${managerCache.filter((m) => m.active || m.id === lead.managerId).map((m) => `<option value="${esc(m.id)}" ${m.id === lead.managerId ? "selected" : ""}>${esc(m.name || m.email)}${m.active ? "" : " (вимкнений)"}</option>`).join("")}</select></div>` : `<div class="field"><label>Відповідальний менеджер</label><div>${esc(lead.manager?.name || lead.manager?.email || currentAdmin?.name || currentAdmin?.email || "—")}</div></div>`}
+      ${normalizeLeadStatus(lead.status) === "won" ? `<div class="field"><label>Продаж зараховано</label><div><strong>${esc(lead.soldBy?.name || lead.soldBy?.email || "Не вказано")}</strong>${lead.wonAt ? ` · ${dt(lead.wonAt)}` : ""}</div></div>` : ""}
       <div class="grid2"><div class="field"><label>Оплата</label><select id="crm_payment_status">${statusOptions(PAYMENT_STATUS_LABEL, lead.paymentStatus || "unpaid")}</select></div><div class="field"><label>Доставка</label><select id="crm_delivery_status">${statusOptions(DELIVERY_STATUS_LABEL, lead.deliveryStatus || "not_sent")}</select></div></div>
       <div class="field"><label>Нотатки менеджера</label><textarea id="crm_notes" rows="5" placeholder="Домовленості, наступний крок, бюджет…">${esc(lead.notes || "")}</textarea></div>
       <div class="error" id="crm_error"></div>
-      <div class="modal-actions"><button class="btn btn-danger" id="crm_delete">Видалити заявку</button><button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
+      <div class="modal-actions">${currentAdmin?.role === "admin" ? `<button class="btn btn-danger" id="crm_delete">Видалити заявку</button>` : ""}<button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
     const getProducts = setupCrmProductPicker(lead.items || []);
     $("crm_cancel").addEventListener("click", closeModal);
-    $("crm_delete").addEventListener("click", async () => {
+    if ($("crm_delete")) $("crm_delete").addEventListener("click", async () => {
       if (!confirm(`Видалити заявку клієнта «${lead.name}»? Цю дію неможливо скасувати.`)) return;
       try {
         await api("/api/leads/" + lead.id, { method: "DELETE" });
@@ -546,6 +613,8 @@
           deliveryStatus: $("crm_delivery_status").value,
           notes: $("crm_notes").value,
           items: getProducts(),
+          total: Number($("crm_total").value) || 0,
+          ...(currentAdmin?.role === "admin" ? { managerId: $("crm_manager").value || null } : {}),
         }) });
         closeModal();
         loadCrm();
@@ -2045,7 +2114,7 @@
     if (!token) return;
     try {
       const me = await api("/api/auth/me");
-      showApp(me.admin.email);
+      showApp(me.admin);
     } catch {
       logout();
     }

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
-import { requireAdmin } from "../middleware/auth";
+import { requireAdmin, requireSuperAdmin, AuthedRequest } from "../middleware/auth";
 import { sendLeadTelegram, sendUnavailableProductTelegram } from "../telegram";
 import { leadsLimiter } from "../middleware/rateLimit";
 import { parseItems } from "../json";
@@ -76,12 +76,20 @@ leadsRouter.post("/", leadsLimiter, async (req, res) => {
 });
 
 // GET /api/leads?type=order&status=new  (admin)
-leadsRouter.get("/", requireAdmin, async (req, res) => {
+const managerSelect = { id: true, name: true, email: true } as const;
+
+leadsRouter.get("/", requireAdmin, async (req: AuthedRequest, res) => {
   const type = typeof req.query.type === "string" && req.query.type !== "all" ? req.query.type : undefined;
   const status =
     typeof req.query.status === "string" && req.query.status !== "all" ? req.query.status : undefined;
+  const requestedManager = typeof req.query.managerId === "string" ? req.query.managerId : undefined;
+  const managerWhere = req.admin!.role === "manager"
+    ? { managerId: req.admin!.id }
+    : requestedManager === "unassigned" ? { managerId: null }
+      : requestedManager && requestedManager !== "all" ? { managerId: requestedManager } : {};
   const rows = await prisma.lead.findMany({
-    where: { ...(type ? { type } : {}), ...(status ? { status } : {}) },
+    where: { ...(type ? { type } : {}), ...(status ? { status } : {}), ...managerWhere },
+    include: { manager: { select: managerSelect }, soldBy: { select: managerSelect } },
     orderBy: { createdAt: "desc" },
   });
   res.json(rows.map(toDto));
@@ -103,13 +111,14 @@ leadsRouter.get("/product-options", requireAdmin, async (_req, res) => {
 });
 
 // GET /api/leads/stats  (admin)
-leadsRouter.get("/stats", requireAdmin, async (_req, res) => {
+leadsRouter.get("/stats", requireAdmin, async (req: AuthedRequest, res) => {
+  const scope = req.admin!.role === "manager" ? { managerId: req.admin!.id } : {};
   const [total, orders, consultations, callbacks, fresh] = await Promise.all([
-    prisma.lead.count(),
-    prisma.lead.count({ where: { type: "order" } }),
-    prisma.lead.count({ where: { type: "consultation" } }),
-    prisma.lead.count({ where: { type: "callback" } }),
-    prisma.lead.count({ where: { status: "new" } }),
+    prisma.lead.count({ where: scope }),
+    prisma.lead.count({ where: { ...scope, type: "order" } }),
+    prisma.lead.count({ where: { ...scope, type: "consultation" } }),
+    prisma.lead.count({ where: { ...scope, type: "callback" } }),
+    prisma.lead.count({ where: { ...scope, status: "new" } }),
   ]);
   res.json({ total, orders, consultations, callbacks, new: fresh });
 });
@@ -119,13 +128,19 @@ const manualLeadSchema = leadSchema.extend({
   paymentStatus: z.enum(["unpaid", "partial", "paid"]).default("unpaid"),
   deliveryStatus: z.enum(["not_sent", "preparing", "sent", "received", "returned"]).default("not_sent"),
   notes: z.string().max(5000).default(""),
+  managerId: z.string().nullable().optional(),
 });
 
 // POST /api/leads/admin — create a client manually in CRM.
-leadsRouter.post("/admin", requireAdmin, async (req, res) => {
+leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
   const parsed = manualLeadSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Некоректні дані", details: parsed.error.flatten() });
   const d = parsed.data;
+  if (d.managerId && req.admin!.role !== "admin") return res.status(403).json({ error: "Менеджера може призначати лише адміністратор" });
+  if (d.managerId) {
+    const manager = await prisma.adminUser.findFirst({ where: { id: d.managerId, role: "manager", active: true } });
+    if (!manager) return res.status(400).json({ error: "Оберіть активного менеджера" });
+  }
   const lead = await prisma.lead.create({
     data: {
       type: d.type,
@@ -140,6 +155,8 @@ leadsRouter.post("/admin", requireAdmin, async (req, res) => {
       paymentStatus: d.paymentStatus,
       deliveryStatus: d.deliveryStatus,
       notes: d.notes,
+      managerId: req.admin!.role === "manager" ? req.admin!.id : (d.managerId || null),
+      ...(d.status === "won" ? { soldById: d.managerId || req.admin!.id, wonAt: new Date() } : {}),
     },
   });
 
@@ -162,7 +179,27 @@ leadsRouter.post("/admin", requireAdmin, async (req, res) => {
   for (const item of d.items || []) {
     if (item.custom || item.availability === "unavailable") await sendUnavailableProductTelegram({ id: lead.id, name: lead.name, phone: lead.phone, productName: item.name });
   }
-  res.status(201).json(toDto(lead));
+  const created = await prisma.lead.findUnique({ where: { id: lead.id }, include: { manager: { select: managerSelect }, soldBy: { select: managerSelect } } });
+  res.status(201).json(toDto(created));
+});
+
+leadsRouter.get("/manager-stats", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const month = typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month) ? req.query.month : new Date().toISOString().slice(0, 7);
+  const [year, monthNumber] = month.split("-").map(Number);
+  const from = new Date(Date.UTC(year, monthNumber - 1, 1));
+  const to = new Date(Date.UTC(year, monthNumber, 1));
+  const managers = await prisma.adminUser.findMany({
+    where: { role: "manager" },
+    select: {
+      id: true, name: true, email: true, active: true, commissionPercent: true,
+      soldLeads: { where: { status: "won", wonAt: { gte: from, lt: to } }, select: { total: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+  res.json({ month, managers: managers.map(({ soldLeads, ...manager }) => {
+    const salesTotal = soldLeads.reduce((sum, lead) => sum + (lead.total || 0), 0);
+    return { ...manager, wonCount: soldLeads.length, salesTotal, salary: Math.round(salesTotal * manager.commissionPercent) / 100 };
+  }) });
 });
 
 const statusSchema = z.object({
@@ -177,10 +214,12 @@ const statusSchema = z.object({
   deliveryStatus: z.enum(["not_sent", "preparing", "sent", "received", "returned"]).optional(),
   notes: z.string().max(5000).optional(),
   items: z.array(itemSchema).optional(),
+  managerId: z.string().nullable().optional(),
+  total: z.number().min(0).optional(),
 });
 
 // PATCH /api/leads/:id  (admin) — update CRM fields
-leadsRouter.patch("/:id", requireAdmin, async (req, res) => {
+leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
   const parsed = statusSchema.safeParse(req.body);
   if (!parsed.success || Object.keys(parsed.data).length === 0) {
     return res.status(400).json({ error: "Некоректні дані" });
@@ -188,16 +227,28 @@ leadsRouter.patch("/:id", requireAdmin, async (req, res) => {
   try {
     const previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
-    const { items, email, interest, message, ...fields } = parsed.data;
+    if (req.admin!.role === "manager" && previous.managerId !== req.admin!.id) return res.status(403).json({ error: "Ця заявка призначена іншому менеджеру" });
+    const { items, email, interest, message, managerId, total, ...fields } = parsed.data;
+    if (managerId !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Менеджера може призначати лише адміністратор" });
+    if (managerId) {
+      const manager = await prisma.adminUser.findFirst({ where: { id: managerId, role: "manager", active: true } });
+      if (!manager) return res.status(400).json({ error: "Оберіть активного менеджера" });
+    }
+    const effectiveManagerId = managerId !== undefined ? managerId : previous.managerId;
+    const enteringWon = fields.status === "won" && previous.status !== "won";
+    const correctingWonSeller = previous.status === "won" && managerId !== undefined && !!managerId;
     const data = {
       ...fields,
+      ...(managerId !== undefined ? { managerId } : {}),
+      ...(enteringWon ? { soldById: effectiveManagerId || req.admin!.id, wonAt: new Date() } : {}),
+      ...(correctingWonSeller ? { soldById: managerId, ...(!previous.wonAt ? { wonAt: new Date() } : {}) } : {}),
       ...(email !== undefined ? { email: email || null } : {}),
       ...(interest !== undefined ? { interest: interest || null } : {}),
       ...(message !== undefined ? { message: message || null } : {}),
       ...(items !== undefined ? {
         items: items.length ? JSON.stringify(items) : null,
-        total: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
       } : {}),
+      ...(total !== undefined ? { total } : items !== undefined ? { total: items.reduce((sum, item) => sum + item.price * item.quantity, 0) } : {}),
     };
     const updated = await prisma.lead.update({
       where: { id: req.params.id },
@@ -228,14 +279,15 @@ leadsRouter.patch("/:id", requireAdmin, async (req, res) => {
         if ((item.custom || item.availability === "unavailable") && !previousMissing.has(`${item.id}:${item.name}`)) await sendUnavailableProductTelegram({ id: updated.id, name: updated.name, phone: updated.phone, productName: item.name });
       }
     }
-    res.json(toDto(updated));
+    const result = await prisma.lead.findUnique({ where: { id: updated.id }, include: { manager: { select: managerSelect }, soldBy: { select: managerSelect } } });
+    res.json(toDto(result));
   } catch {
     res.status(404).json({ error: "Заявку не знайдено" });
   }
 });
 
 // DELETE /api/leads/:id  (admin)
-leadsRouter.delete("/:id", requireAdmin, async (req, res) => {
+leadsRouter.delete("/:id", requireAdmin, requireSuperAdmin, async (req, res) => {
   try {
     await prisma.lead.delete({ where: { id: req.params.id } });
     res.json({ ok: true });

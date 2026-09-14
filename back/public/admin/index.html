@@ -203,7 +203,7 @@
 
     /* CRM list view */
     .crm-list { display: grid; gap: 8px; }
-    .crm-row { background: #fff; border: 1px solid var(--slate-200); border-radius: 10px; padding: 14px 16px; display: grid; grid-template-columns: 190px 170px 130px 1fr 90px; gap: 12px; align-items: start; }
+    .crm-row { background: #fff; border: 1px solid var(--slate-200); border-radius: 10px; padding: 14px 16px; display: grid; grid-template-columns: 190px 170px 150px 130px 1fr 90px; gap: 12px; align-items: start; }
     .client-name { font-weight: 700; font-size: 14px; margin: 5px 0 3px; }
     .client-stage-label { font-size: 12px; color: var(--slate-400); font-weight: 400; }
     .notes-clamp { font-size: 13px; color: var(--slate-600); line-height: 1.55; word-break: break-word; }
@@ -277,20 +277,20 @@
       <div class="tabs">
         <div class="nav-group">CRM</div>
         <button class="tab active" data-tab="crm"><span class="tab-icon">▦</span> Канбан клієнтів</button>
-        <button class="tab" data-tab="installers"><span class="tab-icon">⚒</span> Інсталятори</button>
-        <div class="nav-group">Закупівлі</div>
-        <button class="tab" data-tab="suppliers"><span class="tab-icon">◆</span> Постачальники</button>
-        <button class="tab" data-tab="pricing"><span class="tab-icon">▦</span> Матриця цін</button>
-        <div class="nav-group">Сайт</div>
-        <button class="tab" data-tab="products"><span class="tab-icon">▣</span> Товари</button>
-        <button class="tab" data-tab="brands"><span class="tab-icon">◉</span> Бренди</button>
-        <button class="tab" data-tab="categories"><span class="tab-icon">⌘</span> Категорії</button>
-        <button class="tab" data-tab="home"><span class="tab-icon">⌂</span> Головна сторінка</button>
-        <button class="tab" data-tab="content"><span class="tab-icon">✎</span> Контент</button>
-        <button class="tab" data-tab="testimonials"><span class="tab-icon">★</span> Відгуки</button>
-        <button class="tab" data-tab="calculator"><span class="tab-icon">⚙</span> Калькулятор</button>
-        <div class="nav-group">Система</div>
-        <button class="tab" data-tab="security"><span class="tab-icon">🔐</span> Безпека</button>
+        <button class="tab" data-admin-only data-tab="installers"><span class="tab-icon">⚒</span> Інсталятори</button>
+        <div class="nav-group" data-admin-only>Закупівлі</div>
+        <button class="tab" data-admin-only data-tab="suppliers"><span class="tab-icon">◆</span> Постачальники</button>
+        <button class="tab" data-admin-only data-tab="pricing"><span class="tab-icon">▦</span> Матриця цін</button>
+        <div class="nav-group" data-admin-only>Сайт</div>
+        <button class="tab" data-admin-only data-tab="products"><span class="tab-icon">▣</span> Товари</button>
+        <button class="tab" data-admin-only data-tab="brands"><span class="tab-icon">◉</span> Бренди</button>
+        <button class="tab" data-admin-only data-tab="categories"><span class="tab-icon">⌘</span> Категорії</button>
+        <button class="tab" data-admin-only data-tab="home"><span class="tab-icon">⌂</span> Головна сторінка</button>
+        <button class="tab" data-admin-only data-tab="content"><span class="tab-icon">✎</span> Контент</button>
+        <button class="tab" data-admin-only data-tab="testimonials"><span class="tab-icon">★</span> Відгуки</button>
+        <button class="tab" data-admin-only data-tab="calculator"><span class="tab-icon">⚙</span> Калькулятор</button>
+        <div class="nav-group" data-admin-only>Система</div>
+        <button class="tab" data-admin-only data-tab="security"><span class="tab-icon">🔐</span> Доступи й безпека</button>
       </div>
 
       <!-- CRM kanban -->
@@ -436,6 +436,14 @@
           <div class="error" id="securityError"></div>
           <div id="securitySuccess" style="color:#166534;font-size:13px;margin-bottom:10px"></div>
           <button class="btn" id="securitySave" type="button">Зберегти облікові дані</button>
+        </div>
+        <div class="card" style="padding:20px;margin-top:20px">
+          <div class="page-head" style="margin-bottom:14px">
+            <div><h2 style="font-size:20px">Менеджери</h2><p>Окремі входи, відсоток і зарплата з успішних продажів.</p></div>
+            <button class="btn btn-sm" id="addManager" type="button">+ Додати менеджера</button>
+          </div>
+          <div class="toolbar"><label class="field" style="margin:0"><span style="font-size:12px;font-weight:700">Місяць розрахунку</span><input id="managerStatsMonth" type="month"></label></div>
+          <div class="admin-table-wrap" id="managersBody"></div>
         </div>
       </section>
     </div>

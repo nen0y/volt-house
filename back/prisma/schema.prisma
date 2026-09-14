@@ -88,8 +88,16 @@ model Lead {
   paymentStatus  String   @default("unpaid") // unpaid | partial | paid
   deliveryStatus String   @default("not_sent") // not_sent | preparing | sent | received | returned
   notes     String   @default("")
+  managerId String?
+  manager   AdminUser? @relation("AssignedLeads", fields: [managerId], references: [id], onDelete: SetNull)
+  soldById  String?
+  soldBy    AdminUser? @relation("SoldLeads", fields: [soldById], references: [id], onDelete: SetNull)
+  wonAt     DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([managerId])
+  @@index([soldById])
 }
 
 model Supplier {
@@ -150,6 +158,12 @@ model AdminUser {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
+  name         String   @default("")
+  role         String   @default("admin") // admin | manager
+  active       Boolean  @default(true)
+  commissionPercent Float @default(0)
+  assignedLeads Lead[] @relation("AssignedLeads")
+  soldLeads     Lead[] @relation("SoldLeads")
   createdAt    DateTime @default(now())
 }
 
