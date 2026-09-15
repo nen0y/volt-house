@@ -478,14 +478,14 @@
     const isMine = lead.managerId === currentAdmin?.id;
     if (isAdmin || isMine) return `<button class="btn-sm btn-ghost" data-open-lead="${esc(lead.id)}">Відкрити</button>`;
     if (!lead.managerId) return `<button class="btn-sm" data-claim-lead="${esc(lead.id)}">Взяти собі</button>`;
-    return `<span class="muted" style="font-size:11px">Заявка в роботі</span>`;
+    return `<button class="btn-sm" data-claim-lead="${esc(lead.id)}" data-previous-manager="${esc(lead.managerId)}">Перебрати собі</button>`;
   }
 
   function bindLeadActions() {
     document.querySelectorAll("[data-claim-lead]").forEach((button) => button.addEventListener("click", async () => {
       button.disabled = true;
       try {
-        await api("/api/leads/" + button.dataset.claimLead, { method: "PATCH", body: JSON.stringify({ managerId: currentAdmin.id }) });
+        await api("/api/leads/" + button.dataset.claimLead, { method: "PATCH", body: JSON.stringify({ managerId: currentAdmin.id, expectedManagerId: button.dataset.previousManager || null }) });
         await loadCrm();
       } catch (err) { alert(err.message); await loadCrm(); }
     }));

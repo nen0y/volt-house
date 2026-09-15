@@ -234,6 +234,7 @@ const statusSchema = z.object({
   notes: z.string().max(5000).optional(),
   items: z.array(itemSchema).optional(),
   managerId: z.string().nullable().optional(),
+  expectedManagerId: z.string().nullable().optional(),
   total: z.number().min(0).optional(),
 });
 
@@ -244,18 +245,16 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     return res.status(400).json({ error: "Некоректні дані" });
   }
   try {
-    let previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
+    const previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
-    const { items, email, interest, message, managerId, total, callbackAt, ...fields } = parsed.data;
+    const { items, email, interest, message, managerId, expectedManagerId, total, callbackAt, ...fields } = parsed.data;
     if (callbackAt && new Date(callbackAt).getTime() !== previous.callbackAt?.getTime() && new Date(callbackAt).getTime() <= Date.now()) return res.status(400).json({ error: "Оберіть майбутню дату й час передзвону" });
     if (req.admin!.role === "manager") {
       if (managerId !== undefined && managerId !== req.admin!.id) return res.status(403).json({ error: "Ви можете призначити заявку лише собі" });
-      if (previous.managerId && previous.managerId !== req.admin!.id) return res.status(409).json({ error: "Цю заявку вже взяв інший менеджер" });
-      if (!previous.managerId && managerId !== req.admin!.id) return res.status(409).json({ error: "Спочатку натисніть «Взяти собі»" });
-      if (!previous.managerId && managerId === req.admin!.id) {
-        const claimed = await prisma.lead.updateMany({ where: { id: previous.id, managerId: null }, data: { managerId: req.admin!.id } });
-        if (!claimed.count) return res.status(409).json({ error: "Цю заявку щойно взяв інший менеджер" });
-        previous = { ...previous, managerId: req.admin!.id };
+      if (previous.managerId !== req.admin!.id) {
+        if (managerId !== req.admin!.id) return res.status(409).json({ error: "Спочатку візьміть заявку собі" });
+        if (previous.managerId && expectedManagerId !== previous.managerId) return res.status(409).json({ error: "Відповідальний менеджер змінився. Оновіть список і натисніть «Перебрати собі»" });
+        if (expectedManagerId !== undefined && expectedManagerId !== previous.managerId) return res.status(409).json({ error: "Відповідальний менеджер змінився. Оновіть список заявок" });
       }
     }
     if (managerId) {
@@ -264,7 +263,7 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     }
     const effectiveManagerId = managerId !== undefined ? managerId : previous.managerId;
     const enteringWon = fields.status === "won" && previous.status !== "won";
-    const correctingWonSeller = previous.status === "won" && managerId !== undefined && !!managerId;
+    const correctingWonSeller = req.admin!.role === "admin" && previous.status === "won" && managerId !== undefined && !!managerId;
     const data = {
       ...fields,
       ...(callbackAt !== undefined && (callbackAt ? new Date(callbackAt).getTime() : null) !== (previous.callbackAt?.getTime() ?? null) ? {
@@ -281,10 +280,14 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
       } : {}),
       ...(total !== undefined ? { total } : items !== undefined ? { total: items.reduce((sum, item) => sum + item.price * item.quantity, 0) } : {}),
     };
-    const updated = await prisma.lead.update({
-      where: { id: req.params.id },
+    // Compare ownership in the write itself so a former manager cannot save
+    // a stale card after another manager has taken it over.
+    const saved = await prisma.lead.updateMany({
+      where: { id: req.params.id, ...(req.admin!.role === "manager" ? { managerId: previous.managerId } : {}) },
       data,
     });
+    if (!saved.count) return res.status(409).json({ error: "Відповідальний менеджер змінився. Оновіть список заявок" });
+    const updated = await prisma.lead.findUniqueOrThrow({ where: { id: req.params.id } });
     const previousItems = parseItems(previous.items) || [];
     const productsChanged = items !== undefined && JSON.stringify(previousItems) !== JSON.stringify(items);
 
