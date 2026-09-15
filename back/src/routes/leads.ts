@@ -133,6 +133,10 @@ const manualLeadSchema = leadSchema.extend({
   status: z.enum(["new", "no_answer", "contacted", "sourcing", "proposal", "won", "lost"]).default("new"),
   paymentStatus: z.enum(["unpaid", "partial", "paid"]).default("unpaid"),
   deliveryStatus: z.enum(["not_sent", "preparing", "sent", "received", "returned"]).default("not_sent"),
+  callbackAt: z.string().datetime({ offset: true }).nullable().optional(),
+  callbackNote: z.string().trim().max(1000).default(""),
+  waitingForStock: z.boolean().default(false),
+  waitingProduct: z.string().trim().max(500).default(""),
   notes: z.string().max(5000).default(""),
   managerId: z.string().nullable().optional(),
 });
@@ -142,6 +146,7 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
   const parsed = manualLeadSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Некоректні дані", details: parsed.error.flatten() });
   const d = parsed.data;
+  if (d.callbackAt && new Date(d.callbackAt).getTime() <= Date.now()) return res.status(400).json({ error: "Оберіть майбутню дату й час передзвону" });
   if (d.managerId && req.admin!.role !== "admin") return res.status(403).json({ error: "Менеджера може призначати лише адміністратор" });
   if (d.managerId) {
     const manager = await prisma.adminUser.findFirst({ where: { id: d.managerId, role: "manager", active: true } });
@@ -161,6 +166,10 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
       paymentStatus: d.paymentStatus,
       deliveryStatus: d.deliveryStatus,
       notes: d.notes,
+      callbackAt: d.callbackAt ? new Date(d.callbackAt) : null,
+      callbackNote: d.callbackNote,
+      waitingForStock: d.waitingForStock,
+      waitingProduct: d.waitingProduct,
       managerId: req.admin!.role === "manager" ? req.admin!.id : (d.managerId || null),
       ...(d.status === "won" ? { soldById: d.managerId || req.admin!.id, wonAt: new Date() } : {}),
     },
@@ -218,6 +227,10 @@ const statusSchema = z.object({
   status: z.enum(["new", "no_answer", "contacted", "sourcing", "proposal", "won", "lost", "in_progress", "done"]).optional(),
   paymentStatus: z.enum(["unpaid", "partial", "paid"]).optional(),
   deliveryStatus: z.enum(["not_sent", "preparing", "sent", "received", "returned"]).optional(),
+  callbackAt: z.string().datetime({ offset: true }).nullable().optional(),
+  callbackNote: z.string().trim().max(1000).optional(),
+  waitingForStock: z.boolean().optional(),
+  waitingProduct: z.string().trim().max(500).optional(),
   notes: z.string().max(5000).optional(),
   items: z.array(itemSchema).optional(),
   managerId: z.string().nullable().optional(),
@@ -233,7 +246,8 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
   try {
     let previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
-    const { items, email, interest, message, managerId, total, ...fields } = parsed.data;
+    const { items, email, interest, message, managerId, total, callbackAt, ...fields } = parsed.data;
+    if (callbackAt && new Date(callbackAt).getTime() !== previous.callbackAt?.getTime() && new Date(callbackAt).getTime() <= Date.now()) return res.status(400).json({ error: "Оберіть майбутню дату й час передзвону" });
     if (req.admin!.role === "manager") {
       if (managerId !== undefined && managerId !== req.admin!.id) return res.status(403).json({ error: "Ви можете призначити заявку лише собі" });
       if (previous.managerId && previous.managerId !== req.admin!.id) return res.status(409).json({ error: "Цю заявку вже взяв інший менеджер" });
@@ -253,6 +267,9 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     const correctingWonSeller = previous.status === "won" && managerId !== undefined && !!managerId;
     const data = {
       ...fields,
+      ...(callbackAt !== undefined && (callbackAt ? new Date(callbackAt).getTime() : null) !== (previous.callbackAt?.getTime() ?? null) ? {
+        callbackAt: callbackAt ? new Date(callbackAt) : null, callbackSentAt: null, callbackClaimedAt: null,
+      } : {}),
       ...(managerId !== undefined ? { managerId } : {}),
       ...(enteringWon ? { soldById: effectiveManagerId || req.admin!.id, wonAt: new Date() } : {}),
       ...(correctingWonSeller ? { soldById: managerId, ...(!previous.wonAt ? { wonAt: new Date() } : {}) } : {}),

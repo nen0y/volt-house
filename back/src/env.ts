@@ -18,6 +18,7 @@ export const env = {
 
   // Telegram — leave empty to disable Telegram notifications
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || "",
+  SITE_URL: process.env.SITE_URL || "http://localhost:3000",
   TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || "",
 
   // Where uploaded product images are stored (served at /uploads)

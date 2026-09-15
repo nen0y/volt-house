@@ -13,7 +13,7 @@
   let pricingCache = null;
   let crmLeadCache = [];
   let crmLastMovedId = null;
-  let crmFilters = { type: "all", paymentStatus: "all", deliveryStatus: "all", managerId: "all" };
+  let crmFilters = { waitingForStock: "all", type: "all", paymentStatus: "all", deliveryStatus: "all", managerId: "all" };
   let crmSearch = "";
   let crmStage = "all";
   let crmPrevStage = "all";
@@ -319,6 +319,52 @@
     return () => selected;
   }
 
+  function callbackLocalValue(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  }
+
+  function callbackFields(lead = {}) {
+    return `<div class="field" style="padding:12px;background:#eff6ff;border-radius:8px">
+      <label for="crm_callback_at">⏰ Передзвонити — дата й час</label>
+      <input type="datetime-local" id="crm_callback_at" value="${callbackLocalValue(lead.callbackAt)}">
+      <div class="muted" style="margin-top:6px">Часовий пояс: ${esc(Intl.DateTimeFormat().resolvedOptions().timeZone)}. Нагадування прийде в Telegram-групу.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><button type="button" class="btn-sm btn-ghost" id="crm_callback_clear">Скасувати нагадування</button></div>
+      <label for="crm_callback_note">Про що нагадати</label><input id="crm_callback_note" maxlength="1000" value="${esc(lead.callbackNote || "")}" placeholder="Наприклад: обговорити комплект і ціну">
+      ${lead.callbackSentAt ? `<div class="muted">Нагадування надіслано ${dt(lead.callbackSentAt)}. Для нового дзвінка оберіть інший час.</div>` : ""}
+    </div>`;
+  }
+
+  function setupCallbackFields() {
+    $("crm_callback_clear").addEventListener("click", () => { $("crm_callback_at").value = ""; });
+  }
+
+  function callbackPayload(lead = {}) {
+    const value = $("crm_callback_at").value;
+    const unchanged = value === callbackLocalValue(lead.callbackAt);
+    const date = value ? new Date(value) : null;
+    if (date && (!Number.isFinite(date.getTime()) || (!unchanged && date <= new Date()))) throw new Error("Оберіть майбутню дату й час передзвону");
+    return { callbackAt: unchanged ? (lead.callbackAt || null) : date?.toISOString() || null, callbackNote: $("crm_callback_note").value.trim() };
+  }
+
+  function callbackBadge(lead) {
+    return lead.callbackAt ? `<div style="margin-top:8px;font-size:12px;overflow-wrap:anywhere;color:${lead.callbackSentAt ? "#64748b" : "#1d4ed8"}">${lead.callbackSentAt ? "✓ Нагадування надіслано" : "⏰ Передзвонити"}: ${dt(lead.callbackAt)}</div>` : "";
+  }
+
+  function stockWaitingFields(lead = {}) {
+    return `<div class="field" style="padding:12px;background:#fffbeb;border-radius:8px">
+      <label style="display:flex;align-items:center;gap:8px"><input id="crm_waiting_stock" type="checkbox" style="width:auto" ${lead.waitingForStock ? "checked" : ""}>Передзвонити при появі товару</label>
+      <label for="crm_waiting_product">Який товар або модель чекає клієнт</label>
+      <input id="crm_waiting_product" maxlength="500" value="${esc(lead.waitingProduct || "")}" placeholder="Наприклад: Deye SUN-12K або акумулятор 10 кВт·год">
+      <div class="muted" style="margin-top:6px">Після дзвінка зніміть позначку та збережіть картку.</div>
+    </div>`;
+  }
+
+  function stockWaitingBadge(lead) {
+    return lead.waitingForStock ? `<div style="margin-top:8px;overflow-wrap:anywhere"><span class="badge" style="background:#fef3c7;color:#92400e">🔔 Чекає наявності</span>${lead.waitingProduct ? `<div style="font-size:12px;margin-top:4px">${esc(lead.waitingProduct)}</div>` : ""}</div>` : "";
+  }
+
   async function openNewCrmClient() {
     try { await loadCrmProductOptions(); } catch (err) { return alert(err.message); }
     openModal(`<h3>Новий клієнт</h3>
@@ -326,19 +372,22 @@
       <div class="grid2"><div class="field"><label>Email</label><input id="new_client_email" type="email"></div><div class="field"><label>Тип звернення</label><select id="new_client_type"><option value="consultation">Консультація</option><option value="order">Замовлення</option><option value="callback">Зворотний дзвінок</option></select></div></div>
       <div class="field"><label>Що цікавить</label><input id="new_client_interest" placeholder="Наприклад: комплект для будинку"></div>
       ${crmProductPickerHtml()}
+      ${stockWaitingFields()}
+      ${callbackFields()}
       <div class="field"><label>Сума продажу, $</label><input id="new_client_total" type="number" min="0" step="1" placeholder="Заповниться з товарів автоматично"></div>
       <div class="field"><label>Етап</label><select id="new_client_status">${CRM_STATUSES.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("")}</select></div>
       ${currentAdmin?.role === "admin" ? `<div class="field"><label>Відповідальний менеджер</label><select id="new_client_manager"><option value="">Не призначено</option>${managerCache.filter((m) => m.active).map((m) => `<option value="${esc(m.id)}">${esc(m.name || m.email)}</option>`).join("")}</select></div>` : ""}
       <div class="grid2"><div class="field"><label>Оплата</label><select id="new_client_payment_status">${statusOptions(PAYMENT_STATUS_LABEL, "unpaid")}</select></div><div class="field"><label>Доставка</label><select id="new_client_delivery_status">${statusOptions(DELIVERY_STATUS_LABEL, "not_sent")}</select></div></div>
       <div class="field"><label>Нотатки менеджера</label><textarea id="new_client_notes" rows="4"></textarea></div>
       <div class="error" id="new_client_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="new_client_cancel">Скасувати</button><button class="btn" id="new_client_save">Додати</button></div>`);
+    setupCallbackFields();
     const getProducts = setupCrmProductPicker();
     $("new_client_cancel").addEventListener("click", closeModal);
     $("new_client_save").addEventListener("click", async () => {
       const items = getProducts();
       const calculatedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const body = { type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), items, total: $("new_client_total").value === "" ? calculatedTotal : Number($("new_client_total").value), status: $("new_client_status").value, paymentStatus: $("new_client_payment_status").value, deliveryStatus: $("new_client_delivery_status").value, notes: $("new_client_notes").value, ...(currentAdmin?.role === "admin" ? { managerId: $("new_client_manager").value || null } : {}) };
-      try { await api("/api/leads/admin", { method: "POST", body: JSON.stringify(body) }); closeModal(); loadCrm(); }
+      const body = { waitingForStock: $("crm_waiting_stock").checked, waitingProduct: $("crm_waiting_product").value.trim(), type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), items, total: $("new_client_total").value === "" ? calculatedTotal : Number($("new_client_total").value), status: $("new_client_status").value, paymentStatus: $("new_client_payment_status").value, deliveryStatus: $("new_client_delivery_status").value, notes: $("new_client_notes").value, ...(currentAdmin?.role === "admin" ? { managerId: $("new_client_manager").value || null } : {}) };
+      try { Object.assign(body, callbackPayload()); await api("/api/leads/admin", { method: "POST", body: JSON.stringify(body) }); closeModal(); loadCrm(); }
       catch (err) { $("new_client_error").textContent = err.message; }
     });
   }
@@ -352,6 +401,7 @@
   function filteredLeads() {
     const q = crmSearch.trim().toLocaleLowerCase("uk-UA");
     return crmLeadCache.filter((l) => {
+      if (crmFilters.waitingForStock === "waiting" && !l.waitingForStock) return false;
       if (crmFilters.type !== "all" && l.type !== crmFilters.type) return false;
       if (crmFilters.paymentStatus !== "all" && (l.paymentStatus || "unpaid") !== crmFilters.paymentStatus) return false;
       if (crmFilters.deliveryStatus !== "all" && (l.deliveryStatus || "not_sent") !== crmFilters.deliveryStatus) return false;
@@ -361,7 +411,8 @@
         return (l.name || "").toLocaleLowerCase("uk-UA").includes(q) ||
                (l.phone || "").toLocaleLowerCase("uk-UA").includes(q) ||
                (l.notes || "").toLocaleLowerCase("uk-UA").includes(q) ||
-               (l.interest || "").toLocaleLowerCase("uk-UA").includes(q);
+               (l.interest || "").toLocaleLowerCase("uk-UA").includes(q) ||
+               (l.waitingProduct || "").toLocaleLowerCase("uk-UA").includes(q);
       }
       if (crmStage !== "all") return normalizeLeadStatus(l.status) === crmStage;
       return true;
@@ -378,7 +429,7 @@
       `<button class="filter-chip${crmFilters[key] === v ? " active" : ""}" data-filter="${key}" data-value="${v}">${l}</button>`
     ).join("");
     const managerFilter = `<div class="filter-sep"></div><select id="crmManagerFilter" style="padding:6px 10px;border:1px solid var(--slate-200);border-radius:8px;background:#fff"><option value="all" ${crmFilters.managerId === "all" ? "selected" : ""}>Усі менеджери</option><option value="unassigned" ${crmFilters.managerId === "unassigned" ? "selected" : ""}>Не призначено</option>${managerCache.map((manager) => `<option value="${esc(manager.id)}" ${crmFilters.managerId === manager.id ? "selected" : ""}>${esc(manager.name || manager.email)}</option>`).join("")}</select>`;
-    el.innerHTML = `<div class="filter-group">${chips(typeOpts, "type")}</div><div class="filter-sep"></div><div class="filter-group">${chips(payOpts, "paymentStatus")}</div><div class="filter-sep"></div><div class="filter-group">${chips(delOpts, "deliveryStatus")}</div>${managerFilter}`;
+    el.innerHTML = `<div class="filter-group">${chips(typeOpts, "type")}</div><div class="filter-sep"></div><div class="filter-group">${chips(payOpts, "paymentStatus")}</div><div class="filter-sep"></div><div class="filter-group">${chips(delOpts, "deliveryStatus")}</div>${managerFilter}<div class="filter-sep"></div><div class="filter-group">${chips([["all", "Усі за наявністю"], ["waiting", "🔔 Чекають наявності"]], "waitingForStock")}</div>`;
     el.querySelectorAll(".filter-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
         crmFilters[chip.dataset.filter] = chip.dataset.value;
@@ -408,6 +459,15 @@
       renderStageTabs();
       renderCrmFilters();
       renderCrmContent(filteredLeads());
+      const url = new URL(location.href);
+      const linkedId = url.searchParams.get("lead");
+      if (linkedId) {
+        url.searchParams.delete("lead"); history.replaceState(null, "", url);
+        const linked = leads.find((lead) => lead.id === linkedId);
+        if (!linked) alert("Картку клієнта не знайдено");
+        else if (currentAdmin?.role === "admin" || linked.managerId === currentAdmin?.id) await openLead(linked);
+        else alert("Картка доступна відповідальному менеджеру або адміністратору");
+      }
     } catch (err) {
       $("kanbanBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`;
     }
@@ -448,6 +508,8 @@
         return `<article class="lead-card" draggable="${canMove ? "true" : "false"}" data-lead-id="${esc(l.id)}">
           <span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span>
           <h4>${esc(l.name)}</h4>
+          ${stockWaitingBadge(l)}
+          ${callbackBadge(l)}
           <div class="lead-meta"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br>${esc(details || "Без деталей")}<br>${dt(l.createdAt)}</div>
           <div style="font-size:12px;font-weight:700;margin-top:7px">${esc(managerLine)}</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"><span class="badge s-${esc(l.paymentStatus || "unpaid")}">${esc(PAYMENT_STATUS_LABEL[l.paymentStatus] || PAYMENT_STATUS_LABEL.unpaid)}</span><span class="badge s-${esc(l.deliveryStatus || "not_sent")}">${esc(DELIVERY_STATUS_LABEL[l.deliveryStatus] || DELIVERY_STATUS_LABEL.not_sent)}</span></div>
@@ -558,6 +620,8 @@
         <div>
           <div><span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span></div>
           <div class="client-name">${esc(l.name)}${stageHtml}</div>
+          ${stockWaitingBadge(l)}
+          ${callbackBadge(l)}
           <a href="tel:${esc(l.phone)}" style="color:var(--blue);font-size:13px">${esc(l.phone)}</a>
         </div>
         <div>
@@ -598,6 +662,8 @@
       <div class="field"><label>Інтерес</label><input id="crm_interest" value="${esc(lead.interest || "")}" placeholder="Що цікавить клієнта"></div>
       <div class="field"><label>Повідомлення</label><textarea id="crm_message" rows="3" placeholder="Повідомлення клієнта">${esc(lead.message || "")}</textarea></div>
       ${crmProductPickerHtml()}
+      ${stockWaitingFields(lead)}
+      ${callbackFields(lead)}
       <div class="field"><label>Сума продажу, $</label><input id="crm_total" type="number" min="0" step="1" value="${esc(lead.total ?? "")}" placeholder="Потрібна для розрахунку зарплати"></div>
       <div class="field"><label>Тип звернення</label><select id="crm_type">${Object.entries(TYPE_LABEL).map(([value, label]) => `<option value="${value}" ${value === lead.type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
@@ -607,6 +673,7 @@
       <div class="field"><label>Нотатки менеджера</label><textarea id="crm_notes" rows="5" placeholder="Домовленості, наступний крок, бюджет…">${esc(lead.notes || "")}</textarea></div>
       <div class="error" id="crm_error"></div>
       <div class="modal-actions">${currentAdmin?.role === "admin" ? `<button class="btn btn-danger" id="crm_delete">Видалити заявку</button>` : ""}<button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
+    setupCallbackFields();
     const getProducts = setupCrmProductPicker(lead.items || []);
     $("crm_cancel").addEventListener("click", closeModal);
     if ($("crm_delete")) $("crm_delete").addEventListener("click", async () => {
@@ -626,6 +693,7 @@
       }
       try {
         await api("/api/leads/" + lead.id, { method: "PATCH", body: JSON.stringify({
+          ...callbackPayload(lead),
           name,
           phone,
           email: $("crm_email").value.trim(),
@@ -635,6 +703,8 @@
           status: $("crm_status").value,
           paymentStatus: $("crm_payment_status").value,
           deliveryStatus: $("crm_delivery_status").value,
+          waitingForStock: $("crm_waiting_stock").checked,
+          waitingProduct: $("crm_waiting_product").value.trim(),
           notes: $("crm_notes").value,
           items: getProducts(),
           total: Number($("crm_total").value) || 0,

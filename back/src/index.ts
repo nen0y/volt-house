@@ -19,6 +19,8 @@ import { financeRouter } from "./routes/finance";
 import { ensureUploadDir, uploadDir } from "./upload";
 import { startNightlyRetailPriceSync } from "./retail-price-sync";
 
+import { startCallbackReminders } from "./callback-reminders";
+
 const app = express();
 
 // Behind the Next.js proxy (and optionally a reverse proxy) — trust the first hop
@@ -121,9 +123,11 @@ const server = app.listen(env.PORT, () => {
   );
 });
 startNightlyRetailPriceSync();
+const callbackTimer = startCallbackReminders();
 
 async function shutdown() {
   console.log("\n[server] Shutting down…");
+  clearInterval(callbackTimer);
   server.close();
   await prisma.$disconnect();
   process.exit(0);

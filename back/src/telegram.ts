@@ -110,3 +110,35 @@ export async function sendLeadTelegram(
     return { ok: false };
   }
 }
+
+export async function sendCallbackTelegram(lead: {
+  id: string; name: string; phone: string; callbackAt: Date; callbackNote: string;
+  interest?: string | null; waitingProduct?: string; notes?: string;
+  manager?: { name: string | null; email: string } | null;
+}): Promise<{ ok: boolean; skipped?: boolean }> {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return { ok: false, skipped: true };
+  const clip = (value: string) => esc(value.slice(0, 400));
+  const url = new URL("/admin/", env.SITE_URL);
+  url.searchParams.set("tab", "crm");
+  url.searchParams.set("lead", lead.id);
+  const text = [
+    "⏰ <b>Час передзвонити клієнту</b>",
+    `👤 ${clip(lead.name)}`,
+    `📞 ${clip(lead.phone)}`,
+    `🕒 ${lead.callbackAt.toLocaleString("uk-UA", { timeZone: "Europe/Kyiv" })} (Київ)`,
+    lead.manager ? `👔 ${clip(lead.manager.name || lead.manager.email)}` : "",
+    lead.callbackNote ? `💬 ${clip(lead.callbackNote)}` : "",
+    lead.interest ? `🎯 ${clip(lead.interest)}` : "",
+    lead.waitingProduct ? `📦 ${clip(lead.waitingProduct)}` : "",
+    lead.notes ? `📝 ${clip(lead.notes)}` : "",
+  ].filter(Boolean).join("\n");
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text, parse_mode: "HTML", disable_notification: false,
+        reply_markup: { inline_keyboard: [[{ text: "Відкрити картку клієнта", url: url.toString() }]] } }),
+    });
+    const data: any = await response.json().catch(() => ({}));
+    return { ok: response.ok && data.ok === true };
+  } catch { return { ok: false }; }
+}

@@ -189,3 +189,13 @@ The same sync can be started from the price-matrix admin page or from the comman
 npm run prices:sync       # local development
 npm run prices:sync:prod  # compiled production build
 ```
+
+## CRM callback reminders
+
+Set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and `SITE_URL` (the public website origin) before deployment. Docker Compose passes the root `SITE_URL` to the backend. The existing entrypoint synchronizes the new Lead fields through `prisma db push` before starting the server.
+
+The CRM accepts a callback date/time in the browser's displayed timezone and saves the corresponding UTC instant. Telegram shows Kyiv time and an authenticated `/admin/?tab=crm&lead=...` card link. Changing the scheduled time resets delivery status; clearing the date cancels it. Ordinary card edits do not re-send an already delivered reminder.
+
+The worker checks every 30 seconds, catches up overdue reminders after a restart, and retries failures after a five-minute lease. Atomic database claims coordinate multiple workers. Delivery is at least once: a crash after Telegram accepts a message but before the database records success can cause a duplicate. Telegram group/user notification settings determine whether a device displays a push.
+
+Checks: `npm run build && node --test tests/callback-reminders.test.cjs` (mocked database and Telegram; no external messages).

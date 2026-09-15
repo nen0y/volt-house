@@ -87,6 +87,12 @@ model Lead {
   status    String   @default("new") // new | no_answer | contacted | sourcing | proposal | won | lost
   paymentStatus  String   @default("unpaid") // unpaid | partial | paid
   deliveryStatus String   @default("not_sent") // not_sent | preparing | sent | received | returned
+  callbackAt DateTime?
+  callbackNote String @default("")
+  callbackSentAt DateTime?
+  callbackClaimedAt DateTime?
+  waitingForStock Boolean @default(false)
+  waitingProduct String @default("")
   notes     String   @default("")
   managerId String?
   manager   AdminUser? @relation("AssignedLeads", fields: [managerId], references: [id], onDelete: SetNull)
@@ -96,6 +102,7 @@ model Lead {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
+  @@index([callbackSentAt, callbackAt])
   @@index([managerId])
   @@index([soldById])
 }
