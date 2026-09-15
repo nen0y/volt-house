@@ -19,6 +19,11 @@
   let crmPrevStage = "all";
   let crmViewMode = "list";
   let crmProductOptions = [];
+  let warehouseSubTab = "balance";
+  let warehouseBalanceCache = [];
+  let warehouseResCache = [];
+  let warehouseFilters = { search: "", category: "all", brand: "all" };
+  let warehouseResFilter = "all";
   let financeCache = { participants: [], sales: [] };
   let adminEmail = "";
   let currentAdmin = null;
@@ -140,8 +145,8 @@
   $("logout").addEventListener("click", logout);
 
   // ── tabs ──────────────────────────────────────────────────────────────────
-  const ALL_TABS = ["crm", "installers", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
-  const MANAGER_TABS = ["crm", "installers", "pricing"];
+  const ALL_TABS = ["crm", "warehouse", "installers", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
+  const MANAGER_TABS = ["crm", "warehouse", "installers", "pricing"];
 
   function activateTab(tab) {
     if (currentAdmin?.role === "manager" && !MANAGER_TABS.includes(tab)) tab = "crm";
@@ -154,6 +159,7 @@
     url.searchParams.set("tab", tab);
     history.replaceState(null, "", url);
     if (tab === "crm") loadCrm();
+    if (tab === "warehouse") loadWarehouse();
     if (tab === "installers") loadInstallers();
     if (tab === "suppliers") loadSuppliers();
     if (tab === "pricing") loadPricing();
@@ -319,6 +325,33 @@
     return () => selected;
   }
 
+  function showReserveProductModal(lead, status) {
+    return new Promise((resolve) => {
+      const statusLabel = STATUS_LABEL[status] || status;
+      const renderOpts = (query = "") => {
+        const q = query.trim().toLocaleLowerCase("uk-UA");
+        const products = q ? crmProductOptions.filter((p) => p.name.toLocaleLowerCase("uk-UA").includes(q)) : crmProductOptions;
+        const availLabel = (a) => a === "in_stock" ? "є в наявності" : a === "preorder" ? "очікується" : "немає";
+        return `<option value="">${products.length ? "— Оберіть товар —" : "Не знайдено"}</option>${products.map((p) => `<option value="${esc(p.id)}">${esc(p.name)} · ${availLabel(p.availability)}</option>`).join("")}`;
+      };
+      openModal(`<h3>Зарезервувати товар</h3>
+        <p style="margin-bottom:14px;color:var(--slate-500)">Клієнт: <strong>${esc(lead.name)}</strong> → <strong>${esc(statusLabel)}</strong></p>
+        <div class="field"><label>Пошук товару</label>
+          <input id="resv_search" type="search" autocomplete="off" placeholder="Назва або модель…" style="margin-bottom:8px">
+          <select id="resv_select" style="width:100%;padding:10px;border:1px solid var(--slate-200);border-radius:8px;font-size:14px;font-family:inherit">${renderOpts()}</select>
+        </div>
+        <div class="error" id="resv_error"></div>
+        <div class="modal-actions"><button class="btn btn-ghost" id="resv_cancel">Скасувати</button><button class="btn" id="resv_confirm">Зарезервувати</button></div>`);
+      $("resv_search").addEventListener("input", (e) => { $("resv_select").innerHTML = renderOpts(e.target.value); });
+      $("resv_cancel").addEventListener("click", () => { closeModal(); resolve(null); });
+      $("resv_confirm").addEventListener("click", () => {
+        const productId = $("resv_select").value;
+        if (!productId) return ($("resv_error").textContent = "Оберіть товар");
+        closeModal(); resolve(productId);
+      });
+    });
+  }
+
   function callbackLocalValue(value) {
     if (!value) return "";
     const date = new Date(value);
@@ -363,6 +396,16 @@
 
   function stockWaitingBadge(lead) {
     return lead.waitingForStock ? `<div style="margin-top:8px;overflow-wrap:anywhere"><span class="badge" style="background:#fef3c7;color:#92400e">🔔 Чекає наявності</span>${lead.waitingProduct ? `<div style="font-size:12px;margin-top:4px">${esc(lead.waitingProduct)}</div>` : ""}</div>` : "";
+  }
+
+  function reservationBadge(lead) {
+    const r = lead.reservation;
+    if (!r) return "";
+    const name = r.product?.name ? esc(r.product.name) : "";
+    if (r.status === "searching") return `<div style="margin-top:6px"><span class="badge" style="background:#fde68a;color:#78350f">🔍 Шукаємо: ${name}</span></div>`;
+    if (r.status === "active") return `<div style="margin-top:6px"><span class="badge" style="background:#d1fae5;color:#065f46">📦 Резерв: ${name}</span></div>`;
+    if (r.status === "found") return `<div style="margin-top:6px"><span class="badge" style="background:#bbf7d0;color:#14532d">✅ Знайдено: ${name}</span></div>`;
+    return "";
   }
 
   async function openNewCrmClient() {
@@ -509,6 +552,7 @@
           <span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span>
           <h4>${esc(l.name)}</h4>
           ${stockWaitingBadge(l)}
+          ${reservationBadge(l)}
           ${callbackBadge(l)}
           <div class="lead-meta"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br>${esc(details || "Без деталей")}<br>${dt(l.createdAt)}</div>
           <div style="font-size:12px;font-weight:700;margin-top:7px">${esc(managerLine)}</div>
@@ -536,14 +580,28 @@
         const leadId = card.dataset.leadId;
         const newStatus = col.dataset.dropStatus;
         const lead = crmLeadCache.find((l) => l.id === leadId);
+        if (!lead) return;
+        const RESERVE_STATUSES = ["contacted", "sourcing", "proposal"];
+        if (RESERVE_STATUSES.includes(newStatus) && !lead.reservation) {
+          try {
+            await loadCrmProductOptions();
+            const productId = await showReserveProductModal(lead, newStatus);
+            if (!productId) { card.classList.remove("dragging"); return; }
+            lead.status = newStatus;
+            crmLastMovedId = leadId;
+            renderKanban(filteredLeads());
+            const updated = await api("/api/leads/" + leadId, { method: "PATCH", body: JSON.stringify({ status: newStatus, reservedProductId: productId }) });
+            const index = crmLeadCache.findIndex((row) => row.id === leadId);
+            if (index >= 0) crmLeadCache[index] = updated;
+            renderKanban(filteredLeads());
+          } catch (err) { alert(err.message); loadCrm(); }
+          return;
+        }
         if (lead) lead.status = newStatus;
         crmLastMovedId = leadId;
         renderKanban(filteredLeads());
         try {
-          const updated = await api("/api/leads/" + leadId, {
-            method: "PATCH",
-            body: JSON.stringify({ status: newStatus }),
-          });
+          const updated = await api("/api/leads/" + leadId, { method: "PATCH", body: JSON.stringify({ status: newStatus }) });
           const index = crmLeadCache.findIndex((row) => row.id === leadId);
           if (index >= 0) crmLeadCache[index] = updated;
           renderKanban(filteredLeads());
@@ -621,6 +679,7 @@
           <div><span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span></div>
           <div class="client-name">${esc(l.name)}${stageHtml}</div>
           ${stockWaitingBadge(l)}
+          ${reservationBadge(l)}
           ${callbackBadge(l)}
           <a href="tel:${esc(l.phone)}" style="color:var(--blue);font-size:13px">${esc(l.phone)}</a>
         </div>
@@ -2202,6 +2261,180 @@
   $("modalBg").addEventListener("click", (e) => {
     if (e.target === $("modalBg")) closeModal();
   });
+
+  // ── Warehouse ──────────────────────────────────────────────────────────────
+
+  document.querySelectorAll(".warehouse-sub-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      warehouseSubTab = btn.dataset.wtab;
+      document.querySelectorAll(".warehouse-sub-tab").forEach((b) => {
+        b.style.color = b.dataset.wtab === warehouseSubTab ? "var(--slate-900)" : "var(--slate-500)";
+        b.style.borderBottomColor = b.dataset.wtab === warehouseSubTab ? "var(--slate-900)" : "transparent";
+        b.style.fontWeight = b.dataset.wtab === warehouseSubTab ? "700" : "600";
+      });
+      $("warehouse-balance-pane").style.display = warehouseSubTab === "balance" ? "" : "none";
+      $("warehouse-reservations-pane").style.display = warehouseSubTab === "reservations" ? "" : "none";
+      if (warehouseSubTab === "balance") loadWarehouseBalance();
+      if (warehouseSubTab === "reservations") loadWarehouseReservations();
+    });
+  });
+
+  async function loadWarehouse() {
+    try {
+      const [categories, brands] = await Promise.all([
+        categoryCache.length ? Promise.resolve(categoryCache) : api("/api/categories?all=1").then((r) => { categoryCache = r; return r; }),
+        brandCache.length ? Promise.resolve(brandCache) : api("/api/brands").then((r) => { brandCache = r; return r; }),
+      ]);
+      const catFilter = $("warehouseCategoryFilter");
+      const brandFilter = $("warehouseBrandFilter");
+      if (catFilter && catFilter.options.length <= 1) {
+        categories.forEach((c) => { const o = document.createElement("option"); o.value = c.key; o.textContent = c.label; catFilter.appendChild(o); });
+      }
+      if (brandFilter && brandFilter.options.length <= 1) {
+        brands.filter((b) => b.enabled).forEach((b) => { const o = document.createElement("option"); o.value = b.slug; o.textContent = b.name; brandFilter.appendChild(o); });
+      }
+      if (warehouseSubTab === "balance") await loadWarehouseBalance();
+      else await loadWarehouseReservations();
+    } catch (err) { console.error("loadWarehouse", err); }
+  }
+
+  async function loadWarehouseBalance() {
+    const body = $("warehouseBalanceBody");
+    if (!body) return;
+    body.innerHTML = `<div class="empty">Завантаження…</div>`;
+    try {
+      const params = new URLSearchParams();
+      if (warehouseFilters.search) params.set("search", warehouseFilters.search);
+      if (warehouseFilters.category !== "all") params.set("category", warehouseFilters.category);
+      if (warehouseFilters.brand !== "all") params.set("brand", warehouseFilters.brand);
+      warehouseBalanceCache = await api("/api/warehouse/balance?" + params.toString());
+      renderWarehouseBalance();
+    } catch (err) { body.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  }
+
+  function renderWarehouseBalance() {
+    const body = $("warehouseBalanceBody");
+    if (!body) return;
+    if (!warehouseBalanceCache.length) { body.innerHTML = `<div class="empty" style="padding:48px;text-align:center">Склад порожній. Додайте перший товар через «Прийом товару».</div>`; return; }
+    body.innerHTML = `<div class="admin-table-wrap"><table>
+      <thead><tr><th>Товар</th><th>Всього</th><th>Резерв</th><th>Доступно</th><th>Резерви клієнтів</th></tr></thead>
+      <tbody>${warehouseBalanceCache.map((row) => {
+        const p = row.product;
+        const resList = row.reservations.map((r) => `<div style="font-size:12px;padding:2px 0">${r.status === "active" ? "📦" : "✅"} ${esc(r.lead.name)} ${esc(r.lead.phone)}</div>`).join("");
+        const availStyle = row.availableQty === 0 ? "color:var(--red);font-weight:700" : row.availableQty <= 1 ? "color:var(--amber);font-weight:700" : "color:var(--green);font-weight:700";
+        return `<tr>
+          <td><div style="font-weight:600">${esc(p.name)}</div><div class="muted" style="font-size:11px">${esc(p.category)}${p.brandName ? " · " + esc(p.brandName) : ""}</div></td>
+          <td><strong>${row.totalQty}</strong></td>
+          <td>${row.reservedQty > 0 ? `<span style="color:var(--blue)">${row.reservedQty}</span>` : `<span class="muted">0</span>`}</td>
+          <td><span style="${availStyle}">${row.availableQty}</span></td>
+          <td>${resList || `<span class="muted">—</span>`}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table></div>`;
+  }
+
+  async function loadWarehouseReservations() {
+    const body = $("warehouseReservationsBody");
+    if (!body) return;
+    body.innerHTML = `<div class="empty">Завантаження…</div>`;
+    try {
+      const status = warehouseResFilter !== "all" ? `?status=${warehouseResFilter}` : "";
+      warehouseResCache = await api("/api/warehouse/reservations" + status);
+      renderWarehouseReservations();
+    } catch (err) { body.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  }
+
+  function renderWarehouseReservations() {
+    const body = $("warehouseReservationsBody");
+    if (!body) return;
+    const supplierOptions = supplierCache.length ? supplierCache.filter((s) => s.active).map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("") : "";
+    if (!warehouseResCache.length) { body.innerHTML = `<div class="empty" style="padding:48px;text-align:center">Резервів немає</div>`; return; }
+    body.innerHTML = warehouseResCache.map((r) => {
+      const cls = r.status === "searching" ? "res-searching" : r.status === "found" ? "res-found" : "";
+      const statusBadge = r.status === "searching" ? `<span class="badge" style="background:#fde68a;color:#78350f">🔍 Шукаємо</span>` : r.status === "active" ? `<span class="badge" style="background:#d1fae5;color:#065f46">📦 Зарезервовано</span>` : r.status === "found" ? `<span class="badge" style="background:#bbf7d0;color:#14532d">✅ Знайдено</span>` : `<span class="badge">${esc(r.status)}</span>`;
+      const searchEdit = r.status === "searching" || r.status === "searching" ? `<div class="res-edit-row">
+        <div class="field" style="margin:0"><label>Хто шукає</label><input class="res-searcher" data-res-id="${esc(r.id)}" value="${esc(r.searcherName)}" placeholder="Ім'я менеджера"></div>
+        <div class="field" style="margin:0"><label>Статус пошуку</label><select class="res-search-status" data-res-id="${esc(r.id)}">
+          <option value="searching" ${r.searchStatus === "searching" ? "selected" : ""}>В пошуку</option>
+          <option value="not_found" ${r.searchStatus === "not_found" ? "selected" : ""}>Не знайдено</option>
+          <option value="found" ${r.searchStatus === "found" ? "selected" : ""}>Знайдено</option>
+        </select></div>
+        <div class="field" style="margin:0"><label>Постачальник</label><select class="res-supplier" data-res-id="${esc(r.id)}"><option value="">— Не вибрано —</option>${supplierOptions.replace(`value="${esc(r.supplierId)}"`, `value="${esc(r.supplierId)}" selected`)}</select></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-sm" data-save-res="${esc(r.id)}">Зберегти</button></div>
+      </div>` : "";
+      return `<div class="res-card ${cls}" data-reservation-id="${esc(r.id)}">
+        <div class="res-head">
+          <div>
+            <div class="res-product">${esc(r.product.name)}</div>
+            <div class="res-client"><a href="tel:${esc(r.lead.phone)}">${esc(r.lead.name)} · ${esc(r.lead.phone)}</a> · CRM: ${esc(STATUS_LABEL[r.lead.status] || r.lead.status)}</div>
+            ${r.supplier ? `<div style="font-size:12px;color:var(--slate-500);margin-top:3px">Постачальник: ${esc(r.supplier.name)}</div>` : ""}
+            ${r.searcherName ? `<div style="font-size:12px;color:var(--slate-500)">Шукає: ${esc(r.searcherName)}</div>` : ""}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            ${statusBadge}
+            <div style="font-size:11px;color:var(--slate-400)">${new Date(r.createdAt).toLocaleDateString("uk-UA")}</div>
+          </div>
+        </div>
+        ${searchEdit}
+      </div>`;
+    }).join("");
+
+    body.querySelectorAll("[data-save-res]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.saveRes;
+        const searcherName = body.querySelector(`.res-searcher[data-res-id="${id}"]`)?.value.trim() || "";
+        const searchStatus = body.querySelector(`.res-search-status[data-res-id="${id}"]`)?.value || "searching";
+        const supplierId = body.querySelector(`.res-supplier[data-res-id="${id}"]`)?.value || null;
+        try {
+          await api("/api/warehouse/reservations/" + id, { method: "PATCH", body: JSON.stringify({ searcherName, searchStatus, supplierId: supplierId || null }) });
+          await loadWarehouseReservations();
+        } catch (err) { alert(err.message); }
+      });
+    });
+  }
+
+  if ($("addWarehouseItem")) {
+    $("addWarehouseItem").addEventListener("click", async () => {
+      if (!productCache.length) productCache = await api("/api/products/admin/all").catch(() => []);
+      if (!supplierCache.length) supplierCache = await api("/api/crm/suppliers").catch(() => []);
+      openModal(`<h3>Прийом товару на склад</h3>
+        <div class="field"><label>Товар *</label>
+          <input id="wh_product_search" type="search" placeholder="Пошук…" style="margin-bottom:8px">
+          <select id="wh_product_select" style="width:100%;padding:10px;border:1px solid var(--slate-200);border-radius:8px;font-family:inherit;font-size:14px">
+            <option value="">— Оберіть товар —</option>
+            ${productCache.filter((p) => p.enabled).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Кількість *</label><input id="wh_quantity" type="number" min="1" value="1"></div>
+          <div class="field"><label>Ціна закупівлі ($)</label><input id="wh_price" type="number" min="0" placeholder="0"></div>
+        </div>
+        <div class="field"><label>Постачальник</label><select id="wh_supplier" style="width:100%;padding:10px;border:1px solid var(--slate-200);border-radius:8px;font-family:inherit;font-size:14px"><option value="">— Не вибрано —</option>${supplierCache.filter((s) => s.active).map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("")}</select></div>
+        <div class="field"><label>Нотатки</label><input id="wh_notes" placeholder="Опис партії, серійний номер…"></div>
+        <div class="error" id="wh_error"></div>
+        <div class="modal-actions"><button class="btn btn-ghost" id="wh_cancel">Скасувати</button><button class="btn" id="wh_save">Додати на склад</button></div>`);
+      const renderProductOpts = (q = "") => {
+        const items = q ? productCache.filter((p) => p.enabled && p.name.toLocaleLowerCase("uk-UA").includes(q.toLocaleLowerCase("uk-UA"))) : productCache.filter((p) => p.enabled);
+        $("wh_product_select").innerHTML = `<option value="">${items.length ? "— Оберіть товар —" : "Не знайдено"}</option>${items.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}`;
+      };
+      $("wh_product_search").addEventListener("input", (e) => renderProductOpts(e.target.value));
+      $("wh_cancel").addEventListener("click", closeModal);
+      $("wh_save").addEventListener("click", async () => {
+        const productId = $("wh_product_select").value;
+        const quantity = parseInt($("wh_quantity").value, 10);
+        if (!productId || !quantity || quantity < 1) return ($("wh_error").textContent = "Оберіть товар та вкажіть кількість");
+        try {
+          await api("/api/warehouse/balance", { method: "POST", body: JSON.stringify({ productId, quantity, supplierId: $("wh_supplier").value || null, purchasePrice: $("wh_price").value ? parseInt($("wh_price").value, 10) : null, notes: $("wh_notes").value.trim() }) });
+          closeModal(); await loadWarehouseBalance();
+        } catch (err) { $("wh_error").textContent = err.message; }
+      });
+    });
+  }
+
+  if ($("warehouseSearch")) $("warehouseSearch").addEventListener("input", (e) => { warehouseFilters.search = e.target.value; loadWarehouseBalance(); });
+  if ($("warehouseCategoryFilter")) $("warehouseCategoryFilter").addEventListener("change", (e) => { warehouseFilters.category = e.target.value; loadWarehouseBalance(); });
+  if ($("warehouseBrandFilter")) $("warehouseBrandFilter").addEventListener("change", (e) => { warehouseFilters.brand = e.target.value; loadWarehouseBalance(); });
+  if ($("warehouseResFilter")) $("warehouseResFilter").addEventListener("change", (e) => { warehouseResFilter = e.target.value; loadWarehouseReservations(); });
 
   // ── bootstrap ────────────────────────────────────────────────────────────────
   (async function init() {

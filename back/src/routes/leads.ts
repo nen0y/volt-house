@@ -10,7 +10,8 @@ export const leadsRouter = Router();
 
 // items is stored as a JSON string (SQLite) — expose it as an array to clients.
 function toDto(l: any) {
-  return { ...l, items: parseItems(l.items) };
+  const { reservations, ...rest } = l;
+  return { ...rest, items: parseItems(l.items), reservation: reservations?.[0] || null };
 }
 
 const itemSchema = z.object({
@@ -77,6 +78,16 @@ leadsRouter.post("/", leadsLimiter, async (req, res) => {
 
 // GET /api/leads?type=order&status=new  (admin)
 const managerSelect = { id: true, name: true, email: true } as const;
+const leadInclude = {
+  manager: { select: { id: true, name: true, email: true } },
+  soldBy: { select: { id: true, name: true, email: true } },
+  reservations: {
+    where: { status: { notIn: ["cancelled", "completed" as string] } },
+    include: { product: { select: { id: true, name: true } } },
+    take: 1,
+    orderBy: { createdAt: "desc" as const },
+  },
+};
 
 leadsRouter.get("/", requireAdmin, async (req: AuthedRequest, res) => {
   const type = typeof req.query.type === "string" && req.query.type !== "all" ? req.query.type : undefined;
@@ -87,7 +98,7 @@ leadsRouter.get("/", requireAdmin, async (req: AuthedRequest, res) => {
       : requestedManager && requestedManager !== "all" ? { managerId: requestedManager } : {};
   const rows = await prisma.lead.findMany({
     where: { ...(type ? { type } : {}), ...(status ? { status } : {}), ...managerWhere },
-    include: { manager: { select: managerSelect }, soldBy: { select: managerSelect } },
+    include: leadInclude,
     orderBy: { createdAt: "desc" },
   });
   res.json(rows.map(toDto));
@@ -194,7 +205,7 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
   for (const item of d.items || []) {
     if (item.custom || item.availability === "unavailable") await sendUnavailableProductTelegram({ id: lead.id, name: lead.name, phone: lead.phone, productName: item.name });
   }
-  const created = await prisma.lead.findUnique({ where: { id: lead.id }, include: { manager: { select: managerSelect }, soldBy: { select: managerSelect } } });
+  const created = await prisma.lead.findUnique({ where: { id: lead.id }, include: leadInclude });
   res.status(201).json(toDto(created));
 });
 
@@ -236,6 +247,8 @@ const statusSchema = z.object({
   managerId: z.string().nullable().optional(),
   expectedManagerId: z.string().nullable().optional(),
   total: z.number().min(0).optional(),
+  reservedProductId: z.string().optional(),
+  reservedQuantity: z.number().int().positive().optional(),
 });
 
 // PATCH /api/leads/:id  (admin) — update CRM fields
@@ -247,7 +260,7 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
   try {
     const previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
-    const { items, email, interest, message, managerId, expectedManagerId, total, callbackAt, ...fields } = parsed.data;
+    const { items, email, interest, message, managerId, expectedManagerId, total, callbackAt, reservedProductId, reservedQuantity, ...fields } = parsed.data;
     if (callbackAt && new Date(callbackAt).getTime() !== previous.callbackAt?.getTime() && new Date(callbackAt).getTime() <= Date.now()) return res.status(400).json({ error: "Оберіть майбутню дату й час передзвону" });
     if (req.admin!.role === "manager") {
       if (managerId !== undefined && managerId !== req.admin!.id) return res.status(403).json({ error: "Ви можете призначити заявку лише собі" });
@@ -287,6 +300,60 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
       data,
     });
     if (!saved.count) return res.status(409).json({ error: "Відповідальний менеджер змінився. Оновіть список заявок" });
+
+    // Reservation logic after lead status change
+    const RESERVE_STATUSES = ["contacted", "sourcing", "proposal"];
+    if (fields.status && fields.status !== previous.status) {
+      const existingReservation = await prisma.reservation.findFirst({
+        where: { leadId: req.params.id, status: { notIn: ["cancelled", "completed"] } },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (RESERVE_STATUSES.includes(fields.status)) {
+        if (!existingReservation) {
+          const productId = reservedProductId;
+          if (productId) {
+            const reservationStatus = fields.status === "sourcing" ? "searching" : "active";
+            const qty = reservedQuantity || 1;
+            await prisma.$transaction(async (tx) => {
+              await tx.reservation.create({ data: { leadId: req.params.id, productId, quantity: qty, status: reservationStatus, searchStatus: reservationStatus === "searching" ? "searching" : "found" } });
+              if (reservationStatus === "active") {
+                const warehouseItem = await tx.warehouseItem.findFirst({ where: { productId, quantity: { gt: 0 } } });
+                if (warehouseItem) await tx.warehouseItem.update({ where: { id: warehouseItem.id }, data: { quantity: { decrement: qty } } });
+              }
+            });
+          }
+        } else {
+          const newResStatus = fields.status === "sourcing" ? "searching" : "active";
+          if (existingReservation.status !== newResStatus && existingReservation.status !== "found") {
+            if (existingReservation.status === "active" && newResStatus === "searching") {
+              await prisma.$transaction(async (tx) => {
+                await tx.reservation.update({ where: { id: existingReservation.id }, data: { status: "searching", searchStatus: "searching" } });
+                const warehouseItem = await tx.warehouseItem.findFirst({ where: { productId: existingReservation.productId } });
+                if (warehouseItem) await tx.warehouseItem.update({ where: { id: warehouseItem.id }, data: { quantity: { increment: existingReservation.quantity } } });
+              });
+            } else if (existingReservation.status === "searching" && newResStatus === "active") {
+              await prisma.$transaction(async (tx) => {
+                await tx.reservation.update({ where: { id: existingReservation.id }, data: { status: "active" } });
+                const warehouseItem = await tx.warehouseItem.findFirst({ where: { productId: existingReservation.productId, quantity: { gt: 0 } } });
+                if (warehouseItem) await tx.warehouseItem.update({ where: { id: warehouseItem.id }, data: { quantity: { decrement: existingReservation.quantity } } });
+              });
+            }
+          }
+        }
+      } else if (fields.status === "won" && existingReservation) {
+        await prisma.reservation.update({ where: { id: existingReservation.id }, data: { status: "completed" } });
+      } else if (fields.status === "lost" && existingReservation) {
+        await prisma.$transaction(async (tx) => {
+          await tx.reservation.update({ where: { id: existingReservation.id }, data: { status: "cancelled" } });
+          if (existingReservation.status === "active" || existingReservation.status === "found") {
+            const warehouseItem = await tx.warehouseItem.findFirst({ where: { productId: existingReservation.productId } });
+            if (warehouseItem) await tx.warehouseItem.update({ where: { id: warehouseItem.id }, data: { quantity: { increment: existingReservation.quantity } } });
+          }
+        });
+      }
+    }
+
     const updated = await prisma.lead.findUniqueOrThrow({ where: { id: req.params.id } });
     const previousItems = parseItems(previous.items) || [];
     const productsChanged = items !== undefined && JSON.stringify(previousItems) !== JSON.stringify(items);
@@ -313,7 +380,7 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
         if ((item.custom || item.availability === "unavailable") && !previousMissing.has(`${item.id}:${item.name}`)) await sendUnavailableProductTelegram({ id: updated.id, name: updated.name, phone: updated.phone, productName: item.name });
       }
     }
-    const result = await prisma.lead.findUnique({ where: { id: updated.id }, include: { manager: { select: managerSelect }, soldBy: { select: managerSelect } } });
+    const result = await prisma.lead.findUnique({ where: { id: updated.id }, include: leadInclude });
     res.json(toDto(result));
   } catch {
     res.status(404).json({ error: "Заявку не знайдено" });

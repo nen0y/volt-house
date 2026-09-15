@@ -30,6 +30,8 @@ model Product {
   brand         Brand?   @relation(fields: [brandSlug], references: [slug], onDelete: SetNull)
   supplierPrices SupplierPrice[]
   categoryLinks ProductCategoryLink[]
+  warehouseItems WarehouseItem[]
+  reservations  Reservation[]
 
   @@index([brandSlug])
 }
@@ -101,6 +103,7 @@ model Lead {
   wonAt     DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+  reservations Reservation[]
 
   @@index([callbackSentAt, callbackAt])
   @@index([managerId])
@@ -126,6 +129,8 @@ model Supplier {
   notes               String          @default("")
   active              Boolean         @default(true)
   prices              SupplierPrice[]
+  warehouseItems      WarehouseItem[]
+  reservations        Reservation[]
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 }
@@ -228,4 +233,42 @@ model Setting {
   key       String   @id
   value     String // JSON
   updatedAt DateTime @updatedAt
+}
+
+model WarehouseItem {
+  id            String    @id @default(cuid())
+  productId     String
+  product       Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity      Int       @default(0)
+  supplierId    String?
+  supplier      Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  purchasePrice Int?
+  notes         String    @default("")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([productId])
+  @@index([supplierId])
+}
+
+model Reservation {
+  id           String    @id @default(cuid())
+  leadId       String
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity     Int       @default(1)
+  status       String    @default("active") // active | searching | found | completed | cancelled
+  searcherName String    @default("")
+  searchStatus String    @default("searching") // searching | not_found | found
+  supplierId   String?
+  supplier     Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  notes        String    @default("")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([productId])
+  @@index([status])
+  @@index([supplierId])
 }
