@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma";
-import { requireAdmin, AuthedRequest } from "../middleware/auth";
+import { requireAdmin, requireSuperAdmin, AuthedRequest } from "../middleware/auth";
 
 export const warehouseRouter = Router();
 
@@ -19,7 +19,7 @@ warehouseRouter.get("/balance", requireAdmin, async (req, res) => {
       ...(category ? { categoryLinks: { some: { categoryKey: category } } } : {}),
     },
     select: {
-      id: true, name: true, category: true, image: true, brandSlug: true,
+      id: true, name: true, category: true, image: true, brandSlug: true, price: true,
       brand: { select: { name: true } },
       warehouseItems: { select: { id: true, quantity: true, supplierId: true, purchasePrice: true, notes: true, createdAt: true, supplier: { select: { id: true, name: true } } } },
       reservations: {
@@ -34,7 +34,7 @@ warehouseRouter.get("/balance", requireAdmin, async (req, res) => {
     const totalQty = p.warehouseItems.reduce((sum, item) => sum + item.quantity, 0);
     const reservedQty = p.reservations.reduce((sum, r) => sum + r.quantity, 0);
     return {
-      product: { id: p.id, name: p.name, category: p.category, image: p.image, brandSlug: p.brandSlug, brandName: p.brand?.name || null },
+      product: { id: p.id, name: p.name, category: p.category, image: p.image, brandSlug: p.brandSlug, brandName: p.brand?.name || null, suggestedSalePrice: p.price },
       totalQty,
       reservedQty,
       availableQty: Math.max(0, totalQty - reservedQty),
@@ -47,7 +47,7 @@ warehouseRouter.get("/balance", requireAdmin, async (req, res) => {
 });
 
 // POST /api/warehouse/balance
-warehouseRouter.post("/balance", requireAdmin, async (req: AuthedRequest, res) => {
+warehouseRouter.post("/balance", requireAdmin, requireSuperAdmin, async (req: AuthedRequest, res) => {
   const schema = z.object({
     productId: z.string(),
     quantity: z.number().int().positive(),
@@ -68,7 +68,7 @@ warehouseRouter.post("/balance", requireAdmin, async (req: AuthedRequest, res) =
 });
 
 // PUT /api/warehouse/balance/:id
-warehouseRouter.put("/balance/:id", requireAdmin, async (req, res) => {
+warehouseRouter.put("/balance/:id", requireAdmin, requireSuperAdmin, async (req, res) => {
   const schema = z.object({
     quantity: z.number().int().min(0).optional(),
     supplierId: z.string().optional().nullable(),
@@ -84,7 +84,7 @@ warehouseRouter.put("/balance/:id", requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/warehouse/balance/:id
-warehouseRouter.delete("/balance/:id", requireAdmin, async (req, res) => {
+warehouseRouter.delete("/balance/:id", requireAdmin, requireSuperAdmin, async (req, res) => {
   try { await prisma.warehouseItem.delete({ where: { id: req.params.id } }); res.json({ ok: true }); }
   catch { res.status(404).json({ error: "Запис не знайдено" }); }
 });
@@ -105,7 +105,7 @@ warehouseRouter.get("/reservations", requireAdmin, async (req, res) => {
 });
 
 // PATCH /api/warehouse/reservations/:id
-warehouseRouter.patch("/reservations/:id", requireAdmin, async (req: AuthedRequest, res) => {
+warehouseRouter.patch("/reservations/:id", requireAdmin, requireSuperAdmin, async (req: AuthedRequest, res) => {
   const schema = z.object({
     searcherName: z.string().max(200).optional(),
     searchStatus: z.enum(["searching", "not_found", "found"]).optional(),

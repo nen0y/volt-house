@@ -1561,7 +1561,7 @@
     );
   }
 
-  function productModal(p) {
+  function productModal(p, onSaved) {
     const isNew = !p;
     p = p || { id: "", name: "", category: "inverter", categoryKeys: ["inverter"], price: 0, features: [], image: "", images: [], enabled: true };
     const selectedCategoryKeys = new Set(p.categoryKeys || [p.category]);
@@ -1691,6 +1691,7 @@
         });
         closeModal();
         loadProducts();
+        if (onSaved) await onSaved();
       } catch (err) {
         $("m_error").textContent = err.message;
       }
@@ -2345,22 +2346,65 @@
   function renderWarehouseBalance() {
     const body = $("warehouseBalanceBody");
     if (!body) return;
-    if (!warehouseBalanceCache.length) { body.innerHTML = `<div class="empty" style="padding:48px;text-align:center">Склад порожній. Додайте перший товар через «Прийом товару».</div>`; return; }
+    if (!warehouseBalanceCache.length) { body.innerHTML = `<div class="empty" style="padding:48px;text-align:center">Товарів за вибраними фільтрами немає.</div>`; return; }
     body.innerHTML = `<div class="admin-table-wrap"><table>
-      <thead><tr><th>Товар</th><th>Всього</th><th>Резерв</th><th>Доступно</th><th>Резерви клієнтів</th></tr></thead>
+      <thead><tr><th>Товар</th><th>Орієнтовна ціна продажу</th><th>Всього</th><th>Резерв</th><th>Доступно</th><th>Резерви клієнтів</th></tr></thead>
       <tbody>${warehouseBalanceCache.map((row) => {
         const p = row.product;
         const resList = row.reservations.map((r) => `<div style="font-size:12px;padding:2px 0">${r.status === "active" ? "📦" : "✅"} ${esc(r.lead.name)} ${esc(r.lead.phone)}</div>`).join("");
         const availStyle = row.availableQty === 0 ? "color:var(--red);font-weight:700" : row.availableQty <= 1 ? "color:var(--amber);font-weight:700" : "color:var(--green);font-weight:700";
         return `<tr>
           <td><div style="font-weight:600">${esc(p.name)}</div><div class="muted" style="font-size:11px">${esc(p.category)}${p.brandName ? " · " + esc(p.brandName) : ""}</div></td>
+          <td><strong>${money(p.suggestedSalePrice)}</strong><div class="muted" style="font-size:12px">За одиницю · можна продавати дорожче</div></td>
           <td><strong>${row.totalQty}</strong></td>
           <td>${row.reservedQty > 0 ? `<span style="color:var(--blue)">${row.reservedQty}</span>` : `<span class="muted">0</span>`}</td>
           <td><span style="${availStyle}">${row.availableQty}</span></td>
-          <td>${resList || `<span class="muted">—</span>`}</td>
+          <td>${resList || `<span class="muted">—</span>`}
+            ${currentAdmin?.role === "admin" ? `<div style="margin-top:8px"><button class="btn-sm btn-ghost" data-wh-product="${esc(p.id)}">Редагувати товар</button></div>${row.warehouseItems.map((item) => `<div style="margin-top:8px;font-size:12px">${item.quantity} шт. · ${esc(item.supplier?.name || "Без постачальника")} · закупівля ${money(item.purchasePrice)} <button class="btn-sm btn-ghost" data-wh-item="${esc(item.id)}">Редагувати партію</button></div>`).join("")}` : ""}</td>
         </tr>`;
       }).join("")}</tbody>
     </table></div>`;
+    body.querySelectorAll("[data-wh-product]").forEach((button) => button.addEventListener("click", async () => {
+      try {
+        productCache = await api("/api/products/admin/all");
+        const product = productCache.find((p) => p.id === button.dataset.whProduct);
+        if (!product) throw new Error("Товар не знайдено");
+        productModal(product, loadWarehouseBalance);
+      } catch (err) { alert(err.message); }
+    }));
+    body.querySelectorAll("[data-wh-item]").forEach((button) => button.addEventListener("click", () => {
+      const row = warehouseBalanceCache.find((r) => r.warehouseItems.some((i) => i.id === button.dataset.whItem));
+      warehouseItemModal(row.product, row.warehouseItems.find((i) => i.id === button.dataset.whItem));
+    }));
+  }
+
+  async function warehouseItemModal(product, item) {
+    if (currentAdmin?.role !== "admin") return;
+    try {
+      supplierCache = await api("/api/crm/suppliers");
+      openModal(`<h3>Редагувати партію</h3><p>${esc(product.name)}</p>
+        <div class="grid2"><div class="field"><label>Кількість</label><input id="wh_edit_qty" type="number" min="0" step="1" value="${item.quantity}"></div>
+        <div class="field"><label>Ціна закупівлі ($)</label><input id="wh_edit_price" type="number" min="0" step="1" value="${item.purchasePrice ?? ""}"></div></div>
+        <div class="field"><label>Постачальник</label><select id="wh_edit_supplier"><option value="">Без постачальника</option>${supplierCache.filter((s) => s.active || s.id === item.supplierId).map((s) => `<option value="${esc(s.id)}" ${s.id === item.supplierId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div>
+        <div class="field"><label>Нотатки</label><textarea id="wh_edit_notes" maxlength="500">${esc(item.notes)}</textarea></div>
+        <div class="error" id="wh_edit_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="wh_edit_cancel">Скасувати</button><button class="btn" id="wh_edit_save">Зберегти</button></div>`);
+      $("wh_edit_cancel").addEventListener("click", closeModal);
+      $("wh_edit_save").addEventListener("click", async () => {
+        const quantity = Number($("wh_edit_qty").value);
+        const purchasePrice = $("wh_edit_price").value === "" ? null : Number($("wh_edit_price").value);
+        if ($("wh_edit_qty").value === "" || !Number.isSafeInteger(quantity) || quantity < 0 || (purchasePrice !== null && (!Number.isSafeInteger(purchasePrice) || purchasePrice < 0))) {
+          $("wh_edit_error").textContent = "Вкажіть цілі невід’ємні кількість та ціну";
+          return;
+        }
+        const button = $("wh_edit_save");
+        button.disabled = true;
+        try {
+          await api("/api/warehouse/balance/" + encodeURIComponent(item.id), { method: "PUT", body: JSON.stringify({ quantity, purchasePrice, supplierId: $("wh_edit_supplier").value || null, notes: $("wh_edit_notes").value.trim() }) });
+          closeModal();
+          await loadWarehouseBalance();
+        } catch (err) { $("wh_edit_error").textContent = err.message; button.disabled = false; }
+      });
+    } catch (err) { alert(err.message); }
   }
 
   async function loadWarehouseReservations() {
@@ -2382,7 +2426,7 @@
     body.innerHTML = warehouseResCache.map((r) => {
       const cls = r.status === "searching" ? "res-searching" : r.status === "found" ? "res-found" : "";
       const statusBadge = r.status === "searching" ? `<span class="badge" style="background:#fde68a;color:#78350f">🔍 Шукаємо</span>` : r.status === "active" ? `<span class="badge" style="background:#d1fae5;color:#065f46">📦 Зарезервовано</span>` : r.status === "found" ? `<span class="badge" style="background:#bbf7d0;color:#14532d">✅ Знайдено</span>` : `<span class="badge">${esc(r.status)}</span>`;
-      const searchEdit = r.status === "searching" || r.status === "searching" ? `<div class="res-edit-row">
+      const searchEdit = currentAdmin?.role === "admin" && r.status === "searching" ? `<div class="res-edit-row">
         <div class="field" style="margin:0"><label>Хто шукає</label><input class="res-searcher" data-res-id="${esc(r.id)}" value="${esc(r.searcherName)}" placeholder="Ім'я менеджера"></div>
         <div class="field" style="margin:0"><label>Статус пошуку</label><select class="res-search-status" data-res-id="${esc(r.id)}">
           <option value="searching" ${r.searchStatus === "searching" ? "selected" : ""}>В пошуку</option>
@@ -2425,6 +2469,7 @@
 
   if ($("addWarehouseItem")) {
     $("addWarehouseItem").addEventListener("click", async () => {
+      if (currentAdmin?.role !== "admin") return;
       if (!productCache.length) productCache = await api("/api/products/admin/all").catch(() => []);
       if (!supplierCache.length) supplierCache = await api("/api/crm/suppliers").catch(() => []);
       openModal(`<h3>Прийом товару на склад</h3>

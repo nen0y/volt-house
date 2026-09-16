@@ -360,7 +360,7 @@
             <select id="warehouseBrandFilter"><option value="all">Усі бренди</option></select>
             <span class="muted" id="warehouseFilterCount"></span>
             <div class="spacer"></div>
-            <button class="btn btn-sm" id="addWarehouseItem">+ Прийом товару</button>
+            <button class="btn btn-sm" id="addWarehouseItem" data-admin-only>+ Прийом товару</button>
           </div>
           <div id="warehouseBalanceBody"></div>
         </div>
@@ -379,34 +379,6 @@
           <button class="btn btn-sm" id="addInstaller">+ Додати інсталятора</button>
         </div>
         <div class="admin-table-wrap" id="installersBody"></div>
-      </section>
-
-      <!-- Warehouse -->
-      <section id="tab-warehouse" style="display:none">
-        <div class="page-head">
-          <div><h1>Склад</h1><p>Баланс товарів на складі та резерви клієнтів.</p></div>
-        </div>
-        <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--slate-200)">
-          <button class="warehouse-sub-tab" data-wtab="balance" style="padding:10px 20px;border:none;background:none;font-weight:700;font-size:14px;color:var(--slate-900);border-bottom:2px solid var(--slate-900);cursor:pointer;font-family:inherit">📊 Баланс</button>
-          <button class="warehouse-sub-tab" data-wtab="reservations" style="padding:10px 20px;border:none;background:none;font-weight:600;font-size:14px;color:var(--slate-500);border-bottom:2px solid transparent;cursor:pointer;font-family:inherit">🔒 Резерви</button>
-        </div>
-        <div id="warehouse-balance-pane">
-          <div class="toolbar" style="margin-bottom:16px">
-            <input id="warehouseSearch" type="search" placeholder="Пошук товару…">
-            <select id="warehouseCategoryFilter"><option value="all">Усі категорії</option></select>
-            <select id="warehouseBrandFilter"><option value="all">Усі бренди</option></select>
-            <span class="muted" id="warehouseFilterCount"></span>
-            <div class="spacer"></div>
-            <button class="btn btn-sm" id="addWarehouseItem">+ Прийом товару</button>
-          </div>
-          <div id="warehouseBalanceBody"></div>
-        </div>
-        <div id="warehouse-reservations-pane" style="display:none">
-          <div class="toolbar" style="margin-bottom:16px">
-            <select id="warehouseResFilter"><option value="all">Всі резерви</option><option value="active">Зарезервовано</option><option value="searching">Шукаємо</option><option value="found">Знайдено</option></select>
-          </div>
-          <div id="warehouseReservationsBody"></div>
-        </div>
       </section>
 
       <!-- Suppliers -->

@@ -27,7 +27,8 @@ export async function requireAdmin(req: AuthedRequest, res: Response, next: Next
       req.originalUrl.startsWith("/api/auth") ||
       req.originalUrl.startsWith("/api/crm/installers") ||
       req.originalUrl.startsWith("/api/crm/price-matrix") ||
-      req.originalUrl.startsWith("/api/crm/prices");
+      req.originalUrl.startsWith("/api/crm/prices") ||
+      (req.method === "GET" && /^\/api\/warehouse\/(balance|reservations)\/?(?:\?|$)/.test(req.originalUrl));
     if (user.role === "manager" && !managerAllowed) {
       return res.status(403).json({ error: "У вас немає доступу до цього розділу" });
     }
