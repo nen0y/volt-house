@@ -273,7 +273,7 @@
   $("viewKanban").addEventListener("click", () => { crmViewMode = "kanban"; renderStageTabs(); renderCrmContent(filteredLeads()); });
 
   async function loadCrmProductOptions() {
-    if (!crmProductOptions.length) crmProductOptions = await api("/api/leads/product-options");
+    crmProductOptions = await api("/api/leads/product-options");
     return crmProductOptions;
   }
 
@@ -285,7 +285,7 @@
     const renderProductOptions = (query = "") => {
       const normalizedQuery = query.trim().toLocaleLowerCase("uk-UA");
       const products = normalizedQuery ? crmProductOptions.filter((product) => product.name.toLocaleLowerCase("uk-UA").includes(normalizedQuery)) : crmProductOptions;
-      $("crm_product_select").innerHTML = `<option value="">${products.length ? "— Оберіть товар —" : "Товарів не знайдено"}</option>${products.map((product) => `<option value="${esc(product.id)}">${esc(product.name)} · ${availabilityLabel(product.availability)}</option>`).join("")}<option value="__custom__">Інший товар — немає в каталозі</option>`;
+      $("crm_product_select").innerHTML = `<option value="">${products.length ? "— Оберіть товар —" : "Товарів не знайдено"}</option>${products.map((product) => `<option value="${esc(product.id)}">${esc(product.name)} · ${esc(product.stock?.availableQty > 0 || product.stock?.expectedQty > 0 ? stockLabel(product.stock) : product.supplierAvailability === "in_stock" ? "У постачальника" : availabilityLabel(product.availability))}</option>`).join("")}<option value="__custom__">Інший товар — немає в каталозі</option>`;
     };
     const render = () => {
       $("crm_selected_products").innerHTML = selected.length ? selected.map((item, index) => `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;background:${item.custom || item.availability === "unavailable" ? "#fff7ed" : "#f8fafc"};border-radius:7px;margin-top:5px"><span>${item.custom || item.availability === "unavailable" ? "⚠️ " : ""}${esc(item.name)} × ${item.quantity}${item.custom || item.availability === "unavailable" ? " · потрібно знайти" : item.availability === "preorder" ? " · очікується" : ""}</span><button type="button" class="btn-sm btn-danger" data-remove-crm-product="${index}">×</button></div>`).join("") : `<div class="muted">Товари ще не додані</div>`;
@@ -1483,18 +1483,28 @@
       return matchesText && matchesCategory && matchesBrand;
     });
     $("productFilterCount").textContent = `Показано ${rows.length} із ${productCache.length}`;
-    $("productsBody").innerHTML = rows.length ? `<table><thead><tr><th>Товар</th><th>Бренд</th><th>Категорії</th><th>Ціна</th><th>Статус</th><th>Параметри</th><th></th></tr></thead><tbody>${rows.map((p) => {
+    $("productsBody").innerHTML = rows.length ? `<table><thead><tr><th>Товар</th><th>Бренд</th><th>Категорії</th><th>Ціна</th><th>Статус / наявність</th><th>Параметри</th><th></th></tr></thead><tbody>${rows.map((p) => {
       const labels = (p.categoryKeys || [p.category]).map((key) => categoryCache.find((c) => c.key === key)?.label || key);
       const productImage = (p.images || []).find(Boolean) || (p.image && p.image !== "/placeholder.jpg" ? p.image : "");
       return `<tr class="${p.enabled === false ? "supplier-inactive" : ""}"><td><div class="product-cell"><div class="product-thumb${productImage ? "" : " missing"}">${productImage ? `<img data-product-thumb src="${esc(productImage)}" alt="">` : ""}</div><div><strong>${esc(p.name)}</strong><div class="muted" style="font-size:11px">${esc(p.id)}</div></div></div></td>
         <td>${esc(p.brand?.name || "—")}</td><td>${labels.map((label) => `<span class="badge" style="margin:2px">${esc(label)}</span>`).join("")}</td>
-        <td class="nowrap"><strong>${p.price > 0 ? money(p.price) : "—"}</strong></td><td><span class="badge ${p.enabled === false ? "s-new" : "s-done"}">${p.enabled === false ? "Вимкнений" : "Активний"}</span></td><td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency].filter(Boolean).map(esc).join(" · ") || "—"}</td>
-        <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-toggle-product="${esc(p.id)}">${p.enabled === false ? "Увімкнути" : "Вимкнути"}</button><button class="btn-sm btn-ghost" data-edit-product="${esc(p.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button></div></td></tr>`;
+        <td class="nowrap"><strong>${p.price > 0 ? money(p.price) : "—"}</strong></td><td><span class="badge ${p.enabled === false ? "s-new" : "s-done"}">${p.enabled === false ? "Вимкнений" : "Активний"}</span><div class="muted">${esc(stockLabel(p.stock))}</div></td><td class="muted" style="font-size:12px">${[p.power, p.capacity, p.efficiency].filter(Boolean).map(esc).join(" · ") || "—"}</td>
+        <td class="nowrap"><div class="row-actions"><button class="btn-sm btn-ghost" data-product-stock="${esc(p.id)}">Склад</button><button class="btn-sm btn-ghost" data-toggle-product="${esc(p.id)}">${p.enabled === false ? "Увімкнути" : "Вимкнути"}</button><button class="btn-sm btn-ghost" data-edit-product="${esc(p.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-product="${esc(p.id)}">Видалити</button></div></td></tr>`;
     }).join("")}</tbody></table>` : `<div class="empty">За цими фільтрами товарів немає</div>`;
     document.querySelectorAll("[data-product-thumb]").forEach((img) => img.addEventListener("error", () => {
       const frame = img.parentElement;
       img.remove();
       frame?.classList.add("missing");
+    }));
+    document.querySelectorAll("[data-product-stock]").forEach((button) => button.addEventListener("click", async () => {
+      const product = productCache.find((p) => p.id === button.dataset.productStock);
+      warehouseFilters.search = product.name;
+      warehouseFilters.category = "all"; warehouseFilters.brand = "all";
+      warehouseExpandedProduct = product.id;
+      $("warehouseSearch").value = product.name;
+      $("warehouseAvailabilityFilter").value = "all";
+      document.querySelector('[data-tab="warehouse"]').click();
+      document.querySelector('[data-wtab="balance"]').click();
     }));
     document.querySelectorAll("[data-edit-product]").forEach((b) => b.addEventListener("click", () => productModal(productCache.find((p) => p.id === b.dataset.editProduct))));
     document.querySelectorAll("[data-toggle-product]").forEach((b) => b.addEventListener("click", async () => {
@@ -2343,38 +2353,80 @@
     } catch (err) { body.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
   }
 
+  const warehouseDate = (date) => date ? date.slice(0, 10).split("-").reverse().join(".") : "—";
+  function stockLabel(stock) { return !stock ? "Наявність уточнюється" : stock.availableQty > 0 ? `На складі · ${stock.availableQty} шт.` : stock.expectedQty > 0 ? `Очікуємо ${warehouseDate(stock.arrivalDate)} · лише бронювання` : stock.reservedQty > 0 ? "Усе в резерві" : "Немає на складі"; }
+  let warehouseExpandedProduct = null;
+
+  async function refreshWarehouseStock() {
+    crmProductOptions = [];
+    productCache = [];
+    await loadWarehouseBalance();
+  }
+
   function renderWarehouseBalance() {
     const body = $("warehouseBalanceBody");
     if (!body) return;
-    if (!warehouseBalanceCache.length) { body.innerHTML = `<div class="empty" style="padding:48px;text-align:center">Товарів за вибраними фільтрами немає.</div>`; return; }
-    body.innerHTML = `<div class="admin-table-wrap"><table>
-      <thead><tr><th>Товар</th><th>Орієнтовна ціна продажу</th><th>Всього</th><th>Резерв</th><th>Доступно</th><th>Резерви клієнтів</th></tr></thead>
-      <tbody>${warehouseBalanceCache.map((row) => {
+    const filter = $("warehouseAvailabilityFilter")?.value || "all";
+    const rows = warehouseBalanceCache.filter((row) => filter === "all" || (filter === "in_stock" ? row.availableQty > 0 : filter === "preorder" ? row.expectedQty > 0 : row.totalQty === 0 && row.expectedQty === 0));
+    $("warehouseFilterCount").textContent = `${rows.length} товарів`;
+    if (!rows.length) { body.innerHTML = `<div class="empty">За цими фільтрами партій немає. Додайте партію існуючого товару.</div>`; return; }
+    const isAdmin = currentAdmin?.role === "admin";
+    body.innerHTML = `<div class="admin-table-wrap"><table class="warehouse-table">
+      <thead><tr><th>Товар / наявність</th><th>На складі</th><th>Резерв</th><th>Вільно</th><th>Очікуємо</th><th>Ціна продажу</th><th></th></tr></thead>
+      <tbody>${rows.map((row) => {
         const p = row.product;
-        const resList = row.reservations.map((r) => `<div style="font-size:12px;padding:2px 0">${r.status === "active" ? "📦" : "✅"} ${esc(r.lead.name)} ${esc(r.lead.phone)}</div>`).join("");
-        const availStyle = row.availableQty === 0 ? "color:var(--red);font-weight:700" : row.availableQty <= 1 ? "color:var(--amber);font-weight:700" : "color:var(--green);font-weight:700";
+        const expanded = warehouseExpandedProduct === p.id;
+        const category = categoryCache.find((c) => c.key === p.category)?.label || p.category;
         return `<tr>
-          <td><div style="font-weight:600">${esc(p.name)}</div><div class="muted" style="font-size:11px">${esc(p.category)}${p.brandName ? " · " + esc(p.brandName) : ""}</div></td>
-          <td><strong>${money(p.suggestedSalePrice)}</strong><div class="muted" style="font-size:12px">За одиницю · можна продавати дорожче</div></td>
-          <td><strong>${row.totalQty}</strong></td>
-          <td>${row.reservedQty > 0 ? `<span style="color:var(--blue)">${row.reservedQty}</span>` : `<span class="muted">0</span>`}</td>
-          <td><span style="${availStyle}">${row.availableQty}</span></td>
-          <td>${resList || `<span class="muted">—</span>`}
-            ${currentAdmin?.role === "admin" ? `<div style="margin-top:8px"><button class="btn-sm btn-ghost" data-wh-product="${esc(p.id)}">Редагувати товар</button></div>${row.warehouseItems.map((item) => `<div style="margin-top:8px;font-size:12px">${item.quantity} шт. · ${esc(item.supplier?.name || "Без постачальника")} · закупівля ${money(item.purchasePrice)} <button class="btn-sm btn-ghost" data-wh-item="${esc(item.id)}">Редагувати партію</button></div>`).join("")}` : ""}</td>
-        </tr>`;
-      }).join("")}</tbody>
-    </table></div>`;
+          <td><strong>${esc(p.name)}</strong><div class="muted">${esc(category)}${p.brandName ? " · " + esc(p.brandName) : ""}${p.enabled === false ? " · приховано на сайті" : ""}</div><div class="wh-stock ${row.availableQty > 0 ? "wh-stock-ready" : row.expectedQty > 0 ? "wh-stock-expected" : ""}">${esc(stockLabel(row))}</div></td>
+          <td>${row.totalQty}</td><td>${row.reservedQty}</td><td><strong class="${row.availableQty > 0 ? "wh-stock-ready" : ""}">${row.availableQty}</strong></td><td>${row.expectedQty || "—"}</td>
+          <td>${p.suggestedSalePrice > 0 ? money(p.suggestedSalePrice) : `<span class="muted">Не задана</span>`}</td>
+          <td><button class="btn-sm btn-ghost" data-wh-expand="${esc(p.id)}" aria-expanded="${expanded}">${expanded ? "Згорнути" : `Партії (${row.warehouseItems.length})`}</button></td>
+        </tr>${expanded ? `<tr class="wh-detail-row"><td colspan="7"><div class="wh-detail">
+          <div class="wh-detail-head"><div><strong>Партії · ${esc(p.name)}</strong><div class="muted">Залишок партії — кількість без уже виділених резервів.</div></div>${isAdmin ? `<div class="row-actions"><button class="btn-sm" data-wh-add="${esc(p.id)}">+ Додати партію</button><button class="btn-sm btn-ghost" data-wh-product="${esc(p.id)}">Картка товару</button></div>` : ""}</div>
+          ${row.warehouseItems.length ? `<div class="wh-batches">${row.warehouseItems.map((item) => `<div class="wh-batch ${item.quantity === 0 ? "wh-batch-empty" : ""}">
+            <div><strong>${esc(item.supplier?.name || "Без постачальника")}</strong><div class="muted">Додано ${warehouseDate(item.createdAt)}${item.notes ? ` · ${esc(item.notes)}` : ""}</div></div>
+            <div><strong>${item.quantity} шт.</strong><div class="muted">${item.purchasePrice != null ? `Закупівля ${money(item.purchasePrice)}` : "Ціну закупівлі не задано"}</div></div>
+            <div>${item.arrivalDate ? `<span class="wh-stock-expected">Очікуємо ${warehouseDate(item.arrivalDate)}</span><div class="muted">Лише бронювання</div>` : item.quantity > 0 ? `<span class="wh-stock-ready">На складі</span>` : `<span class="muted">Порожня партія</span>`}</div>
+            ${isAdmin ? `<div class="row-actions">${item.arrivalDate && item.quantity > 0 ? `<button class="btn-sm" data-wh-receive="${esc(item.id)}">Прийняти на склад</button>` : ""}<button class="btn-sm btn-ghost" data-wh-item="${esc(item.id)}">Редагувати</button><button class="btn-sm btn-danger" data-wh-delete="${esc(item.id)}">Видалити</button></div>` : ""}
+          </div>`).join("")}</div>` : `<p class="muted">Партій немає</p>`}
+          ${row.reservations.length ? `<div class="wh-reservations"><strong>Резерви клієнтів</strong>${row.reservations.map((r) => `<div>${esc(r.lead.name)} · ${esc(r.lead.phone)} <strong>${r.quantity} шт.</strong></div>`).join("")}</div>` : ""}
+        </div></td></tr>` : ""}`;
+      }).join("")}</tbody></table></div>`;
+    body.querySelectorAll("[data-wh-expand]").forEach((button) => button.addEventListener("click", () => {
+      warehouseExpandedProduct = warehouseExpandedProduct === button.dataset.whExpand ? null : button.dataset.whExpand;
+      renderWarehouseBalance();
+    }));
+    body.querySelectorAll("[data-wh-add]").forEach((button) => button.addEventListener("click", () => addWarehouseItemModal(button.dataset.whAdd)));
     body.querySelectorAll("[data-wh-product]").forEach((button) => button.addEventListener("click", async () => {
       try {
         productCache = await api("/api/products/admin/all");
         const product = productCache.find((p) => p.id === button.dataset.whProduct);
         if (!product) throw new Error("Товар не знайдено");
-        productModal(product, loadWarehouseBalance);
+        productModal(product, refreshWarehouseStock);
       } catch (err) { alert(err.message); }
     }));
+    const findBatch = (id) => {
+      const row = warehouseBalanceCache.find((r) => r.warehouseItems.some((i) => i.id === id));
+      return { row, item: row.warehouseItems.find((i) => i.id === id) };
+    };
     body.querySelectorAll("[data-wh-item]").forEach((button) => button.addEventListener("click", () => {
-      const row = warehouseBalanceCache.find((r) => r.warehouseItems.some((i) => i.id === button.dataset.whItem));
-      warehouseItemModal(row.product, row.warehouseItems.find((i) => i.id === button.dataset.whItem));
+      const { row, item } = findBatch(button.dataset.whItem);
+      warehouseItemModal(row.product, item);
+    }));
+    body.querySelectorAll("[data-wh-delete]").forEach((button) => button.addEventListener("click", async () => {
+      const { row, item } = findBatch(button.dataset.whDelete);
+      if (!confirm(`Видалити партію «${row.product.name}» (${item.quantity} шт., ${item.supplier?.name || "без постачальника"})? Залишок і наявність товару будуть перераховані.`)) return;
+      button.disabled = true;
+      try { await api("/api/warehouse/balance/" + encodeURIComponent(item.id), { method: "DELETE" }); await refreshWarehouseStock(); }
+      catch (err) { alert(err.message); button.disabled = false; }
+    }));
+    body.querySelectorAll("[data-wh-receive]").forEach((button) => button.addEventListener("click", async () => {
+      const { row, item } = findBatch(button.dataset.whReceive);
+      if (!confirm(`Підтвердити фактичне надходження ${item.quantity} шт. «${row.product.name}»?`)) return;
+      button.disabled = true;
+      try { await api("/api/warehouse/balance/" + encodeURIComponent(item.id), { method: "PUT", body: JSON.stringify({ arrivalDate: null }) }); await refreshWarehouseStock(); }
+      catch (err) { alert(err.message); button.disabled = false; }
     }));
   }
 
@@ -2386,6 +2438,7 @@
         <div class="grid2"><div class="field"><label>Кількість</label><input id="wh_edit_qty" type="number" min="0" step="1" value="${item.quantity}"></div>
         <div class="field"><label>Ціна закупівлі ($)</label><input id="wh_edit_price" type="number" min="0" step="1" value="${item.purchasePrice ?? ""}"></div></div>
         <div class="field"><label>Постачальник</label><select id="wh_edit_supplier"><option value="">Без постачальника</option>${supplierCache.filter((s) => s.active || s.id === item.supplierId).map((s) => `<option value="${esc(s.id)}" ${s.id === item.supplierId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div>
+        <div class="field"><label for="wh_edit_arrival">Очікувана дата надходження · лише бронювання</label><input id="wh_edit_arrival" type="date" value="${esc(item.arrivalDate || "")}"><div class="muted">Для підтвердження надходження скористайтеся кнопкою «Прийняти на склад» у списку партій.</div></div>
         <div class="field"><label>Нотатки</label><textarea id="wh_edit_notes" maxlength="500">${esc(item.notes)}</textarea></div>
         <div class="error" id="wh_edit_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="wh_edit_cancel">Скасувати</button><button class="btn" id="wh_edit_save">Зберегти</button></div>`);
       $("wh_edit_cancel").addEventListener("click", closeModal);
@@ -2399,9 +2452,9 @@
         const button = $("wh_edit_save");
         button.disabled = true;
         try {
-          await api("/api/warehouse/balance/" + encodeURIComponent(item.id), { method: "PUT", body: JSON.stringify({ quantity, purchasePrice, supplierId: $("wh_edit_supplier").value || null, notes: $("wh_edit_notes").value.trim() }) });
+          await api("/api/warehouse/balance/" + encodeURIComponent(item.id), { method: "PUT", body: JSON.stringify({ quantity, purchasePrice, arrivalDate: $("wh_edit_arrival").value || null, supplierId: $("wh_edit_supplier").value || null, notes: $("wh_edit_notes").value.trim() }) });
           closeModal();
-          await loadWarehouseBalance();
+          await refreshWarehouseStock();
         } catch (err) { $("wh_edit_error").textContent = err.message; button.disabled = false; }
       });
     } catch (err) { alert(err.message); }
@@ -2467,12 +2520,11 @@
     });
   }
 
-  if ($("addWarehouseItem")) {
-    $("addWarehouseItem").addEventListener("click", async () => {
+  async function addWarehouseItemModal(productId = "") {
       if (currentAdmin?.role !== "admin") return;
       if (!productCache.length) productCache = await api("/api/products/admin/all").catch(() => []);
       if (!supplierCache.length) supplierCache = await api("/api/crm/suppliers").catch(() => []);
-      openModal(`<h3>Прийом товару на склад</h3>
+      openModal(`<h3>Додати партію на склад</h3>
         <div class="field"><label>Товар *</label>
           <input id="wh_product_search" type="search" placeholder="Пошук…" style="margin-bottom:8px">
           <select id="wh_product_select" style="width:100%;padding:10px;border:1px solid var(--slate-200);border-radius:8px;font-family:inherit;font-size:14px">
@@ -2485,6 +2537,7 @@
           <div class="field"><label>Ціна закупівлі ($)</label><input id="wh_price" type="number" min="0" placeholder="0"></div>
         </div>
         <div class="field"><label>Постачальник</label><select id="wh_supplier" style="width:100%;padding:10px;border:1px solid var(--slate-200);border-radius:8px;font-family:inherit;font-size:14px"><option value="">— Не вибрано —</option>${supplierCache.filter((s) => s.active).map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("")}</select></div>
+        <div class="field"><label for="wh_arrival">Очікувана дата надходження · лише бронювання</label><input id="wh_arrival" type="date"><div class="muted">З датою — очікувана партія, доступна лише для бронювання. Без дати — товар уже на складі.</div></div>
         <div class="field"><label>Нотатки</label><input id="wh_notes" placeholder="Опис партії, серійний номер…"></div>
         <div class="error" id="wh_error"></div>
         <div class="modal-actions"><button class="btn btn-ghost" id="wh_cancel">Скасувати</button><button class="btn" id="wh_save">Додати на склад</button></div>`);
@@ -2492,6 +2545,7 @@
         const items = q ? productCache.filter((p) => p.enabled && p.name.toLocaleLowerCase("uk-UA").includes(q.toLocaleLowerCase("uk-UA"))) : productCache.filter((p) => p.enabled);
         $("wh_product_select").innerHTML = `<option value="">${items.length ? "— Оберіть товар —" : "Не знайдено"}</option>${items.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}`;
       };
+      if (productId) $("wh_product_select").value = productId;
       $("wh_product_search").addEventListener("input", (e) => renderProductOpts(e.target.value));
       $("wh_cancel").addEventListener("click", closeModal);
       $("wh_save").addEventListener("click", async () => {
@@ -2499,12 +2553,13 @@
         const quantity = parseInt($("wh_quantity").value, 10);
         if (!productId || !quantity || quantity < 1) return ($("wh_error").textContent = "Оберіть товар та вкажіть кількість");
         try {
-          await api("/api/warehouse/balance", { method: "POST", body: JSON.stringify({ productId, quantity, supplierId: $("wh_supplier").value || null, purchasePrice: $("wh_price").value ? parseInt($("wh_price").value, 10) : null, notes: $("wh_notes").value.trim() }) });
-          closeModal(); await loadWarehouseBalance();
+          await api("/api/warehouse/balance", { method: "POST", body: JSON.stringify({ productId, quantity, arrivalDate: $("wh_arrival").value || null, supplierId: $("wh_supplier").value || null, purchasePrice: $("wh_price").value ? parseInt($("wh_price").value, 10) : null, notes: $("wh_notes").value.trim() }) });
+          closeModal(); await refreshWarehouseStock();
         } catch (err) { $("wh_error").textContent = err.message; }
       });
-    });
   }
+  $("addWarehouseItem")?.addEventListener("click", () => addWarehouseItemModal());
+  $("warehouseAvailabilityFilter")?.addEventListener("change", renderWarehouseBalance);
 
   if ($("warehouseSearch")) $("warehouseSearch").addEventListener("input", (e) => { warehouseFilters.search = e.target.value; loadWarehouseBalance(); });
   if ($("warehouseCategoryFilter")) $("warehouseCategoryFilter").addEventListener("change", (e) => { warehouseFilters.category = e.target.value; loadWarehouseBalance(); });

@@ -256,6 +256,20 @@
       .page-head { flex-direction: column; }
       .crm-row { grid-template-columns: 1fr; gap: 8px; }
     }
+  
+    .warehouse-table td { vertical-align: middle; }
+    .warehouse-table .muted { font-size: 12px; margin-top: 4px; }
+    .wh-stock { font-size: 12px; margin-top: 8px; font-weight: 600; }
+    .wh-stock-ready { color: var(--green); }
+    .wh-stock-expected { color: #a16207; }
+    .wh-detail-row > td { padding: 0 16px 16px; background: #f8fafc; }
+    .wh-detail { padding: 18px; border: 1px solid var(--slate-200); border-radius: 10px; background: white; }
+    .wh-detail-head { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .wh-batch { display: grid; grid-template-columns: minmax(160px, 1.2fr) minmax(100px, .6fr) minmax(140px, .8fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--slate-200); font-size: 13px; }
+    .wh-batch-empty { background: #f8fafc; }
+    .wh-reservations { padding-top: 16px; font-size: 13px; }
+    .wh-reservations > div { margin-top: 8px; }
+    @media(max-width: 900px) { .wh-batch { grid-template-columns: 1fr 1fr; } .wh-batch .row-actions { flex-wrap: wrap; } }
   </style>
 </head>
 <body>
@@ -358,9 +372,10 @@
             <input id="warehouseSearch" type="search" placeholder="Пошук товару…">
             <select id="warehouseCategoryFilter"><option value="all">Усі категорії</option></select>
             <select id="warehouseBrandFilter"><option value="all">Усі бренди</option></select>
+            <select id="warehouseAvailabilityFilter"><option value="all">Усі залишки</option><option value="in_stock">Є вільні</option><option value="preorder">Очікуються</option><option value="empty">Без залишку</option></select>
             <span class="muted" id="warehouseFilterCount"></span>
             <div class="spacer"></div>
-            <button class="btn btn-sm" id="addWarehouseItem" data-admin-only>+ Прийом товару</button>
+            <button class="btn btn-sm" id="addWarehouseItem" data-admin-only>+ Додати партію</button>
           </div>
           <div id="warehouseBalanceBody"></div>
         </div>

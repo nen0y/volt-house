@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "../prisma";
 import { requireAdmin, requireSuperAdmin, AuthedRequest } from "../middleware/auth";
 
+import { stockSummary } from "../stock";
+
 export const warehouseRouter = Router();
 
 // GET /api/warehouse/balance
@@ -13,35 +15,31 @@ warehouseRouter.get("/balance", requireAdmin, async (req, res) => {
 
   const products = await prisma.product.findMany({
     where: {
-      enabled: true,
+
       ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
       ...(brand ? { brandSlug: brand } : {}),
       ...(category ? { categoryLinks: { some: { categoryKey: category } } } : {}),
     },
     select: {
-      id: true, name: true, category: true, image: true, brandSlug: true, price: true,
+      id: true, name: true, category: true, image: true, brandSlug: true, price: true, enabled: true,
       brand: { select: { name: true } },
-      warehouseItems: { select: { id: true, quantity: true, supplierId: true, purchasePrice: true, notes: true, createdAt: true, supplier: { select: { id: true, name: true } } } },
+      warehouseItems: { select: { id: true, quantity: true, arrivalDate: true, supplierId: true, purchasePrice: true, notes: true, createdAt: true, supplier: { select: { id: true, name: true } } } },
       reservations: {
         where: { status: { in: ["active", "found"] } },
-        select: { id: true, leadId: true, quantity: true, status: true, lead: { select: { name: true, phone: true } }, product: { select: { id: true, name: true } } },
+        select: { id: true, leadId: true, quantity: true, status: true, deductedQty: true, lead: { select: { name: true, phone: true } }, product: { select: { id: true, name: true } } },
       },
     },
     orderBy: { name: "asc" },
   });
 
   const result = products.map((p) => {
-    const totalQty = p.warehouseItems.reduce((sum, item) => sum + item.quantity, 0);
-    const reservedQty = p.reservations.reduce((sum, r) => sum + r.quantity, 0);
     return {
-      product: { id: p.id, name: p.name, category: p.category, image: p.image, brandSlug: p.brandSlug, brandName: p.brand?.name || null, suggestedSalePrice: p.price },
-      totalQty,
-      reservedQty,
-      availableQty: Math.max(0, totalQty - reservedQty),
+      product: { id: p.id, name: p.name, category: p.category, image: p.image, brandSlug: p.brandSlug, brandName: p.brand?.name || null, suggestedSalePrice: p.price, enabled: p.enabled },
+      ...stockSummary(p.warehouseItems, p.reservations),
       warehouseItems: p.warehouseItems,
       reservations: p.reservations,
     };
-  }).filter((p) => p.totalQty > 0 || p.reservedQty > 0);
+  }).filter((p) => p.warehouseItems.length > 0 || p.reservedQty > 0);
 
   res.json(result);
 });
@@ -51,6 +49,7 @@ warehouseRouter.post("/balance", requireAdmin, requireSuperAdmin, async (req: Au
   const schema = z.object({
     productId: z.string(),
     quantity: z.number().int().positive(),
+    arrivalDate: z.string().date().nullable().optional(),
     supplierId: z.string().optional().nullable(),
     purchasePrice: z.number().int().min(0).optional().nullable(),
     notes: z.string().max(500).default(""),
@@ -61,7 +60,7 @@ warehouseRouter.post("/balance", requireAdmin, requireSuperAdmin, async (req: Au
   const product = await prisma.product.findUnique({ where: { id: d.productId } });
   if (!product) return res.status(404).json({ error: "Товар не знайдено" });
   const item = await prisma.warehouseItem.create({
-    data: { productId: d.productId, quantity: d.quantity, supplierId: d.supplierId || null, purchasePrice: d.purchasePrice ?? null, notes: d.notes },
+    data: { productId: d.productId, quantity: d.quantity, arrivalDate: d.arrivalDate ?? null, supplierId: d.supplierId || null, purchasePrice: d.purchasePrice ?? null, notes: d.notes },
     include: { product: { select: { id: true, name: true } }, supplier: { select: { id: true, name: true } } },
   });
   res.status(201).json(item);
@@ -71,6 +70,7 @@ warehouseRouter.post("/balance", requireAdmin, requireSuperAdmin, async (req: Au
 warehouseRouter.put("/balance/:id", requireAdmin, requireSuperAdmin, async (req, res) => {
   const schema = z.object({
     quantity: z.number().int().min(0).optional(),
+    arrivalDate: z.string().date().nullable().optional(),
     supplierId: z.string().optional().nullable(),
     purchasePrice: z.number().int().min(0).optional().nullable(),
     notes: z.string().max(500).optional(),
@@ -78,15 +78,35 @@ warehouseRouter.put("/balance/:id", requireAdmin, requireSuperAdmin, async (req,
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Некоректні дані" });
   try {
-    const item = await prisma.warehouseItem.update({ where: { id: req.params.id }, data: parsed.data });
+    const item = await prisma.$transaction(async (tx) => {
+      const current = await tx.warehouseItem.findUnique({ where: { id: req.params.id } });
+      if (!current) return null;
+      const reducing = (parsed.data.quantity !== undefined && parsed.data.quantity < current.quantity) || (!current.arrivalDate && !!parsed.data.arrivalDate);
+      if (reducing && await tx.reservation.count({ where: { productId: current.productId, status: { in: ["active", "found"] } } })) {
+        throw new Error("Товар має активні резерви. Спочатку звільніть резерви, щоб зменшити партію або перевести її в очікувані.");
+      }
+      return tx.warehouseItem.update({ where: { id: req.params.id }, data: parsed.data });
+    }, { isolationLevel: "Serializable" });
+    if (!item) return res.status(404).json({ error: "Запис не знайдено" });
     res.json(item);
-  } catch { res.status(404).json({ error: "Запис не знайдено" }); }
+  } catch (error) { res.status(409).json({ error: error instanceof Error && !error.message.includes("prisma") ? error.message : "Залишок змінився. Оновіть склад і повторіть дію." }); }
 });
 
 // DELETE /api/warehouse/balance/:id
 warehouseRouter.delete("/balance/:id", requireAdmin, requireSuperAdmin, async (req, res) => {
-  try { await prisma.warehouseItem.delete({ where: { id: req.params.id } }); res.json({ ok: true }); }
-  catch { res.status(404).json({ error: "Запис не знайдено" }); }
+  try {
+    const deleted = await prisma.$transaction(async (tx) => {
+      const item = await tx.warehouseItem.findUnique({ where: { id: req.params.id } });
+      if (!item) return false;
+      if (item.quantity > 0 && await tx.reservation.count({ where: { productId: item.productId, status: { in: ["active", "found"] } } })) {
+        throw new Error("Товар має активні резерви. Спочатку звільніть резерви або видаліть лише порожню партію.");
+      }
+      await tx.warehouseItem.delete({ where: { id: item.id } });
+      return true;
+    }, { isolationLevel: "Serializable" });
+    if (!deleted) return res.status(404).json({ error: "Запис не знайдено" });
+    res.json({ ok: true });
+  } catch (error) { res.status(409).json({ error: error instanceof Error && !error.message.includes("prisma") ? error.message : "Не вдалося видалити партію. Оновіть склад і повторіть дію." }); }
 });
 
 // GET /api/warehouse/reservations
@@ -124,7 +144,7 @@ warehouseRouter.patch("/reservations/:id", requireAdmin, requireSuperAdmin, asyn
         });
         await tx.reservation.update({
           where: { id: req.params.id },
-          data: { status: "found", searchStatus: "found", searcherName: d.searcherName ?? reservation.searcherName, supplierId: d.supplierId !== undefined ? (d.supplierId || null) : reservation.supplierId, notes: d.notes ?? reservation.notes },
+          data: { status: "found", deductedQty: 0, searchStatus: "found", searcherName: d.searcherName ?? reservation.searcherName, supplierId: d.supplierId !== undefined ? (d.supplierId || null) : reservation.supplierId, notes: d.notes ?? reservation.notes },
         });
       });
     } else {

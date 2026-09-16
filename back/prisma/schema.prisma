@@ -242,6 +242,7 @@ model WarehouseItem {
   quantity      Int       @default(0)
   supplierId    String?
   supplier      Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  arrivalDate   String?   // YYYY-MM-DD; null means received, otherwise reservation only
   purchasePrice Int?
   notes         String    @default("")
   createdAt     DateTime  @default(now())
@@ -259,6 +260,7 @@ model Reservation {
   product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   quantity     Int       @default(1)
   status       String    @default("active") // active | searching | found | completed | cancelled
+  deductedQty  Int?      // Exact units already removed from received batches; null is legacy
   searcherName String    @default("")
   searchStatus String    @default("searching") // searching | not_found | found
   supplierId   String?

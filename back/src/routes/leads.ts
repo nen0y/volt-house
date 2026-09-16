@@ -6,6 +6,8 @@ import { sendLeadTelegram, sendUnavailableProductTelegram } from "../telegram";
 import { leadsLimiter } from "../middleware/rateLimit";
 import { parseItems } from "../json";
 
+import { stockInclude, productStock, deductedStock, takeReceivedStock, restoreReceivedStock } from "../stock";
+
 export const leadsRouter = Router();
 
 // items is stored as a JSON string (SQLite) — expose it as an array to clients.
@@ -107,14 +109,16 @@ leadsRouter.get("/", requireAdmin, async (req: AuthedRequest, res) => {
 leadsRouter.get("/product-options", requireAdmin, async (_req, res) => {
   const products = await prisma.product.findMany({
     where: { enabled: true },
-    select: { id: true, name: true, price: true, supplierPrices: { select: { availability: true, price: true } } },
+    select: { ...stockInclude, id: true, name: true, price: true, supplierPrices: { where: { supplier: { active: true } }, select: { availability: true, price: true, arrivalDate: true } } },
     orderBy: { name: "asc" },
   });
   res.json(products.map((product) => {
     const available = product.supplierPrices.filter((row) => row.price > 0);
-    const availability = available.some((row) => row.availability === "in_stock") ? "in_stock"
+    const supplierAvailability = available.some((row) => row.availability === "in_stock" && (!row.arrivalDate || row.arrivalDate <= new Date())) ? "in_stock"
       : available.some((row) => row.availability === "preorder") ? "preorder" : "unavailable";
-    return { id: product.id, name: product.name, price: product.price, availability };
+    const stock = productStock(product);
+    const availability = stock.availability === "unavailable" ? supplierAvailability : stock.availability;
+    return { id: product.id, name: product.name, price: product.price, availability, supplierAvailability, stock };
   }));
 });
 
@@ -272,6 +276,17 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
       const manager = await prisma.adminUser.findFirst({ where: { id: managerId, role: "manager", active: true } });
       if (!manager) return res.status(400).json({ error: "Оберіть активного менеджера" });
     }
+    // Expected batches can be reserved but cannot be sold before receipt.
+    if (fields.status === "won" && previous.status !== "won") {
+      const reservations = await prisma.reservation.findMany({ where: { leadId: previous.id, status: { notIn: ["cancelled", "completed"] } } });
+      const productIds = [...new Set([...(items ?? parseItems(previous.items) ?? []).map((item) => item.id), ...reservations.map((r) => r.productId)])];
+      for (const productId of productIds) {
+        const batches = await prisma.warehouseItem.findMany({ where: { productId } });
+        if (batches.some((batch) => batch.arrivalDate && batch.quantity > 0) && !batches.some((batch) => !batch.arrivalDate && batch.quantity > 0) && !reservations.some((r) => r.productId === productId && deductedStock(r) > 0)) {
+          return res.status(409).json({ error: "Товар очікується на складі — доступне лише бронювання. Спочатку підтвердьте надходження партії." });
+        }
+      }
+    }
     const effectiveManagerId = managerId !== undefined ? managerId : previous.managerId;
     const enteringWon = fields.status === "won" && previous.status !== "won";
     const correctingWonSeller = req.admin!.role === "admin" && previous.status === "won" && managerId !== undefined && !!managerId;
@@ -293,16 +308,18 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     };
     // Compare ownership in the write itself so a former manager cannot save
     // a stale card after another manager has taken it over.
-    const saved = await prisma.lead.updateMany({
+    await prisma.$transaction(async (tx) => {
+      const runStockChange = async (fn: (client: typeof tx) => Promise<void>) => fn(tx);
+    const saved = await tx.lead.updateMany({
       where: { id: req.params.id, ...(req.admin!.role === "manager" ? { managerId: previous.managerId } : {}) },
       data,
     });
-    if (!saved.count) return res.status(409).json({ error: "Відповідальний менеджер змінився. Оновіть список заявок" });
+    if (!saved.count) throw new Error("Відповідальний менеджер змінився. Оновіть список заявок");
 
     // Reservation logic after lead status change
     const RESERVE_STATUSES = ["contacted", "sourcing", "proposal"];
     if (fields.status && fields.status !== previous.status) {
-      const existingReservations = await prisma.reservation.findMany({
+      const existingReservations = await tx.reservation.findMany({
         where: { leadId: req.params.id, status: { notIn: ["cancelled", "completed"] } },
       });
 
@@ -311,12 +328,12 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
           // Create new reservations for each product in the list
           if (reservedProducts && reservedProducts.length > 0) {
             const reservationStatus = fields.status === "sourcing" ? "searching" : "active";
-            await prisma.$transaction(async (tx) => {
+            await runStockChange(async (tx) => {
               for (const { productId, quantity } of reservedProducts) {
-                await tx.reservation.create({ data: { leadId: req.params.id, productId, quantity, status: reservationStatus, searchStatus: reservationStatus === "searching" ? "searching" : "found" } });
+                const reservation = await tx.reservation.create({ data: { leadId: req.params.id, productId, quantity, status: reservationStatus, deductedQty: 0, searchStatus: reservationStatus === "searching" ? "searching" : "found" } });
                 if (reservationStatus === "active") {
-                  const warehouseItem = await tx.warehouseItem.findFirst({ where: { productId, quantity: { gt: 0 } } });
-                  if (warehouseItem) await tx.warehouseItem.update({ where: { id: warehouseItem.id }, data: { quantity: { decrement: Math.min(quantity, warehouseItem.quantity) } } });
+                  const deductedQty = await takeReceivedStock(tx, productId, quantity);
+                  await tx.reservation.update({ where: { id: reservation.id }, data: { deductedQty } });
                 }
               }
             });
@@ -324,33 +341,42 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
         } else {
           // Update all existing reservations for the new status
           const newResStatus = fields.status === "sourcing" ? "searching" : "active";
-          await prisma.$transaction(async (tx) => {
+          await runStockChange(async (tx) => {
             for (const r of existingReservations) {
               if (r.status === newResStatus || r.status === "found") continue;
               if (r.status === "active" && newResStatus === "searching") {
-                await tx.reservation.update({ where: { id: r.id }, data: { status: "searching", searchStatus: "searching" } });
-                const warehouseItem = await tx.warehouseItem.findFirst({ where: { productId: r.productId } });
-                if (warehouseItem) await tx.warehouseItem.update({ where: { id: warehouseItem.id }, data: { quantity: { increment: r.quantity } } });
+                await tx.reservation.update({ where: { id: r.id }, data: { status: "searching", searchStatus: "searching", deductedQty: 0 } });
+                await restoreReceivedStock(tx, r);
               } else if (r.status === "searching" && newResStatus === "active") {
-                await tx.reservation.update({ where: { id: r.id }, data: { status: "active" } });
-                const warehouseItem = await tx.warehouseItem.findFirst({ where: { productId: r.productId, quantity: { gt: 0 } } });
-                if (warehouseItem) await tx.warehouseItem.update({ where: { id: warehouseItem.id }, data: { quantity: { decrement: r.quantity } } });
+                await tx.reservation.update({ where: { id: r.id }, data: { status: "active", deductedQty: 0 } });
+                const deductedQty = await takeReceivedStock(tx, r.productId, r.quantity);
+                await tx.reservation.update({ where: { id: r.id }, data: { deductedQty } });
               }
             }
           });
         }
       } else if (fields.status === "won" && existingReservations.length) {
-        await prisma.reservation.updateMany({ where: { leadId: req.params.id, status: { notIn: ["cancelled", "completed"] } }, data: { status: "completed" } });
+        await runStockChange(async (tx) => {
+          for (const r of existingReservations) {
+            const remaining = r.quantity - deductedStock(r);
+            if (remaining > 0) {
+              const deducted = await takeReceivedStock(tx, r.productId, remaining);
+              if (deducted < remaining) throw new Error("Недостатньо товару на складі для завершення продажу. Спочатку прийміть партію.");
+            }
+          }
+          await tx.reservation.updateMany({ where: { leadId: req.params.id, status: { notIn: ["cancelled", "completed"] } }, data: { status: "completed" } });
+        });
       } else if (fields.status === "lost" && existingReservations.length) {
-        await prisma.$transaction(async (tx) => {
+        await runStockChange(async (tx) => {
           await tx.reservation.updateMany({ where: { leadId: req.params.id, status: { notIn: ["cancelled", "completed"] } }, data: { status: "cancelled" } });
           for (const r of existingReservations.filter((r) => r.status === "active" || r.status === "found")) {
-            const warehouseItem = await tx.warehouseItem.findFirst({ where: { productId: r.productId } });
-            if (warehouseItem) await tx.warehouseItem.update({ where: { id: warehouseItem.id }, data: { quantity: { increment: r.quantity } } });
+            await restoreReceivedStock(tx, r);
           }
         });
       }
     }
+
+    }, { isolationLevel: "Serializable" });
 
     const updated = await prisma.lead.findUniqueOrThrow({ where: { id: req.params.id } });
     const previousItems = parseItems(previous.items) || [];
@@ -380,8 +406,8 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     }
     const result = await prisma.lead.findUnique({ where: { id: updated.id }, include: leadInclude });
     res.json(toDto(result));
-  } catch {
-    res.status(404).json({ error: "Заявку не знайдено" });
+  } catch (error) {
+    res.status(409).json({ error: error instanceof Error && !error.message.includes("prisma") ? error.message : "Не вдалося оновити заявку. Оновіть дані й повторіть дію." });
   }
 });
 
@@ -393,8 +419,7 @@ leadsRouter.delete("/:id", requireAdmin, requireSuperAdmin, async (req, res) => 
     });
     await prisma.$transaction(async (tx) => {
       for (const r of activeReservations) {
-        const warehouseItem = await tx.warehouseItem.findFirst({ where: { productId: r.productId } });
-        if (warehouseItem) await tx.warehouseItem.update({ where: { id: warehouseItem.id }, data: { quantity: { increment: r.quantity } } });
+        await restoreReceivedStock(tx, r);
       }
       await tx.lead.delete({ where: { id: req.params.id } });
     });

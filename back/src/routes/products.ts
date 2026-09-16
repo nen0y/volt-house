@@ -5,6 +5,8 @@ import { requireAdmin } from "../middleware/auth";
 import { parseStringArray } from "../json";
 import { upload, deleteUploadByUrl } from "../upload";
 
+import { stockInclude, productStock } from "../stock";
+
 export const productsRouter = Router();
 const productIncludes = { brand: true, categoryLinks: { select: { categoryKey: true } } } as const;
 
@@ -28,6 +30,7 @@ function toDto(p: any) {
     image: p.image,
     images: parseStringArray(p.images),
     enabled: p.enabled,
+    ...(p.warehouseItems ? { stock: productStock(p) } : {}),
   };
 }
 
@@ -58,7 +61,7 @@ productsRouter.get("/", async (req, res) => {
 // GET /api/products/admin/all — includes disabled products for management.
 productsRouter.get("/admin/all", requireAdmin, async (_req, res) => {
   const rows = await prisma.product.findMany({
-    include: productIncludes,
+    include: { ...productIncludes, ...stockInclude },
     orderBy: [{ enabled: "desc" }, { sortOrder: "asc" }, { name: "asc" }],
   });
   res.json(rows.map(toDto));
