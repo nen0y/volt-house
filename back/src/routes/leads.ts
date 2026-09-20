@@ -8,18 +8,21 @@ import { parseItems } from "../json";
 
 import { stockInclude, productStock, deductedStock, takeReceivedStock, restoreReceivedStock } from "../stock";
 
+import { resolveCosts, commissionFor, COMMISSION_PERCENT } from "../commission";
+
 export const leadsRouter = Router();
 
 // items is stored as a JSON string (SQLite) — expose it as an array to clients.
 function toDto(l: any) {
   const { reservations, ...rest } = l;
-  return { ...rest, items: parseItems(l.items), reservations: reservations || [] };
+  return { ...rest, items: parseItems(l.items), financials: commissionFor(parseItems(l.items) || [], l.total), reservations: reservations || [] };
 }
 
 const itemSchema = z.object({
   id: z.string(),
   name: z.string(),
-  price: z.number(),
+  price: z.number().int().nonnegative(),
+  warehouseItemId: z.string().nullish(),
   quantity: z.number().int().positive(),
   availability: z.enum(["in_stock", "preorder", "unavailable"]).optional(),
   custom: z.boolean().optional(),
@@ -109,7 +112,7 @@ leadsRouter.get("/", requireAdmin, async (req: AuthedRequest, res) => {
 leadsRouter.get("/product-options", requireAdmin, async (_req, res) => {
   const products = await prisma.product.findMany({
     where: { enabled: true },
-    select: { ...stockInclude, id: true, name: true, price: true, supplierPrices: { where: { supplier: { active: true } }, select: { availability: true, price: true, arrivalDate: true } } },
+    select: { ...stockInclude, warehouseItems: { select: { id: true, quantity: true, arrivalDate: true, purchasePrice: true, supplier: { select: { name: true } } } }, id: true, name: true, price: true, supplierPrices: { where: { supplier: { active: true } }, select: { availability: true, price: true, arrivalDate: true } } },
     orderBy: { name: "asc" },
   });
   res.json(products.map((product) => {
@@ -118,7 +121,7 @@ leadsRouter.get("/product-options", requireAdmin, async (_req, res) => {
       : available.some((row) => row.availability === "preorder") ? "preorder" : "unavailable";
     const stock = productStock(product);
     const availability = stock.availability === "unavailable" ? supplierAvailability : stock.availability;
-    return { id: product.id, name: product.name, price: product.price, availability, supplierAvailability, stock };
+    return { id: product.id, name: product.name, price: product.price, availability, supplierAvailability, stock, batches: product.warehouseItems.map((b) => ({ id: b.id, quantity: b.quantity, arrivalDate: b.arrivalDate, purchasePrice: b.purchasePrice, supplierName: b.supplier?.name || "Без постачальника" })) };
   }));
 });
 
@@ -166,6 +169,9 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
     const manager = await prisma.adminUser.findFirst({ where: { id: d.managerId, role: "manager", active: true } });
     if (!manager) return res.status(400).json({ error: "Оберіть активного менеджера" });
   }
+  let costedItems;
+  try { costedItems = await resolveCosts(prisma, d.items || []); }
+  catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : "Перевірте складську партію" }); }
   const lead = await prisma.lead.create({
     data: {
       type: d.type,
@@ -174,7 +180,7 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
       email: d.email || null,
       interest: d.interest || null,
       message: d.message || null,
-      items: d.items?.length ? JSON.stringify(d.items) : null,
+      items: costedItems.length ? JSON.stringify(costedItems) : null,
       total: d.total ?? null,
       status: d.status,
       paymentStatus: d.paymentStatus,
@@ -221,14 +227,19 @@ leadsRouter.get("/manager-stats", requireAdmin, requireSuperAdmin, async (req, r
     where: { role: "manager" },
     select: {
       id: true, name: true, email: true, active: true, commissionPercent: true,
-      soldLeads: { where: { status: "won", wonAt: { gte: from, lt: to } }, select: { total: true } },
+      soldLeads: { where: { status: "won", wonAt: { gte: from, lt: to } }, select: { total: true, items: true } },
     },
     orderBy: { name: "asc" },
   });
-  res.json({ month, managers: managers.map(({ soldLeads, ...manager }) => {
-    const salesTotal = soldLeads.reduce((sum, lead) => sum + (lead.total || 0), 0);
-    return { ...manager, wonCount: soldLeads.length, salesTotal, salary: Math.round(salesTotal * manager.commissionPercent) / 100 };
-  }) });
+  const result = await Promise.all(managers.map(async ({ soldLeads, ...manager }) => {
+    const values = await Promise.all(soldLeads.map(async (lead) => {
+      const items = parseItems(lead.items) || [];
+      return commissionFor(await resolveCosts(prisma, items, items), lead.total);
+    }));
+    const sum = (key: "salesTotal" | "purchaseTotal" | "margin" | "commission") => Math.round(values.reduce((total, row) => total + (row[key] ?? 0), 0) * 100) / 100;
+    return { ...manager, commissionPercent: COMMISSION_PERCENT, wonCount: soldLeads.length, salesTotal: sum("salesTotal"), purchaseTotal: sum("purchaseTotal"), margin: sum("margin"), salary: sum("commission"), pendingCostCount: values.filter((row) => row.commission == null).length };
+  }));
+  res.json({ month, managers: result });
 });
 
 const statusSchema = z.object({
@@ -272,7 +283,7 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
         if (expectedManagerId !== undefined && expectedManagerId !== previous.managerId) return res.status(409).json({ error: "Відповідальний менеджер змінився. Оновіть список заявок" });
       }
     }
-    if (managerId) {
+    if (managerId && managerId !== previous.managerId) {
       const manager = await prisma.adminUser.findFirst({ where: { id: managerId, role: "manager", active: true } });
       if (!manager) return res.status(400).json({ error: "Оберіть активного менеджера" });
     }
@@ -289,7 +300,8 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     }
     const effectiveManagerId = managerId !== undefined ? managerId : previous.managerId;
     const enteringWon = fields.status === "won" && previous.status !== "won";
-    const correctingWonSeller = req.admin!.role === "admin" && previous.status === "won" && managerId !== undefined && !!managerId;
+    const correctingWonSeller = req.admin!.role === "admin" && previous.status === "won" && managerId !== undefined && managerId !== previous.managerId && !!managerId;
+    const salesChanged = items !== undefined && JSON.stringify(items.map(({ id, price, quantity }) => ({ id, price, quantity }))) !== JSON.stringify((parseItems(previous.items) || []).map(({ id, price, quantity }) => ({ id, price, quantity })));
     const data = {
       ...fields,
       ...(callbackAt !== undefined && (callbackAt ? new Date(callbackAt).getTime() : null) !== (previous.callbackAt?.getTime() ?? null) ? {
@@ -304,11 +316,15 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
       ...(items !== undefined ? {
         items: items.length ? JSON.stringify(items) : null,
       } : {}),
-      ...(total !== undefined ? { total } : items !== undefined ? { total: items.reduce((sum, item) => sum + item.price * item.quantity, 0) } : {}),
+      ...(total !== undefined && !(salesChanged && total === previous.total) ? { total } : items !== undefined ? { total: items.reduce((sum, item) => sum + item.price * item.quantity, 0) } : {}),
     };
     // Compare ownership in the write itself so a former manager cannot save
     // a stale card after another manager has taken it over.
     await prisma.$transaction(async (tx) => {
+      if (items !== undefined) {
+        const costedItems = await resolveCosts(tx, items, parseItems(previous.items) || []);
+        data.items = costedItems.length ? JSON.stringify(costedItems) : null;
+      }
       const runStockChange = async (fn: (client: typeof tx) => Promise<void>) => fn(tx);
     const saved = await tx.lead.updateMany({
       where: { id: req.params.id, ...(req.admin!.role === "manager" ? { managerId: previous.managerId } : {}) },

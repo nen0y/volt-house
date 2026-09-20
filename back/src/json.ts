@@ -18,6 +18,8 @@ export interface LeadItem {
   name: string;
   price: number;
   quantity: number;
+  warehouseItemId?: string | null;
+  purchasePrice?: number | null;
 }
 
 export function parseItems(v: unknown): LeadItem[] | null {

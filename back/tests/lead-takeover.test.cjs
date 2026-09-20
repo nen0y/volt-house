@@ -5,6 +5,8 @@ const { leadsRouter } = require('../dist/routes/leads');
 const handler = leadsRouter.stack.find((layer) => layer.route?.path === '/:id' && layer.route.methods.patch).route.stack.at(-1).handle;
 
 test('manager takeover is explicit, atomic and preserves the credited seller', async () => {
+  const originalTransaction = prisma.$transaction;
+  prisma.$transaction = async (fn) => fn(prisma);
   const originalLead = { ...prisma.lead };
   const originalFind = prisma.adminUser.findFirst;
   let previous, writes, count;
@@ -35,6 +37,7 @@ test('manager takeover is explicit, atomic and preserves the credited seller', a
     assert.equal((await patch({ notes: 'concurrent edit' }, 'new-manager', 'new', 0)).code, 409);
     assert.equal((await patch({ managerId: 'new-manager', expectedManagerId: 'old-manager' }, 'old-manager', 'new', 0)).code, 409);
   } finally {
+    prisma.$transaction = originalTransaction;
     Object.assign(prisma.lead, originalLead);
     prisma.adminUser.findFirst = originalFind;
   }

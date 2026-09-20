@@ -227,9 +227,9 @@
       ]);
       managerCache = users;
       const totals = Object.fromEntries(stats.managers.map((row) => [row.id, row]));
-      $("managersBody").innerHTML = users.length ? `<table><thead><tr><th>Менеджер</th><th>Доступ</th><th>Успішних</th><th>Продажі</th><th>Ставка</th><th>Зарплата</th><th></th></tr></thead><tbody>${users.map((user) => {
+      $("managersBody").innerHTML = users.length ? `<table><thead><tr><th>Менеджер</th><th>Доступ</th><th>Успішних</th><th>Продажі</th><th>Маржа</th><th>Ставка</th><th>Комісія</th><th></th></tr></thead><tbody>${users.map((user) => {
         const stat = totals[user.id] || { wonCount: 0, salesTotal: 0, salary: 0 };
-        return `<tr><td><strong>${esc(user.name)}</strong><div class="muted">${esc(user.email)}</div></td><td><span class="badge ${user.active ? "s-paid" : "s-unpaid"}">${user.active ? "Активний" : "Вимкнений"}</span></td><td>${stat.wonCount}</td><td>${money(stat.salesTotal)}</td><td>${Number(user.commissionPercent).toLocaleString("uk-UA")}%</td><td><strong>${money(stat.salary)}</strong></td><td><button class="btn-sm btn-ghost" data-edit-manager="${esc(user.id)}">Редагувати</button></td></tr>`;
+        return `<tr><td><strong>${esc(user.name)}</strong><div class="muted">${esc(user.email)}</div></td><td><span class="badge ${user.active ? "s-paid" : "s-unpaid"}">${user.active ? "Активний" : "Вимкнений"}</span></td><td>${stat.wonCount}</td><td>${money(stat.salesTotal)}</td><td>${money(stat.margin || 0)}</td><td>10% від маржі</td><td><strong>${money(stat.salary)}</strong>${stat.pendingCostCount ? `<div class="muted">${stat.pendingCostCount} заявок без закупівлі — не нараховано</div>` : ""}</td><td><button class="btn-sm btn-ghost" data-edit-manager="${esc(user.id)}">Редагувати</button></td></tr>`;
       }).join("")}</tbody></table>` : `<div class="empty">Менеджерів ще немає</div>`;
       document.querySelectorAll("[data-edit-manager]").forEach((button) => button.addEventListener("click", () => managerModal(managerCache.find((user) => user.id === button.dataset.editManager))));
       renderCrmFilters();
@@ -240,7 +240,7 @@
     openModal(`<h3>${existing ? "Редагувати менеджера" : "Новий менеджер"}</h3>
       <div class="field"><label>Ім’я *</label><input id="manager_name" value="${esc(existing?.name || "")}"></div>
       <div class="field"><label>Email для входу *</label><input id="manager_email" type="email" value="${esc(existing?.email || "")}"></div>
-      <div class="grid2"><div class="field"><label>${existing ? "Новий пароль" : "Пароль *"}</label><input id="manager_password" type="password" minlength="8" placeholder="Мінімум 8 символів"></div><div class="field"><label>Відсоток від продажів</label><input id="manager_commission" type="number" min="0" max="100" step="0.1" value="${esc(existing?.commissionPercent ?? 0)}"></div></div>
+      <div class="grid2"><div class="field"><label>${existing ? "Новий пароль" : "Пароль *"}</label><input id="manager_password" type="password" minlength="8" placeholder="Мінімум 8 символів"></div><div class="field"><label>Комісія від маржі</label><input id="manager_commission" type="number" value="10" readonly></div></div>
       ${existing ? `<label style="display:flex;gap:8px;align-items:center;margin:4px 0 16px"><input id="manager_active" type="checkbox" ${existing.active ? "checked" : ""}> Доступ активний</label>` : ""}
       <div class="error" id="manager_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="manager_cancel">Скасувати</button><button class="btn" id="manager_save">Зберегти</button></div>`);
     $("manager_cancel").addEventListener("click", closeModal);
@@ -279,7 +279,7 @@
 
   const crmProductPickerHtml = () => `<div class="field"><label>Товари в заявці</label><input id="crm_product_search" type="search" autocomplete="off" placeholder="Пошук товару за назвою або моделлю…" style="margin-bottom:8px"><div class="grid2"><select id="crm_product_select"><option value="">— Оберіть товар —</option></select><input id="crm_product_quantity" type="number" min="1" value="1" placeholder="Кількість"></div><div id="crm_custom_product_wrap" style="display:none;margin-top:8px"><label for="crm_custom_product">Назва товару, якого немає в базі</label><input id="crm_custom_product" placeholder="Наприклад: інвертор Deye 10 кВт"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn-sm btn-ghost" type="button" id="crm_add_product">+ Додати товар</button><button class="btn-sm btn-ghost" type="button" id="crm_add_custom_product">✎ Додати товар вручну</button></div><div id="crm_selected_products" style="margin-top:10px"></div></div>`;
 
-  function setupCrmProductPicker(initialItems = []) {
+  function setupCrmProductPicker(initialItems = [], onChange = () => {}) {
     const selected = initialItems.map((item) => ({ ...item }));
     const availabilityLabel = (availability) => availability === "in_stock" ? "є в наявності" : availability === "preorder" ? "очікується" : "немає в наявності";
     const renderProductOptions = (query = "") => {
@@ -288,8 +288,29 @@
       $("crm_product_select").innerHTML = `<option value="">${products.length ? "— Оберіть товар —" : "Товарів не знайдено"}</option>${products.map((product) => `<option value="${esc(product.id)}">${esc(product.name)} · ${esc(product.stock?.availableQty > 0 || product.stock?.expectedQty > 0 ? stockLabel(product.stock) : product.supplierAvailability === "in_stock" ? "У постачальника" : availabilityLabel(product.availability))}</option>`).join("")}<option value="__custom__">Інший товар — немає в каталозі</option>`;
     };
     const render = () => {
-      $("crm_selected_products").innerHTML = selected.length ? selected.map((item, index) => `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;background:${item.custom || item.availability === "unavailable" ? "#fff7ed" : "#f8fafc"};border-radius:7px;margin-top:5px"><span>${item.custom || item.availability === "unavailable" ? "⚠️ " : ""}${esc(item.name)} × ${item.quantity}${item.custom || item.availability === "unavailable" ? " · потрібно знайти" : item.availability === "preorder" ? " · очікується" : ""}</span><button type="button" class="btn-sm btn-danger" data-remove-crm-product="${index}">×</button></div>`).join("") : `<div class="muted">Товари ще не додані</div>`;
-      document.querySelectorAll("[data-remove-crm-product]").forEach((button) => button.addEventListener("click", () => { selected.splice(Number(button.dataset.removeCrmProduct), 1); render(); }));
+      $("crm_selected_products").innerHTML = selected.length ? selected.map((item, index) => {
+        const batches = (crmProductOptions.find((p) => p.id === item.id)?.batches || []).filter((b) => !b.arrivalDate && b.purchasePrice != null);
+        const cost = item.purchasePrice ?? (item.warehouseItemId ? batches.find((b) => b.id === item.warehouseItemId)?.purchasePrice : new Set(batches.map((b) => b.purchasePrice)).size === 1 ? batches[0]?.purchasePrice : null);
+        return `<div class="crm-sale-item"><div class="wh-detail-head"><strong>${esc(item.name)}</strong><button type="button" class="btn-sm btn-danger" data-remove-crm-product="${index}" aria-label="Видалити ${esc(item.name)}">×</button></div>
+          <div class="grid2"><div class="field"><label for="sale_qty_${index}">Кількість</label><input id="sale_qty_${index}" data-sale-qty="${index}" type="number" min="1" step="1" value="${item.quantity}"></div><div class="field"><label for="sale_price_${index}">Ціна продажу за шт., $</label><input id="sale_price_${index}" data-sale-price="${index}" type="number" min="0" step="1" value="${item.price}"></div></div>
+          <div class="field"><label for="sale_batch_${index}">Партія / закупівля за шт.</label><select id="sale_batch_${index}" data-sale-batch="${index}"><option value="">${item.purchasePrice != null && !item.warehouseItemId ? `Збережена закупівля ${money(item.purchasePrice)}` : "Автоматично, якщо ціна однозначна"}</option>${item.warehouseItemId && !batches.some((b) => b.id === item.warehouseItemId) ? `<option value="${esc(item.warehouseItemId)}" selected>Збережена партія · ${money(item.purchasePrice)}</option>` : ""}${batches.map((batch) => `<option value="${esc(batch.id)}" ${batch.id === item.warehouseItemId ? "selected" : ""}>${esc(batch.supplierName)} · ${money(batch.purchasePrice)} · залишок ${batch.quantity} шт.</option>`).join("")}</select></div>
+          <div class="muted">${cost != null ? `Закупівля: ${money(cost)} × ${item.quantity} = ${money(cost * item.quantity)}` : "Потрібна ціна закупівлі: виберіть партію або задайте її на складі. Комісію ще не нараховано."}</div></div>`;
+      }).join("") : `<div class="muted">Товари ще не додані</div>`;
+      document.querySelectorAll("[data-remove-crm-product]").forEach((button) => button.addEventListener("click", () => { selected.splice(Number(button.dataset.removeCrmProduct), 1); render(); onChange(selected); }));
+      document.querySelectorAll("[data-sale-qty], [data-sale-price]").forEach((input) => input.addEventListener("input", () => {
+        const isQty = input.dataset.saleQty !== undefined;
+        const index = Number(isQty ? input.dataset.saleQty : input.dataset.salePrice);
+        const value = Number(input.value);
+        if (input.value === "" || !Number.isSafeInteger(value) || value < (isQty ? 1 : 0)) return;
+        selected[index][isQty ? "quantity" : "price"] = value;
+        onChange(selected);
+      }));
+      document.querySelectorAll("[data-sale-batch]").forEach((input) => input.addEventListener("change", () => {
+        const item = selected[Number(input.dataset.saleBatch)];
+        item.warehouseItemId = input.value || null;
+        delete item.purchasePrice;
+        render(); onChange(selected, false);
+      }));
     };
     renderProductOptions();
     $("crm_product_search").addEventListener("input", () => {
@@ -309,20 +330,24 @@
       $("crm_custom_product").focus();
     });
     $("crm_add_product").addEventListener("click", () => {
-      const id = $("crm_product_select").value; const quantity = Math.max(1, Number($("crm_product_quantity").value) || 1);
+      const id = $("crm_product_select").value; const quantity = Number($("crm_product_quantity").value);
+      if (!Number.isSafeInteger(quantity) || quantity < 1) return alert("Вкажіть цілу додатну кількість");
       if (!id) return;
       if (id === "__custom__") {
         const name = $("crm_custom_product").value.trim(); if (!name) return alert("Вкажіть назву товару");
         selected.push({ id: `custom-${Date.now()}`, name, price: 0, quantity, availability: "unavailable", custom: true });
       } else {
         const product = crmProductOptions.find((option) => option.id === id); if (!product) return;
-        const existing = selected.find((item) => item.id === id); if (existing) existing.quantity += quantity;
-        else selected.push({ id: product.id, name: product.name, price: product.price, quantity, availability: product.availability });
+        selected.push({ id: product.id, name: product.name, price: product.price, quantity, availability: product.availability });
       }
-      $("crm_product_search").value = ""; renderProductOptions(); $("crm_custom_product").value = ""; $("crm_custom_product_wrap").style.display = "none"; render();
+      $("crm_product_search").value = ""; renderProductOptions(); $("crm_custom_product").value = ""; $("crm_custom_product_wrap").style.display = "none"; render(); onChange(selected);
     });
     render();
-    return () => selected;
+    return () => {
+      const invalid = [...document.querySelectorAll("[data-sale-qty], [data-sale-price]")].find((input) => input.value === "" || !input.checkValidity());
+      if (invalid) throw new Error("Перевірте кількість та ціну товарів");
+      return selected;
+    };
   }
 
   function showReserveProductModal(lead, status) {
@@ -745,7 +770,7 @@
   async function openLead(lead) {
     if (!lead) return;
     try { await loadCrmProductOptions(); } catch (err) { return alert(err.message); }
-    openModal(`<h3>Редагувати клієнта</h3>
+    openModal(`<h3>${normalizeLeadStatus(lead.status) === "won" ? "Успішна заявка · редагування та допродаж" : "Редагувати клієнта"}</h3>
       <div class="field"><label>Ім’я *</label><input id="crm_name" value="${esc(lead.name)}"></div>
       <div class="grid2"><div class="field"><label>Телефон *</label><input id="crm_phone" type="tel" value="${esc(lead.phone)}"></div><div class="field"><label>Email</label><input id="crm_email" type="email" value="${esc(lead.email || "")}"></div></div>
       <div class="field"><label>Інтерес</label><input id="crm_interest" value="${esc(lead.interest || "")}" placeholder="Що цікавить клієнта"></div>
@@ -753,7 +778,7 @@
       ${crmProductPickerHtml()}
       ${stockWaitingFields(lead)}
       ${callbackFields(lead)}
-      <div class="field"><label>Сума продажу, $</label><input id="crm_total" type="number" min="0" step="1" value="${esc(lead.total ?? "")}" placeholder="Потрібна для розрахунку зарплати"></div>
+      <div id="crm_margin_summary" class="crm-margin-summary"></div><div class="field"><label>Сума продажу, $</label><input id="crm_total" type="number" min="0" step="1" value="${esc(lead.total ?? "")}" placeholder="Потрібна для розрахунку зарплати"></div>
       <div class="field"><label>Тип звернення</label><select id="crm_type">${Object.entries(TYPE_LABEL).map(([value, label]) => `<option value="${value}" ${value === lead.type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
       ${currentAdmin?.role === "admin" ? `<div class="field"><label>Відповідальний менеджер</label><select id="crm_manager"><option value="">Не призначено</option>${managerCache.filter((m) => m.active || m.id === lead.managerId).map((m) => `<option value="${esc(m.id)}" ${m.id === lead.managerId ? "selected" : ""}>${esc(m.name || m.email)}${m.active ? "" : " (вимкнений)"}</option>`).join("")}</select></div>` : `<div class="field"><label>Відповідальний менеджер</label><div>${esc(lead.manager?.name || lead.manager?.email || currentAdmin?.name || currentAdmin?.email || "—")}</div></div>`}
@@ -763,7 +788,22 @@
       <div class="error" id="crm_error"></div>
       <div class="modal-actions">${currentAdmin?.role === "admin" ? `<button class="btn btn-danger" id="crm_delete">Видалити заявку</button>` : ""}<button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
     setupCallbackFields();
-    const getProducts = setupCrmProductPicker(lead.items || []);
+    const updateFinancials = (items, recalculateTotal = true) => {
+      if (recalculateTotal) $("crm_total").value = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const costs = items.map((item) => {
+        if (item.purchasePrice != null) return item.purchasePrice * item.quantity;
+        const batches = (crmProductOptions.find((p) => p.id === item.id)?.batches || []).filter((b) => !b.arrivalDate && b.purchasePrice != null);
+        const price = item.warehouseItemId ? batches.find((b) => b.id === item.warehouseItemId)?.purchasePrice : new Set(batches.map((b) => b.purchasePrice)).size === 1 ? batches[0]?.purchasePrice : null;
+        return price == null ? null : price * item.quantity;
+      });
+      const complete = items.length && costs.every((cost) => cost != null);
+      const purchase = costs.reduce((sum, cost) => sum + (cost || 0), 0);
+      const margin = Number($("crm_total").value) - purchase;
+      $("crm_margin_summary").innerHTML = complete ? `<strong>Закупівля: ${money(purchase)} · Маржа: ${money(margin)}</strong><div>Комісія менеджера (10% від маржі): <strong>${money(Math.round(Math.max(0, margin) * 10) / 100)}</strong></div>` : "Для розрахунку 10% комісії вкажіть складську закупівлю кожного товару.";
+    };
+    const getProducts = setupCrmProductPicker(lead.items || [], updateFinancials);
+    updateFinancials(getProducts(), false);
+    $("crm_total").addEventListener("input", () => updateFinancials(getProducts(), false));
     $("crm_cancel").addEventListener("click", closeModal);
     if ($("crm_delete")) $("crm_delete").addEventListener("click", async () => {
       if (!confirm(`Видалити заявку клієнта «${lead.name}»? Цю дію неможливо скасувати.`)) return;
@@ -797,7 +837,7 @@
           notes: $("crm_notes").value,
           items: getProducts(),
           total: Number($("crm_total").value) || 0,
-          ...(currentAdmin?.role === "admin" ? { managerId: $("crm_manager").value || null } : {}),
+          ...(currentAdmin?.role === "admin" && ($("crm_manager").value || null) !== (lead.managerId || null) ? { managerId: $("crm_manager").value || null } : {}),
         }) });
         closeModal();
         loadCrm();

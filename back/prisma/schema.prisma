@@ -173,7 +173,7 @@ model AdminUser {
   name         String   @default("")
   role         String   @default("admin") // admin | manager
   active       Boolean  @default(true)
-  commissionPercent Float @default(0)
+  commissionPercent Float @default(10)
   assignedLeads Lead[] @relation("AssignedLeads")
   soldLeads     Lead[] @relation("SoldLeads")
   createdAt    DateTime @default(now())

@@ -72,7 +72,7 @@ const managerSchema = z.object({
   name: z.string().trim().min(2).max(100),
   email: z.string().email(),
   password: z.string().min(8).max(128),
-  commissionPercent: z.number().min(0).max(100).default(0),
+  commissionPercent: z.number().min(0).max(100).default(10),
 });
 
 authRouter.get("/users", requireAdmin, requireSuperAdmin, async (_req, res) => {
