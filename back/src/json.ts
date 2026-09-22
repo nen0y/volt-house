@@ -20,6 +20,8 @@ export interface LeadItem {
   quantity: number;
   warehouseItemId?: string | null;
   purchasePrice?: number | null;
+  availability?: "in_stock" | "preorder" | "unavailable";
+  custom?: boolean;
 }
 
 export function parseItems(v: unknown): LeadItem[] | null {

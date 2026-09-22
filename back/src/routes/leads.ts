@@ -371,7 +371,7 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
             }
           });
         }
-      } else if (fields.status === "won" && existingReservations.length) {
+      } else if (fields.status === "won") {
         await runStockChange(async (tx) => {
           for (const r of existingReservations) {
             const remaining = r.quantity - deductedStock(r);
@@ -380,7 +380,17 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
               if (deducted < remaining) throw new Error("Недостатньо товару на складі для завершення продажу. Спочатку прийміть партію.");
             }
           }
-          await tx.reservation.updateMany({ where: { leadId: req.params.id, status: { notIn: ["cancelled", "completed"] } }, data: { status: "completed" } });
+          if (existingReservations.length) {
+            await tx.reservation.updateMany({ where: { leadId: req.params.id, status: { notIn: ["cancelled", "completed"] } }, data: { status: "completed" } });
+          }
+          // Deduct items that were never reserved (e.g. lead won directly without reservation flow)
+          const reservedProductIds = new Set(existingReservations.map((r) => r.productId));
+          const currentItems = items ?? parseItems(previous.items) ?? [];
+          for (const item of currentItems) {
+            if (!item.custom && !reservedProductIds.has(item.id)) {
+              await takeReceivedStock(tx, item.id, item.quantity);
+            }
+          }
         });
       } else if (fields.status === "lost" && existingReservations.length) {
         await runStockChange(async (tx) => {

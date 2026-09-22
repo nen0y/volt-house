@@ -18,8 +18,6 @@ import { brandsRouter } from "./routes/brands";
 import { financeRouter } from "./routes/finance";
 import { warehouseRouter } from "./routes/warehouse";
 import { ensureUploadDir, uploadDir } from "./upload";
-import { startNightlyRetailPriceSync } from "./retail-price-sync";
-
 import { startCallbackReminders } from "./callback-reminders";
 
 const app = express();
@@ -124,7 +122,6 @@ const server = app.listen(env.PORT, () => {
     }\n`
   );
 });
-startNightlyRetailPriceSync();
 const callbackTimer = startCallbackReminders();
 
 async function shutdown() {
