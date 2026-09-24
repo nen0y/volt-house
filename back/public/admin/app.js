@@ -350,6 +350,60 @@
     };
   }
 
+  function showWonItemsModal(lead) {
+    return new Promise((resolve) => {
+      const selected = [];
+      const availLabel = (a) => a === "in_stock" ? "є в наявності" : a === "preorder" ? "очікується" : "немає";
+      const renderOpts = (query = "") => {
+        const q = query.trim().toLocaleLowerCase("uk-UA");
+        const products = q ? crmProductOptions.filter((p) => p.name.toLocaleLowerCase("uk-UA").includes(q)) : crmProductOptions;
+        const el = document.getElementById("won_select");
+        if (el) el.innerHTML = `<option value="">${products.length ? "— Оберіть товар —" : "Не знайдено"}</option>${products.map((p) => `<option value="${esc(p.id)}">${esc(p.name)} · ${availLabel(p.availability)}</option>`).join("")}`;
+      };
+      const renderSelected = () => {
+        const el = document.getElementById("won_selected");
+        if (!el) return;
+        el.innerHTML = selected.length
+          ? selected.map((item, i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#f8fafc;border-radius:7px;margin-top:4px"><span>${esc(item.name)} × ${item.qty} · ${money(item.price * item.qty)}</span><button type="button" class="btn-sm btn-danger" data-ri="${i}">×</button></div>`).join("")
+          : `<div class="muted" style="margin-top:6px">Товари не додано</div>`;
+        el.querySelectorAll("[data-ri]").forEach((btn) => btn.addEventListener("click", () => { selected.splice(Number(btn.dataset.ri), 1); renderSelected(); }));
+      };
+      openModal(`<h3>Додати товари до продажу</h3>
+        <p style="margin-bottom:14px;color:var(--slate-500)">Клієнт: <strong>${esc(lead.name)}</strong> — вкажіть що продано перед закриттям угоди.</p>
+        <div class="field"><label>Пошук товару</label>
+          <input id="won_search" type="search" autocomplete="off" placeholder="Назва або модель…" style="margin-bottom:8px">
+          <div style="display:flex;gap:8px">
+            <select id="won_select" style="flex:1;padding:10px;border:1px solid var(--slate-200);border-radius:8px;font-size:14px;font-family:inherit"></select>
+            <input id="won_qty" type="number" min="1" value="1" style="width:72px;padding:10px;border:1px solid var(--slate-200);border-radius:8px">
+            <button type="button" class="btn btn-sm" id="won_add_btn">+ Додати</button>
+          </div>
+        </div>
+        <div id="won_selected"></div>
+        <div class="error" id="won_error"></div>
+        <div class="modal-actions"><button class="btn btn-ghost" id="won_cancel">Скасувати</button><button class="btn" id="won_confirm">Закрити угоду ✓</button></div>`);
+      renderOpts();
+      renderSelected();
+      document.getElementById("won_search").addEventListener("input", (e) => renderOpts(e.target.value));
+      document.getElementById("won_add_btn").addEventListener("click", () => {
+        const productId = document.getElementById("won_select").value;
+        const qty = Math.max(1, parseInt(document.getElementById("won_qty").value, 10) || 1);
+        if (!productId) return;
+        const product = crmProductOptions.find((p) => p.id === productId);
+        if (!product) return;
+        const existing = selected.find((s) => s.id === productId);
+        if (existing) existing.qty += qty; else selected.push({ id: product.id, name: product.name, price: product.price, qty, availability: product.availability });
+        document.getElementById("won_qty").value = "1";
+        renderSelected();
+      });
+      document.getElementById("won_cancel").addEventListener("click", () => { closeModal(); resolve(null); });
+      document.getElementById("won_confirm").addEventListener("click", () => {
+        if (!selected.length) return (document.getElementById("won_error").textContent = "Додайте хоча б один товар");
+        closeModal();
+        resolve(selected.map((s) => ({ id: s.id, name: s.name, price: s.price, quantity: s.qty, availability: s.availability })));
+      });
+    });
+  }
+
   function showReserveProductModal(lead, status) {
     return new Promise((resolve) => {
       const statusLabel = STATUS_LABEL[status] || status;
@@ -646,6 +700,21 @@
             crmLastMovedId = leadId;
             renderKanban(filteredLeads());
             const updated = await api("/api/leads/" + leadId, { method: "PATCH", body: JSON.stringify({ status: newStatus, reservedProducts }) });
+            const index = crmLeadCache.findIndex((row) => row.id === leadId);
+            if (index >= 0) crmLeadCache[index] = updated;
+            renderKanban(filteredLeads());
+          } catch (err) { alert(err.message); loadCrm(); }
+          return;
+        }
+        if (newStatus === "won" && !lead.items?.length && !lead.reservations?.length) {
+          try {
+            await loadCrmProductOptions();
+            const items = await showWonItemsModal(lead);
+            if (!items) { card.classList.remove("dragging"); return; }
+            lead.status = newStatus;
+            crmLastMovedId = leadId;
+            renderKanban(filteredLeads());
+            const updated = await api("/api/leads/" + leadId, { method: "PATCH", body: JSON.stringify({ status: newStatus, items }) });
             const index = crmLeadCache.findIndex((row) => row.id === leadId);
             if (index >= 0) crmLeadCache[index] = updated;
             renderKanban(filteredLeads());
