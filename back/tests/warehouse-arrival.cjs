@@ -14,7 +14,7 @@ test('expected batches stay visible but never count as received, including overd
     { id: 'empty', warehouseItems: [], reservations: [] },
   ];
   const res = response();
-  await handler(warehouseRouter, '/balance', 'get')({ query: {} }, res);
+  await handler(warehouseRouter, '/balance', 'get')({ query: {}, admin: { id: 'admin', role: 'admin' } }, res);
   assert.deepEqual(res.body.map(({ totalQty, expectedQty, availableQty }) => ({ totalQty, expectedQty, availableQty })), [
     { totalQty: 0, expectedQty: 5, availableQty: 0 },
     { totalQty: 3, expectedQty: 7, availableQty: 3 },

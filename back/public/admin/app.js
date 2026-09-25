@@ -293,8 +293,8 @@
         const cost = item.purchasePrice ?? (item.warehouseItemId ? batches.find((b) => b.id === item.warehouseItemId)?.purchasePrice : new Set(batches.map((b) => b.purchasePrice)).size === 1 ? batches[0]?.purchasePrice : null);
         return `<div class="crm-sale-item"><div class="wh-detail-head"><strong>${esc(item.name)}</strong><button type="button" class="btn-sm btn-danger" data-remove-crm-product="${index}" aria-label="Видалити ${esc(item.name)}">×</button></div>
           <div class="grid2"><div class="field"><label for="sale_qty_${index}">Кількість</label><input id="sale_qty_${index}" data-sale-qty="${index}" type="number" min="1" step="1" value="${item.quantity}"></div><div class="field"><label for="sale_price_${index}">Ціна продажу за шт., $</label><input id="sale_price_${index}" data-sale-price="${index}" type="number" min="0" step="1" value="${item.price}"></div></div>
-          <div class="field"><label for="sale_batch_${index}">Партія / закупівля за шт.</label><select id="sale_batch_${index}" data-sale-batch="${index}"><option value="">${item.purchasePrice != null && !item.warehouseItemId ? `Збережена закупівля ${money(item.purchasePrice)}` : "Автоматично, якщо ціна однозначна"}</option>${item.warehouseItemId && !batches.some((b) => b.id === item.warehouseItemId) ? `<option value="${esc(item.warehouseItemId)}" selected>Збережена партія · ${money(item.purchasePrice)}</option>` : ""}${batches.map((batch) => `<option value="${esc(batch.id)}" ${batch.id === item.warehouseItemId ? "selected" : ""}>${esc(batch.supplierName)} · ${money(batch.purchasePrice)} · залишок ${batch.quantity} шт.</option>`).join("")}</select></div>
-          <div class="muted">${cost != null ? `Закупівля: ${money(cost)} × ${item.quantity} = ${money(cost * item.quantity)}` : "Потрібна ціна закупівлі: виберіть партію або задайте її на складі. Комісію ще не нараховано."}</div></div>`;
+          ${currentAdmin?.role === "admin" ? `<div class="field"><label for="sale_batch_${index}">Партія / закупівля за шт.</label><select id="sale_batch_${index}" data-sale-batch="${index}"><option value="">${item.purchasePrice != null && !item.warehouseItemId ? `Збережена закупівля ${money(item.purchasePrice)}` : "Автоматично, якщо ціна однозначна"}</option>${item.warehouseItemId && !batches.some((b) => b.id === item.warehouseItemId) ? `<option value="${esc(item.warehouseItemId)}" selected>Збережена партія · ${money(item.purchasePrice)}</option>` : ""}${batches.map((batch) => `<option value="${esc(batch.id)}" ${batch.id === item.warehouseItemId ? "selected" : ""}>${esc(batch.supplierName)} · ${money(batch.purchasePrice)} · залишок ${batch.quantity} шт.</option>`).join("")}</select></div>
+          <div class="muted">${cost != null ? `Закупівля: ${money(cost)} × ${item.quantity} = ${money(cost * item.quantity)}` : "Потрібна ціна закупівлі: виберіть партію або задайте її на складі. Комісію ще не нараховано."}</div>` : ""}</div>`;
       }).join("") : `<div class="muted">Товари ще не додані</div>`;
       document.querySelectorAll("[data-remove-crm-product]").forEach((button) => button.addEventListener("click", () => { selected.splice(Number(button.dataset.removeCrmProduct), 1); render(); onChange(selected); }));
       document.querySelectorAll("[data-sale-qty], [data-sale-price]").forEach((input) => input.addEventListener("input", () => {
@@ -847,7 +847,7 @@
       ${crmProductPickerHtml()}
       ${stockWaitingFields(lead)}
       ${callbackFields(lead)}
-      <div id="crm_margin_summary" class="crm-margin-summary"></div><div class="field"><label>Сума продажу, $</label><input id="crm_total" type="number" min="0" step="1" value="${esc(lead.total ?? "")}" placeholder="Потрібна для розрахунку зарплати"></div>
+      ${currentAdmin?.role === "admin" ? `<div id="crm_margin_summary" class="crm-margin-summary"></div>` : ""}<div class="field"><label>Сума продажу, $</label><input id="crm_total" type="number" min="0" step="1" value="${esc(lead.total ?? "")}" placeholder="Потрібна для розрахунку зарплати"></div>
       <div class="field"><label>Тип звернення</label><select id="crm_type">${Object.entries(TYPE_LABEL).map(([value, label]) => `<option value="${value}" ${value === lead.type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
       ${currentAdmin?.role === "admin" ? `<div class="field"><label>Відповідальний менеджер</label><select id="crm_manager"><option value="">Не призначено</option>${managerCache.filter((m) => m.active || m.id === lead.managerId).map((m) => `<option value="${esc(m.id)}" ${m.id === lead.managerId ? "selected" : ""}>${esc(m.name || m.email)}${m.active ? "" : " (вимкнений)"}</option>`).join("")}</select></div>` : `<div class="field"><label>Відповідальний менеджер</label><div>${esc(lead.manager?.name || lead.manager?.email || currentAdmin?.name || currentAdmin?.email || "—")}</div></div>`}
@@ -859,6 +859,7 @@
     setupCallbackFields();
     const updateFinancials = (items, recalculateTotal = true) => {
       if (recalculateTotal) $("crm_total").value = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      if (currentAdmin?.role !== "admin") return;
       const costs = items.map((item) => {
         if (item.purchasePrice != null) return item.purchasePrice * item.quantity;
         const batches = (crmProductOptions.find((p) => p.id === item.id)?.batches || []).filter((b) => !b.arrivalDate && b.purchasePrice != null);
@@ -868,7 +869,7 @@
       const complete = items.length && costs.every((cost) => cost != null);
       const purchase = costs.reduce((sum, cost) => sum + (cost || 0), 0);
       const margin = Number($("crm_total").value) - purchase;
-      $("crm_margin_summary").innerHTML = complete ? `<strong>Закупівля: ${money(purchase)} · Маржа: ${money(margin)}</strong><div>Комісія менеджера (10% від маржі): <strong>${money(Math.round(Math.max(0, margin) * 10) / 100)}</strong></div>` : "Для розрахунку 10% комісії вкажіть складську закупівлю кожного товару.";
+      if ($("crm_margin_summary")) $("crm_margin_summary").innerHTML = complete ? `<strong>Закупівля: ${money(purchase)} · Маржа: ${money(margin)}</strong><div>Комісія менеджера (10% від маржі): <strong>${money(Math.round(Math.max(0, margin) * 10) / 100)}</strong></div>` : "Для розрахунку 10% комісії вкажіть складську закупівлю кожного товару.";
     };
     const getProducts = setupCrmProductPicker(lead.items || [], updateFinancials);
     updateFinancials(getProducts(), false);
@@ -2495,7 +2496,7 @@
           <div class="wh-detail-head"><div><strong>Партії · ${esc(p.name)}</strong><div class="muted">Залишок партії — кількість без уже виділених резервів.</div></div>${isAdmin ? `<div class="row-actions"><button class="btn-sm" data-wh-add="${esc(p.id)}">+ Додати партію</button><button class="btn-sm btn-ghost" data-wh-product="${esc(p.id)}">Картка товару</button></div>` : ""}</div>
           ${row.warehouseItems.length ? `<div class="wh-batches">${row.warehouseItems.map((item) => `<div class="wh-batch ${item.quantity === 0 ? "wh-batch-empty" : ""}">
             <div><strong>${esc(item.supplier?.name || "Без постачальника")}</strong><div class="muted">Додано ${warehouseDate(item.createdAt)}${item.notes ? ` · ${esc(item.notes)}` : ""}</div></div>
-            <div><strong>${item.quantity} шт.</strong><div class="muted">${item.purchasePrice != null ? `Закупівля ${money(item.purchasePrice)}` : "Ціну закупівлі не задано"}</div></div>
+            <div><strong>${item.quantity} шт.</strong>${isAdmin ? `<div class="muted">${item.purchasePrice != null ? `Закупівля ${money(item.purchasePrice)}` : "Ціну закупівлі не задано"}</div>` : ""}</div>
             <div>${item.arrivalDate ? `<span class="wh-stock-expected">Очікуємо ${warehouseDate(item.arrivalDate)}</span><div class="muted">Лише бронювання</div>` : item.quantity > 0 ? `<span class="wh-stock-ready">На складі</span>` : `<span class="muted">Порожня партія</span>`}</div>
             ${isAdmin ? `<div class="row-actions">${item.arrivalDate && item.quantity > 0 ? `<button class="btn-sm" data-wh-receive="${esc(item.id)}">Прийняти на склад</button>` : ""}<button class="btn-sm btn-ghost" data-wh-item="${esc(item.id)}">Редагувати</button><button class="btn-sm btn-danger" data-wh-delete="${esc(item.id)}">Видалити</button></div>` : ""}
           </div>`).join("")}</div>` : `<p class="muted">Партій немає</p>`}
@@ -2545,7 +2546,7 @@
       supplierCache = await api("/api/crm/suppliers");
       openModal(`<h3>Редагувати партію</h3><p>${esc(product.name)}</p>
         <div class="grid2"><div class="field"><label>Кількість</label><input id="wh_edit_qty" type="number" min="0" step="1" value="${item.quantity}"></div>
-        <div class="field"><label>Ціна закупівлі ($)</label><input id="wh_edit_price" type="number" min="0" step="1" value="${item.purchasePrice ?? ""}"></div></div>
+        ${currentAdmin?.role === "admin" ? `<div class="field"><label>Ціна закупівлі ($)</label><input id="wh_edit_price" type="number" min="0" step="1" value="${item.purchasePrice ?? ""}"></div>` : ""}</div>
         <div class="field"><label>Постачальник</label><select id="wh_edit_supplier"><option value="">Без постачальника</option>${supplierCache.filter((s) => s.active || s.id === item.supplierId).map((s) => `<option value="${esc(s.id)}" ${s.id === item.supplierId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div>
         <div class="field"><label for="wh_edit_arrival">Очікувана дата надходження · лише бронювання</label><input id="wh_edit_arrival" type="date" value="${esc(item.arrivalDate || "")}"><div class="muted">Для підтвердження надходження скористайтеся кнопкою «Прийняти на склад» у списку партій.</div></div>
         <div class="field"><label>Нотатки</label><textarea id="wh_edit_notes" maxlength="500">${esc(item.notes)}</textarea></div>
@@ -2553,8 +2554,8 @@
       $("wh_edit_cancel").addEventListener("click", closeModal);
       $("wh_edit_save").addEventListener("click", async () => {
         const quantity = Number($("wh_edit_qty").value);
-        const purchasePrice = $("wh_edit_price").value === "" ? null : Number($("wh_edit_price").value);
-        if ($("wh_edit_qty").value === "" || !Number.isSafeInteger(quantity) || quantity < 0 || (purchasePrice !== null && (!Number.isSafeInteger(purchasePrice) || purchasePrice < 0))) {
+        const purchasePrice = $("wh_edit_price") ? ($("wh_edit_price").value === "" ? null : Number($("wh_edit_price").value)) : undefined;
+        if ($("wh_edit_qty").value === "" || !Number.isSafeInteger(quantity) || quantity < 0 || (purchasePrice != null && (!Number.isSafeInteger(purchasePrice) || purchasePrice < 0))) {
           $("wh_edit_error").textContent = "Вкажіть цілі невід’ємні кількість та ціну";
           return;
         }
@@ -2643,7 +2644,7 @@
         </div>
         <div class="grid2">
           <div class="field"><label>Кількість *</label><input id="wh_quantity" type="number" min="1" value="1"></div>
-          <div class="field"><label>Ціна закупівлі ($)</label><input id="wh_price" type="number" min="0" placeholder="0"></div>
+          ${currentAdmin?.role === "admin" ? `<div class="field"><label>Ціна закупівлі ($)</label><input id="wh_price" type="number" min="0" placeholder="0"></div>` : ""}
         </div>
         <div class="field"><label>Постачальник</label><select id="wh_supplier" style="width:100%;padding:10px;border:1px solid var(--slate-200);border-radius:8px;font-family:inherit;font-size:14px"><option value="">— Не вибрано —</option>${supplierCache.filter((s) => s.active).map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("")}</select></div>
         <div class="field"><label for="wh_arrival">Очікувана дата надходження · лише бронювання</label><input id="wh_arrival" type="date"><div class="muted">З датою — очікувана партія, доступна лише для бронювання. Без дати — товар уже на складі.</div></div>
@@ -2662,7 +2663,7 @@
         const quantity = parseInt($("wh_quantity").value, 10);
         if (!productId || !quantity || quantity < 1) return ($("wh_error").textContent = "Оберіть товар та вкажіть кількість");
         try {
-          await api("/api/warehouse/balance", { method: "POST", body: JSON.stringify({ productId, quantity, arrivalDate: $("wh_arrival").value || null, supplierId: $("wh_supplier").value || null, purchasePrice: $("wh_price").value ? parseInt($("wh_price").value, 10) : null, notes: $("wh_notes").value.trim() }) });
+          await api("/api/warehouse/balance", { method: "POST", body: JSON.stringify({ productId, quantity, arrivalDate: $("wh_arrival").value || null, supplierId: $("wh_supplier").value || null, purchasePrice: $("wh_price") ? (parseInt($("wh_price").value, 10) || null) : null, notes: $("wh_notes").value.trim() }) });
           closeModal(); await refreshWarehouseStock();
         } catch (err) { $("wh_error").textContent = err.message; }
       });
