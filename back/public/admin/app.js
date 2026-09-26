@@ -293,6 +293,7 @@
         const cost = item.purchasePrice ?? (item.warehouseItemId ? batches.find((b) => b.id === item.warehouseItemId)?.purchasePrice : new Set(batches.map((b) => b.purchasePrice)).size === 1 ? batches[0]?.purchasePrice : null);
         return `<div class="crm-sale-item"><div class="wh-detail-head"><strong>${esc(item.name)}</strong><button type="button" class="btn-sm btn-danger" data-remove-crm-product="${index}" aria-label="Видалити ${esc(item.name)}">×</button></div>
           <div class="grid2"><div class="field"><label for="sale_qty_${index}">Кількість</label><input id="sale_qty_${index}" data-sale-qty="${index}" type="number" min="1" step="1" value="${item.quantity}"></div><div class="field"><label for="sale_price_${index}">Ціна продажу за шт., $</label><input id="sale_price_${index}" data-sale-price="${index}" type="number" min="0" step="1" value="${item.price}"></div></div>
+          <div class="grid2"><div class="field"><label for="sale_serial_${index}">Серійний номер${item.quantity > 1 ? "и" : ""}</label><textarea id="sale_serial_${index}" data-sale-serial="${index}" maxlength="2000" rows="2" placeholder="Для кількох одиниць — кожен номер з нового рядка">${esc(item.serialNumber || "")}</textarea></div><div class="field"><label for="sale_location_${index}">Місце закупівлі</label><input id="sale_location_${index}" data-sale-location="${index}" maxlength="500" value="${esc(item.purchaseLocation || "")}" placeholder="Постачальник, магазин або склад"></div></div>
           <div class="field"><label for="sale_batch_${index}">Партія / закупівля за шт.</label><select id="sale_batch_${index}" data-sale-batch="${index}"><option value="">${item.purchasePrice != null && !item.warehouseItemId ? `Збережена закупівля ${money(item.purchasePrice)}` : "Автоматично, якщо ціна однозначна"}</option>${item.warehouseItemId && !batches.some((b) => b.id === item.warehouseItemId) ? `<option value="${esc(item.warehouseItemId)}" selected>Збережена партія · ${money(item.purchasePrice)}</option>` : ""}${batches.map((batch) => `<option value="${esc(batch.id)}" ${batch.id === item.warehouseItemId ? "selected" : ""}>${esc(batch.supplierName)} · ${money(batch.purchasePrice)} · залишок ${batch.quantity} шт.</option>`).join("")}</select></div>
           <div class="muted">${cost != null ? `Закупівля: ${money(cost)} × ${item.quantity} = ${money(cost * item.quantity)}` : "Потрібна ціна закупівлі: виберіть партію або задайте її на складі. Комісію ще не нараховано."}</div></div>`;
       }).join("") : `<div class="muted">Товари ще не додані</div>`;
@@ -305,9 +306,16 @@
         selected[index][isQty ? "quantity" : "price"] = value;
         onChange(selected);
       }));
+      document.querySelectorAll("[data-sale-serial], [data-sale-location]").forEach((input) => input.addEventListener("input", () => {
+        const serial = input.dataset.saleSerial !== undefined;
+        const index = Number(serial ? input.dataset.saleSerial : input.dataset.saleLocation);
+        selected[index][serial ? "serialNumber" : "purchaseLocation"] = input.value;
+      }));
       document.querySelectorAll("[data-sale-batch]").forEach((input) => input.addEventListener("change", () => {
         const item = selected[Number(input.dataset.saleBatch)];
         item.warehouseItemId = input.value || null;
+        const batch = crmProductOptions.find((p) => p.id === item.id)?.batches?.find((b) => b.id === input.value);
+        if (!item.purchaseLocation?.trim() && batch?.supplierName && batch.supplierName !== "Без постачальника") item.purchaseLocation = batch.supplierName;
         delete item.purchasePrice;
         render(); onChange(selected, false);
       }));
@@ -1459,7 +1467,7 @@
         if (l.items && l.items.length) {
           details +=
             `<div class="items">` +
-            l.items.map((it) => `<div>• ${esc(it.name)} × ${it.quantity} — ${money(it.price * it.quantity)}</div>`).join("") +
+            l.items.map((it) => `<div>• ${esc(it.name)} × ${it.quantity} — ${money(it.price * it.quantity)}${it.serialNumber ? `<div style="white-space:pre-line">С/Н: ${esc(it.serialNumber)}</div>` : ""}${it.purchaseLocation ? `<div>Закуплено: ${esc(it.purchaseLocation)}</div>` : ""}</div>`).join("") +
             `<div><strong>Разом: ${money(l.total)}</strong></div></div>`;
         }
         const normalizedStatus = l.status === "in_progress" ? "contacted" : l.status === "done" ? "won" : l.status;

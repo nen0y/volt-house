@@ -23,6 +23,8 @@ const itemSchema = z.object({
   name: z.string(),
   price: z.number().int().nonnegative(),
   warehouseItemId: z.string().nullish(),
+  serialNumber: z.string().trim().max(2000).optional(),
+  purchaseLocation: z.string().trim().max(500).optional(),
   quantity: z.number().int().positive(),
   availability: z.enum(["in_stock", "preorder", "unavailable"]).optional(),
   custom: z.boolean().optional(),

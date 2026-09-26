@@ -42,11 +42,20 @@ test('admin can edit a won lead with inactive assigned manager, add a product, a
   let written;
   prisma.lead.updateMany = async({data})=>{written=data;previous={...previous,...data};return {count:1};};
   const res = {code:200,status(code){this.code=code;return this;},json(body){this.body=body;return this;}};
-  await handler({params:{id:'lead'},admin:{role:'admin',id:'admin'},body:{status:'won',managerId:'inactive-manager',items:[item('battery',1750),item('panel',150,2)],total:1750}},res);
+  await handler({params:{id:'lead'},admin:{role:'admin',id:'admin'},body:{status:'won',managerId:'inactive-manager',items:[{...item('battery',1750),serialNumber:' SN-001 ',purchaseLocation:' Склад у Києві '},{...item('panel',150,2),serialNumber:'P-001\nP-002',purchaseLocation:'Постачальник панелей'}],total:1750}},res);
   assert.equal(res.code,200);
   assert.equal(written.soldById,undefined);
   assert.equal(written.total,2050);
   assert.equal(res.body.financials.commission,22);
+  assert.equal(res.body.items[0].serialNumber,'SN-001');
+  assert.equal(res.body.items[0].purchaseLocation,'Склад у Києві');
+  assert.equal(JSON.parse(written.items)[1].serialNumber,'P-001\nP-002');
+  await handler({params:{id:'lead'},admin:{role:'admin',id:'admin'},body:{items:res.body.items.map(i=>({...i,serialNumber:'',purchaseLocation:''})),total:2050}},res);
+  assert.equal(res.code,200);
+  assert.equal(res.body.items[0].serialNumber,'');
+  assert.equal(res.body.items[0].purchaseLocation,'');
+  assert.equal(res.body.financials.commission,22);
+
 });
 
 test('manager statistics use current successful-lead margin and flag missing purchase costs', async () => {

@@ -18,6 +18,8 @@ export interface LeadItem {
   name: string;
   price: number;
   quantity: number;
+  serialNumber?: string;
+  purchaseLocation?: string;
   warehouseItemId?: string | null;
   purchasePrice?: number | null;
   availability?: "in_stock" | "preorder" | "unavailable";
