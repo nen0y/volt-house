@@ -8,7 +8,7 @@ import { stockSummary } from "../stock";
 export const warehouseRouter = Router();
 
 // GET /api/warehouse/balance
-warehouseRouter.get("/balance", requireAdmin, async (req, res) => {
+warehouseRouter.get("/balance", requireAdmin, async (req: AuthedRequest, res) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
   const category = typeof req.query.category === "string" && req.query.category !== "all" ? req.query.category : null;
   const brand = typeof req.query.brand === "string" && req.query.brand !== "all" ? req.query.brand : null;
@@ -32,11 +32,13 @@ warehouseRouter.get("/balance", requireAdmin, async (req, res) => {
     orderBy: { name: "asc" },
   });
 
+  const isAdmin = req.admin!.role === "admin";
   const result = products.map((p) => {
+    const warehouseItems = isAdmin ? p.warehouseItems : p.warehouseItems.map(({ purchasePrice, ...item }) => item);
     return {
       product: { id: p.id, name: p.name, category: p.category, image: p.image, brandSlug: p.brandSlug, brandName: p.brand?.name || null, suggestedSalePrice: p.price, enabled: p.enabled },
       ...stockSummary(p.warehouseItems, p.reservations),
-      warehouseItems: p.warehouseItems,
+      warehouseItems,
       reservations: p.reservations,
     };
   }).filter((p) => p.warehouseItems.length > 0 || p.reservedQty > 0);

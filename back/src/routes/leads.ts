@@ -13,9 +13,11 @@ import { resolveCosts, commissionFor, COMMISSION_PERCENT } from "../commission";
 export const leadsRouter = Router();
 
 // items is stored as a JSON string (SQLite) — expose it as an array to clients.
-function toDto(l: any) {
+function toDto(l: any, isAdmin = true) {
   const { reservations, ...rest } = l;
-  return { ...rest, items: parseItems(l.items), financials: commissionFor(parseItems(l.items) || [], l.total), reservations: reservations || [] };
+  const items = parseItems(l.items) || [];
+  const safeItems = isAdmin ? items : items.map(({ purchasePrice, warehouseItemId, ...item }) => item);
+  return { ...rest, items: safeItems, financials: isAdmin ? commissionFor(items, l.total) : null, reservations: reservations || [] };
 }
 
 const itemSchema = z.object({
@@ -107,11 +109,12 @@ leadsRouter.get("/", requireAdmin, async (req: AuthedRequest, res) => {
     include: leadInclude,
     orderBy: { createdAt: "desc" },
   });
-  res.json(rows.map(toDto));
+  const isAdmin = req.admin!.role === "admin";
+  res.json(rows.map((r) => toDto(r, isAdmin)));
 });
 
 // Product picker for CRM leads, including the best known supplier availability.
-leadsRouter.get("/product-options", requireAdmin, async (_req, res) => {
+leadsRouter.get("/product-options", requireAdmin, async (req: AuthedRequest, res) => {
   const products = await prisma.product.findMany({
     where: { enabled: true },
     select: { ...stockInclude, warehouseItems: { select: { id: true, quantity: true, arrivalDate: true, purchasePrice: true, supplier: { select: { name: true } } } }, id: true, name: true, price: true, supplierPrices: { where: { supplier: { active: true } }, select: { availability: true, price: true, arrivalDate: true } } },
@@ -123,7 +126,8 @@ leadsRouter.get("/product-options", requireAdmin, async (_req, res) => {
       : available.some((row) => row.availability === "preorder") ? "preorder" : "unavailable";
     const stock = productStock(product);
     const availability = stock.availability === "unavailable" ? supplierAvailability : stock.availability;
-    return { id: product.id, name: product.name, price: product.price, availability, supplierAvailability, stock, batches: product.warehouseItems.map((b) => ({ id: b.id, quantity: b.quantity, arrivalDate: b.arrivalDate, purchasePrice: b.purchasePrice, supplierName: b.supplier?.name || "Без постачальника" })) };
+    const isAdmin = req.admin!.role === "admin";
+    return { id: product.id, name: product.name, price: product.price, availability, supplierAvailability, stock, batches: isAdmin ? product.warehouseItems.map((b) => ({ id: b.id, quantity: b.quantity, arrivalDate: b.arrivalDate, purchasePrice: b.purchasePrice, supplierName: b.supplier?.name || "Без постачальника" })) : [] };
   }));
 });
 
@@ -217,7 +221,7 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
     if (item.custom || item.availability === "unavailable") await sendUnavailableProductTelegram({ id: lead.id, name: lead.name, phone: lead.phone, productName: item.name });
   }
   const created = await prisma.lead.findUnique({ where: { id: lead.id }, include: leadInclude });
-  res.status(201).json(toDto(created));
+  res.status(201).json(toDto(created, req.admin!.role === "admin"));
 });
 
 leadsRouter.get("/manager-stats", requireAdmin, requireSuperAdmin, async (req, res) => {
@@ -433,7 +437,7 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
       }
     }
     const result = await prisma.lead.findUnique({ where: { id: updated.id }, include: leadInclude });
-    res.json(toDto(result));
+    res.json(toDto(result, req.admin!.role === "admin"));
   } catch (error) {
     res.status(409).json({ error: error instanceof Error && !error.message.includes("prisma") ? error.message : "Не вдалося оновити заявку. Оновіть дані й повторіть дію." });
   }
