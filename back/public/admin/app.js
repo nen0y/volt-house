@@ -601,7 +601,33 @@
     if (managerSelect) managerSelect.addEventListener("change", () => { crmFilters.managerId = managerSelect.value; renderCrmContent(filteredLeads()); });
   }
 
+  let salesReportRequest = 0;
+  async function loadSalesMargin() {
+    if (currentAdmin?.role !== "admin") return;
+    const target = $("salesMarginTotals");
+    const request = ++salesReportRequest;
+    if (!$("salesFromMonth").value) $("salesFromMonth").value = todayInKyiv().slice(0, 7);
+    if (!$("salesToMonth").value) $("salesToMonth").value = $("salesFromMonth").value;
+    target.textContent = "Завантаження…";
+    try {
+      const params = new URLSearchParams({ fromMonth: $("salesFromMonth").value, toMonth: $("salesToMonth").value });
+      const report = await api("/api/leads/sales-summary?" + params);
+      if (request !== salesReportRequest || currentAdmin?.role !== "admin") return;
+      target.innerHTML = `<div class="stats" style="margin-top:12px">${[
+        ["Успішних продажів", report.saleCount], ["Сума всіх продажів", money(report.salesTotal)],
+        ["Закупівля відомих продажів", money(report.purchaseTotal)], [report.pendingCostCount ? "Маржа (неповний підсумок)" : "Дохід за маржею", money(report.margin)],
+      ].map(([label, value]) => `<div class="stat"><div class="n">${esc(value)}</div><div class="l">${esc(label)}</div></div>`).join("")}</div>${report.pendingCostCount ? `<p style="color:#92400e">Без закупівельної ціни: ${report.pendingCostCount} заявок. Їхню маржу ще не враховано.</p>` : ""}`;
+    } catch (error) { if (request === salesReportRequest) target.textContent = error.message; }
+  }
+  $("salesFromMonth").addEventListener("change", loadSalesMargin);
+  $("salesToMonth").addEventListener("change", loadSalesMargin);
+  $("salesCurrentMonth").addEventListener("click", () => {
+    $("salesFromMonth").value = $("salesToMonth").value = todayInKyiv().slice(0, 7);
+    loadSalesMargin();
+  });
+
   async function loadCrm() {
+    loadSalesMargin();
     try {
       managerCache = await api(currentAdmin?.role === "admin" ? "/api/auth/users" : "/api/leads/managers");
       const leads = await api("/api/leads?type=all&status=all");

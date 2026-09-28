@@ -344,6 +344,16 @@
           <div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" id="refreshCrm">↻ Оновити</button><button class="btn btn-sm" id="addCrmClient">+ Додати клієнта</button></div>
         </div>
         <div class="stats" id="crmStats"></div>
+        <section id="salesMarginReport" data-admin-only style="display:none;background:white;border:1px solid var(--slate-200);border-radius:12px;padding:16px;margin-bottom:20px">
+          <h3 style="margin-bottom:12px">Дохід за маржею · усі успішні продажі</h3>
+          <div class="toolbar">
+            <label class="field" style="margin:0">Від місяця<input type="month" id="salesFromMonth"></label>
+            <label class="field" style="margin:0">До місяця включно<input type="month" id="salesToMonth"></label>
+            <button class="btn-sm btn-ghost" id="salesCurrentMonth">Поточний місяць</button>
+          </div>
+          <div id="salesMarginTotals" aria-live="polite"></div>
+          <p class="muted" style="font-size:12px;margin-top:8px">Маржа = продажі − закупівля, до комісій та інших витрат. Повні календарні місяці за Києвом, за датою успішного продажу; для старих заявок без неї — за датою створення. Допродаж враховується в місяці заявки.</p>
+        </section>
         <!-- Sticky search + stage bar -->
         <div style="position:sticky;top:60px;z-index:8;background:var(--slate-100);padding:8px 0 0;margin-bottom:0">
           <div style="position:relative;margin-bottom:10px">

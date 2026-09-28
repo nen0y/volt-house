@@ -10,6 +10,8 @@ import { stockInclude, productStock, deductedStock, takeReceivedStock, restoreRe
 
 import { resolveCosts, commissionFor, COMMISSION_PERCENT } from "../commission";
 
+import { salesPeriod, summarizeSales } from "../sales-report";
+
 export const leadsRouter = Router();
 
 // items is stored as a JSON string (SQLite) — expose it as an array to clients.
@@ -222,6 +224,26 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
   }
   const created = await prisma.lead.findUnique({ where: { id: lead.id }, include: leadInclude });
   res.status(201).json(toDto(created, req.admin!.role === "admin"));
+});
+
+// All successful sales, regardless of assigned manager or credited seller.
+leadsRouter.get("/sales-summary", requireAdmin, requireSuperAdmin, async (req, res) => {
+  let period;
+  try { period = salesPeriod(req.query.fromMonth, req.query.toMonth); }
+  catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+  try {
+    const dates = { gte: period.from, lt: period.to };
+    const leads = await prisma.lead.findMany({
+      where: { status: { in: ["won", "done"] }, OR: [{ wonAt: dates }, { wonAt: null, createdAt: dates }] },
+      select: { items: true, total: true },
+    });
+    const productIds = [...new Set(leads.flatMap((lead) => (parseItems(lead.items) || []).map((item) => item.id)))];
+    const batches = productIds.length ? await prisma.warehouseItem.findMany({
+      where: { productId: { in: productIds }, arrivalDate: null },
+      select: { id: true, productId: true, purchasePrice: true, arrivalDate: true },
+    }) : [];
+    res.json({ fromMonth: period.fromMonth, toMonth: period.toMonth, ...summarizeSales(leads, batches) });
+  } catch { res.status(500).json({ error: "Не вдалося завантажити підсумок продажів" }); }
 });
 
 leadsRouter.get("/manager-stats", requireAdmin, requireSuperAdmin, async (req, res) => {
