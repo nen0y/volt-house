@@ -27,8 +27,12 @@ export async function resolveCosts(db: Pick<Prisma.TransactionClient, "warehouse
   const batches = await db.warehouseItem.findMany({ where: { productId: { in: [...new Set(items.map((i) => i.id))] }, arrivalDate: null }, select: { id: true, productId: true, purchasePrice: true, arrivalDate: true } });
   return attachCosts(items, previous, batches);
 }
-export function commissionFor(items: LeadItem[], total: number | null | undefined) {
+export function commissionFor(items: LeadItem[], total: number | null | undefined, manualMargin?: number | null) {
   const salesTotal = round(total ?? items.reduce((sum, item) => sum + item.price * item.quantity, 0));
+  if (!items.length && manualMargin != null) {
+    const margin = round(manualMargin);
+    return { salesTotal, purchaseTotal: null, margin, commission: round(Math.max(0, margin) * COMMISSION_PERCENT / 100), missingCostCount: 0, commissionPercent: COMMISSION_PERCENT };
+  }
   const missingCostCount = items.filter((item) => item.purchasePrice == null).length;
   if (!items.length || missingCostCount) return { salesTotal, purchaseTotal: null, margin: null, commission: null, missingCostCount: missingCostCount || 1, commissionPercent: COMMISSION_PERCENT };
   const purchaseTotal = round(items.reduce((sum, item) => sum + item.purchasePrice! * item.quantity, 0));

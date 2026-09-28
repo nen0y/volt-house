@@ -16,10 +16,10 @@ export const leadsRouter = Router();
 
 // items is stored as a JSON string (SQLite) — expose it as an array to clients.
 function toDto(l: any, isAdmin = true) {
-  const { reservations, ...rest } = l;
+  const { reservations, manualMargin, ...rest } = l;
   const items = parseItems(l.items) || [];
   const safeItems = isAdmin ? items : items.map(({ purchasePrice, warehouseItemId, ...item }) => item);
-  return { ...rest, items: safeItems, financials: isAdmin ? commissionFor(items, l.total) : null, reservations: reservations || [] };
+  return { ...rest, items: safeItems, ...(isAdmin ? { manualMargin } : {}), financials: isAdmin ? commissionFor(items, l.total, ["won", "done"].includes(l.status) ? manualMargin : null) : null, reservations: reservations || [] };
 }
 
 const itemSchema = z.object({
@@ -235,7 +235,7 @@ leadsRouter.get("/sales-summary", requireAdmin, requireSuperAdmin, async (req, r
     const dates = { gte: period.from, lt: period.to };
     const leads = await prisma.lead.findMany({
       where: { status: { in: ["won", "done"] }, OR: [{ wonAt: dates }, { wonAt: null, createdAt: dates }] },
-      select: { items: true, total: true },
+      select: { items: true, total: true, manualMargin: true },
     });
     const productIds = [...new Set(leads.flatMap((lead) => (parseItems(lead.items) || []).map((item) => item.id)))];
     const batches = productIds.length ? await prisma.warehouseItem.findMany({
@@ -255,14 +255,14 @@ leadsRouter.get("/manager-stats", requireAdmin, requireSuperAdmin, async (req, r
     where: { role: "manager" },
     select: {
       id: true, name: true, email: true, active: true, commissionPercent: true,
-      soldLeads: { where: { status: "won", wonAt: { gte: from, lt: to } }, select: { total: true, items: true } },
+      soldLeads: { where: { status: "won", wonAt: { gte: from, lt: to } }, select: { total: true, items: true, manualMargin: true } },
     },
     orderBy: { name: "asc" },
   });
   const result = await Promise.all(managers.map(async ({ soldLeads, ...manager }) => {
     const values = await Promise.all(soldLeads.map(async (lead) => {
       const items = parseItems(lead.items) || [];
-      return commissionFor(await resolveCosts(prisma, items, items), lead.total);
+      return commissionFor(await resolveCosts(prisma, items, items), lead.total, lead.manualMargin);
     }));
     const sum = (key: "salesTotal" | "purchaseTotal" | "margin" | "commission") => Math.round(values.reduce((total, row) => total + (row[key] ?? 0), 0) * 100) / 100;
     return { ...manager, commissionPercent: COMMISSION_PERCENT, wonCount: soldLeads.length, salesTotal: sum("salesTotal"), purchaseTotal: sum("purchaseTotal"), margin: sum("margin"), salary: sum("commission"), pendingCostCount: values.filter((row) => row.commission == null).length };
@@ -289,6 +289,7 @@ const statusSchema = z.object({
   managerId: z.string().nullable().optional(),
   expectedManagerId: z.string().nullable().optional(),
   total: z.number().min(0).optional(),
+  manualMargin: z.number().finite().min(-1000000000).max(1000000000).nullable().optional(),
   reservedProducts: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive() })).optional(),
 });
 
@@ -301,7 +302,10 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
   try {
     const previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
-    const { items, email, interest, message, managerId, expectedManagerId, total, callbackAt, reservedProducts, ...fields } = parsed.data;
+    const { items, email, interest, message, managerId, expectedManagerId, total, callbackAt, reservedProducts, manualMargin, ...fields } = parsed.data;
+    const canSetManualMargin = ["won", "done"].includes(fields.status ?? previous.status) && !(items ?? parseItems(previous.items) ?? []).length;
+    if (manualMargin !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Ручна маржа доступна лише адміністратору" });
+    if (manualMargin != null && !canSetManualMargin) return res.status(400).json({ error: "Ручну маржу можна задати лише в успішній заявці без товарів" });
     if (callbackAt && new Date(callbackAt).getTime() !== previous.callbackAt?.getTime() && new Date(callbackAt).getTime() <= Date.now()) return res.status(400).json({ error: "Оберіть майбутню дату й час передзвону" });
     if (req.admin!.role === "manager") {
       if (managerId !== undefined && managerId !== req.admin!.id) return res.status(403).json({ error: "Ви можете призначити заявку лише собі" });
@@ -332,6 +336,7 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     const salesChanged = items !== undefined && JSON.stringify(items.map(({ id, price, quantity }) => ({ id, price, quantity }))) !== JSON.stringify((parseItems(previous.items) || []).map(({ id, price, quantity }) => ({ id, price, quantity })));
     const data = {
       ...fields,
+      ...(!canSetManualMargin ? { manualMargin: null } : manualMargin !== undefined ? { manualMargin } : {}),
       ...(callbackAt !== undefined && (callbackAt ? new Date(callbackAt).getTime() : null) !== (previous.callbackAt?.getTime() ?? null) ? {
         callbackAt: callbackAt ? new Date(callbackAt) : null, callbackSentAt: null, callbackClaimedAt: null,
       } : {}),

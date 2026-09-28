@@ -881,7 +881,7 @@
       ${crmProductPickerHtml()}
       ${stockWaitingFields(lead)}
       ${callbackFields(lead)}
-      ${currentAdmin?.role === "admin" ? `<div id="crm_margin_summary" class="crm-margin-summary"></div>` : ""}<div class="field"><label>Сума продажу, $</label><input id="crm_total" type="number" min="0" step="1" value="${esc(lead.total ?? "")}" placeholder="Потрібна для розрахунку зарплати"></div>
+      ${currentAdmin?.role === "admin" ? `<div id="crm_manual_margin_wrap" class="field" style="display:none"><label for="crm_manual_margin">Маржа вручну, $</label><input id="crm_manual_margin" type="number" step="0.01" min="-1000000000" max="1000000000" value="${esc(lead.manualMargin ?? "")}" placeholder="Наприклад: 120"><div class="muted">Лише для успішної заявки без товарів. Порожнє поле — маржу не задано.</div></div><div id="crm_margin_summary" class="crm-margin-summary"></div>` : ""}<div class="field"><label>Сума продажу, $</label><input id="crm_total" type="number" min="0" step="1" value="${esc(lead.total ?? "")}" placeholder="Потрібна для розрахунку зарплати"></div>
       <div class="field"><label>Тип звернення</label><select id="crm_type">${Object.entries(TYPE_LABEL).map(([value, label]) => `<option value="${value}" ${value === lead.type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
       <div class="field"><label>Етап</label><select id="crm_status">${CRM_STATUSES.map((s) => `<option value="${s}" ${s === normalizeLeadStatus(lead.status) ? "selected" : ""}>${STATUS_LABEL[s]}</option>`).join("")}</select></div>
       ${currentAdmin?.role === "admin" ? `<div class="field"><label>Відповідальний менеджер</label><select id="crm_manager"><option value="">Не призначено</option>${managerCache.filter((m) => m.active || m.id === lead.managerId).map((m) => `<option value="${esc(m.id)}" ${m.id === lead.managerId ? "selected" : ""}>${esc(m.name || m.email)}${m.active ? "" : " (вимкнений)"}</option>`).join("")}</select></div>` : `<div class="field"><label>Відповідальний менеджер</label><div>${esc(lead.manager?.name || lead.manager?.email || currentAdmin?.name || currentAdmin?.email || "—")}</div></div>`}
@@ -894,6 +894,13 @@
     const updateFinancials = (items, recalculateTotal = true) => {
       if (recalculateTotal) $("crm_total").value = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       if (currentAdmin?.role !== "admin") return;
+      const manualAllowed = $("crm_status").value === "won" && items.length === 0;
+      if ($("crm_manual_margin_wrap")) $("crm_manual_margin_wrap").style.display = manualAllowed ? "" : "none";
+      if (manualAllowed && $("crm_manual_margin")?.value !== "") {
+        const margin = Number($("crm_manual_margin").value);
+        $("crm_margin_summary").textContent = `Маржа вручну: ${money(margin)} · Комісія (10%): ${money(Math.round(Math.max(0, margin) * 10) / 100)}`;
+        return;
+      }
       const costs = items.map((item) => {
         if (item.purchasePrice != null) return item.purchasePrice * item.quantity;
         const batches = (crmProductOptions.find((p) => p.id === item.id)?.batches || []).filter((b) => !b.arrivalDate && b.purchasePrice != null);
@@ -907,6 +914,8 @@
     };
     const getProducts = setupCrmProductPicker(lead.items || [], updateFinancials);
     updateFinancials(getProducts(), false);
+    $("crm_manual_margin")?.addEventListener("input", () => updateFinancials(getProducts(), false));
+    $("crm_status").addEventListener("change", () => updateFinancials(getProducts(), false));
     $("crm_total").addEventListener("input", () => updateFinancials(getProducts(), false));
     $("crm_cancel").addEventListener("click", closeModal);
     if ($("crm_delete")) $("crm_delete").addEventListener("click", async () => {
@@ -941,6 +950,7 @@
           notes: $("crm_notes").value,
           items: getProducts(),
           total: Number($("crm_total").value) || 0,
+          ...(currentAdmin?.role === "admin" ? { manualMargin: $("crm_status").value === "won" && !getProducts().length && $("crm_manual_margin").value !== "" ? Number($("crm_manual_margin").value) : null } : {}),
           ...(currentAdmin?.role === "admin" && ($("crm_manager").value || null) !== (lead.managerId || null) ? { managerId: $("crm_manager").value || null } : {}),
         }) });
         closeModal();

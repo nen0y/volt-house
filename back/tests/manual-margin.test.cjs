@@ -1,0 +1,46 @@
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const {commissionFor} = require('../dist/commission');
+const {summarizeSales} = require('../dist/sales-report');
+test('manual margin supports zero and losses and cannot override product costs', () => {
+  assert.equal(commissionFor([],500,120).commission,12);
+  assert.equal(commissionFor([],500,0).margin,0);
+  assert.equal(commissionFor([],500,-25).commission,0);
+  assert.equal(commissionFor([],500,null).margin,null);
+  assert.equal(commissionFor([{id:'p',name:'P',price:100,quantity:1,purchasePrice:60}],100,900).margin,40);
+  assert.deepEqual(summarizeSales([{total:500,items:null,manualMargin:120},{total:100,items:null,manualMargin:-20},{total:50,items:null,manualMargin:0}],[]),{saleCount:3,salesTotal:650,purchaseTotal:0,margin:100,calculatedCount:3,pendingCostCount:0});
+});
+test('manual margin requires admin and successful order without products', async () => {
+  const {prisma} = require('../dist/prisma');
+  const telegram = require('../dist/telegram');
+  telegram.sendLeadTelegram = async()=>({skipped:true});
+  const {leadsRouter} = require('../dist/routes/leads');
+  const handler = leadsRouter.stack.find(l=>l.route?.path==='/:id' && l.route.methods.patch).route.stack.at(-1).handle;
+  let previous={id:'manual',status:'won',managerId:'m',soldById:'m',total:500,items:null,manualMargin:null};
+  prisma.$transaction=async(fn)=>fn(prisma);
+  prisma.lead.findUnique=async()=>previous;
+  prisma.lead.findUniqueOrThrow=async()=>previous;
+  prisma.warehouseItem.findMany=async()=>[];
+  prisma.reservation.findMany=async()=>[];
+  prisma.lead.updateMany=async({data})=>{previous={...previous,...data};return {count:1}};
+  const patch=async(body,role='admin')=>{
+    const res={code:200,status(code){this.code=code;return this},json(body){this.body=body;return this}};
+    await handler({params:{id:'manual'},admin:{role,id:'m'},body},res);return res;
+  };
+  assert.equal((await patch({manualMargin:100},'manager')).code,403);
+  assert.equal((await patch({manualMargin:120})).body.financials.commission,12);
+  const hidden=await patch({notes:'updated'},'manager');
+  assert.equal(hidden.body.manualMargin,undefined);
+  assert.equal(hidden.body.financials,null);
+  assert.equal((await patch({manualMargin:0})).body.financials.margin,0);
+  assert.equal((await patch({manualMargin:null})).body.financials.margin,null);
+  await patch({manualMargin:120});
+  await patch({items:[{id:'p',name:'P',price:100,quantity:1}]});
+  assert.equal(previous.manualMargin,null);
+  assert.equal((await patch({manualMargin:100})).code,400);
+  previous={...previous,items:null,status:'new'};
+  assert.equal((await patch({manualMargin:100})).code,400);
+  previous={...previous,status:'won',manualMargin:100};
+  await patch({status:'new'});
+  assert.equal(previous.manualMargin,null);
+});
