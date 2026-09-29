@@ -560,7 +560,7 @@
 
   function filteredLeads() {
     const q = crmSearch.trim().toLocaleLowerCase("uk-UA");
-    return crmLeadCache.filter((l) => {
+    return periodLeads().filter((l) => {
       if (crmFilters.waitingForStock === "waiting" && !l.waitingForStock) return false;
       if (crmFilters.type !== "all" && l.type !== crmFilters.type) return false;
       if (crmFilters.paymentStatus !== "all" && (l.paymentStatus || "unpaid") !== crmFilters.paymentStatus) return false;
@@ -577,6 +577,67 @@
       if (crmStage !== "all") return normalizeLeadStatus(l.status) === crmStage;
       return true;
     });
+  }
+
+  function selectedCrmPeriod() {
+    const mode = $("salesPeriodMode")?.value || "current";
+    if (mode === "all") return null;
+    const current = todayInKyiv().slice(0, 7);
+    if (mode === "current") return { from: current, to: current };
+    if (mode === "month") {
+      const month = $("salesFromMonth").value || current;
+      return { from: month, to: month };
+    }
+    return { from: $("salesRangeFromMonth").value || current, to: $("salesToMonth").value || current };
+  }
+
+  function leadMonth(lead) {
+    const date = new Date(normalizeLeadStatus(lead.status) === "won" ? (lead.wonAt || lead.createdAt) : lead.createdAt);
+    if (!Number.isFinite(date.getTime())) return "";
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv", year: "numeric", month: "2-digit" }).formatToParts(date);
+    return `${parts.find((part) => part.type === "year").value}-${parts.find((part) => part.type === "month").value}`;
+  }
+
+  function periodLeads() {
+    const period = selectedCrmPeriod();
+    if (!period) return crmLeadCache;
+    if (period.from > period.to) return [];
+    return crmLeadCache.filter((lead) => {
+      const month = leadMonth(lead);
+      return month >= period.from && month <= period.to;
+    });
+  }
+
+  function renderCrmStats() {
+    const leads = periodLeads();
+    const counts = Object.fromEntries(CRM_STATUSES.map((status) => [status, 0]));
+    leads.forEach((lead) => counts[normalizeLeadStatus(lead.status)]++);
+    const stats = [
+      ["Усього клієнтів", leads.length],
+      ["Необроблені", counts.new],
+      ["У роботі", counts.contacted + counts.sourcing + counts.proposal],
+      ["Успішні", counts.won],
+      ["Втрачено", counts.lost],
+    ];
+    if (currentAdmin?.role === "admin") {
+      const sales = leads.filter((lead) => ["won", "done"].includes(lead.status));
+      const revenue = sales.reduce((sum, lead) => sum + (lead.financials?.salesTotal || 0), 0);
+      const knownMargins = sales.filter((lead) => lead.financials?.margin != null);
+      const margin = knownMargins.reduce((sum, lead) => sum + lead.financials.margin, 0);
+      const pending = sales.filter((lead) => lead.financials?.margin == null).length;
+      stats.push(["Сума продажів", money(revenue)], [pending ? "Маржа (неповна)" : "Маржа", money(margin)], ...(pending ? [["Без закупівлі", pending]] : []));
+    }
+    $("crmStats").innerHTML = stats.map(([label, value]) => `<div class="stat"><div class="n">${esc(value)}</div><div class="l">${esc(label)}</div></div>`).join("");
+  }
+
+  function applyCrmPeriod() {
+    const mode = $("salesPeriodMode").value;
+    $("salesMonthWrap").style.display = mode === "month" ? "" : "none";
+    $("salesFromWrap").style.display = $("salesToWrap").style.display = mode === "range" ? "" : "none";
+    renderCrmStats();
+    renderStageTabs();
+    renderCrmContent(filteredLeads());
+    loadSalesMargin();
   }
 
   function renderCrmFilters() {
@@ -606,11 +667,23 @@
     if (currentAdmin?.role !== "admin") return;
     const target = $("salesMarginTotals");
     const request = ++salesReportRequest;
-    if (!$("salesFromMonth").value) $("salesFromMonth").value = todayInKyiv().slice(0, 7);
-    if (!$("salesToMonth").value) $("salesToMonth").value = $("salesFromMonth").value;
+    const mode = $("salesPeriodMode").value;
+    const current = todayInKyiv().slice(0, 7);
+    if (!$("salesFromMonth").value) $("salesFromMonth").value = current;
+    if (!$("salesRangeFromMonth").value) $("salesRangeFromMonth").value = current;
+    if (!$("salesToMonth").value) $("salesToMonth").value = current;
     target.textContent = "Завантаження…";
     try {
-      const params = new URLSearchParams({ fromMonth: $("salesFromMonth").value, toMonth: $("salesToMonth").value });
+      const params = new URLSearchParams();
+      if (mode === "all") params.set("all", "true");
+      else if (mode === "range") {
+        params.set("fromMonth", $("salesRangeFromMonth").value);
+        params.set("toMonth", $("salesToMonth").value);
+      } else {
+        const month = mode === "current" ? current : $("salesFromMonth").value;
+        params.set("fromMonth", month);
+        params.set("toMonth", month);
+      }
       const report = await api("/api/leads/sales-summary?" + params);
       if (request !== salesReportRequest || currentAdmin?.role !== "admin") return;
       target.innerHTML = `<div class="stats" style="margin-top:12px">${[
@@ -619,12 +692,10 @@
       ].map(([label, value]) => `<div class="stat"><div class="n">${esc(value)}</div><div class="l">${esc(label)}</div></div>`).join("")}</div>${report.pendingCostCount ? `<p style="color:#92400e">Без закупівельної ціни: ${report.pendingCostCount} заявок. Їхню маржу ще не враховано.</p>` : ""}`;
     } catch (error) { if (request === salesReportRequest) target.textContent = error.message; }
   }
-  $("salesFromMonth").addEventListener("change", loadSalesMargin);
-  $("salesToMonth").addEventListener("change", loadSalesMargin);
-  $("salesCurrentMonth").addEventListener("click", () => {
-    $("salesFromMonth").value = $("salesToMonth").value = todayInKyiv().slice(0, 7);
-    loadSalesMargin();
-  });
+  $("salesPeriodMode").addEventListener("change", applyCrmPeriod);
+  $("salesFromMonth").addEventListener("change", applyCrmPeriod);
+  $("salesRangeFromMonth").addEventListener("change", applyCrmPeriod);
+  $("salesToMonth").addEventListener("change", applyCrmPeriod);
 
   async function loadCrm() {
     loadSalesMargin();
@@ -633,15 +704,7 @@
       const leads = await api("/api/leads?type=all&status=all");
       crmLeadCache = leads;
       crmLastMovedId = null;
-      const counts = Object.fromEntries(CRM_STATUSES.map((s) => [s, 0]));
-      leads.forEach((l) => counts[normalizeLeadStatus(l.status)]++);
-      $("crmStats").innerHTML = [
-        ["Усього клієнтів", leads.length],
-        ["Необроблені", counts.new],
-        ["У роботі", counts.contacted + counts.sourcing + counts.proposal],
-        ["Успішні", counts.won],
-        ["Втрачено", counts.lost],
-      ].map(([label, value]) => `<div class="stat"><div class="n">${value}</div><div class="l">${label}</div></div>`).join("");
+      renderCrmStats();
       renderStageTabs();
       renderCrmFilters();
       renderCrmContent(filteredLeads());
@@ -773,8 +836,9 @@
     const tabsEl = document.getElementById("crmStageTabs");
     if (!tabsEl) return;
     const stageCounts = Object.fromEntries(CRM_STATUSES.map((s) => [s, 0]));
-    crmLeadCache.forEach((l) => stageCounts[normalizeLeadStatus(l.status)]++);
-    const stages = [["all", "Усі", crmLeadCache.length], ...CRM_STATUSES.map((s) => [s, STATUS_LABEL[s], stageCounts[s]])];
+    const inPeriod = periodLeads();
+    inPeriod.forEach((l) => stageCounts[normalizeLeadStatus(l.status)]++);
+    const stages = [["all", "Усі", inPeriod.length], ...CRM_STATUSES.map((s) => [s, STATUS_LABEL[s], stageCounts[s]])];
     const isSearching = !!crmSearch.trim();
     tabsEl.innerHTML = stages.map(([val, label, count]) =>
       `<button class="stage-tab${crmStage === val && !isSearching ? " active" : ""}" data-stage="${val}">${esc(label)}<span class="cnt">${count}</span></button>`

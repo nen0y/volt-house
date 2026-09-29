@@ -228,13 +228,16 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
 
 // All successful sales, regardless of assigned manager or credited seller.
 leadsRouter.get("/sales-summary", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const allTime = req.query.all === "true";
   let period;
-  try { period = salesPeriod(req.query.fromMonth, req.query.toMonth); }
-  catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+  if (!allTime) {
+    try { period = salesPeriod(req.query.fromMonth, req.query.toMonth); }
+    catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+  }
   try {
-    const dates = { gte: period.from, lt: period.to };
+    const dates = period ? { gte: period.from, lt: period.to } : undefined;
     const leads = await prisma.lead.findMany({
-      where: { status: { in: ["won", "done"] }, OR: [{ wonAt: dates }, { wonAt: null, createdAt: dates }] },
+      where: { status: { in: ["won", "done"] }, ...(dates ? { OR: [{ wonAt: dates }, { wonAt: null, createdAt: dates }] } : {}) },
       select: { items: true, total: true, manualMargin: true },
     });
     const productIds = [...new Set(leads.flatMap((lead) => (parseItems(lead.items) || []).map((item) => item.id)))];
@@ -242,7 +245,7 @@ leadsRouter.get("/sales-summary", requireAdmin, requireSuperAdmin, async (req, r
       where: { productId: { in: productIds }, arrivalDate: null },
       select: { id: true, productId: true, purchasePrice: true, arrivalDate: true },
     }) : [];
-    res.json({ fromMonth: period.fromMonth, toMonth: period.toMonth, ...summarizeSales(leads, batches) });
+    res.json({ fromMonth: period?.fromMonth ?? null, toMonth: period?.toMonth ?? null, ...summarizeSales(leads, batches) });
   } catch { res.status(500).json({ error: "Не вдалося завантажити підсумок продажів" }); }
 });
 

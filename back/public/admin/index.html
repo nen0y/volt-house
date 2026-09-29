@@ -343,14 +343,17 @@
           <div><h1>CRM · Клієнти</h1><p>Перетягуйте картки між етапами продажу.</p></div>
           <div style="display:flex;gap:8px"><button class="btn btn-sm btn-ghost" id="refreshCrm">↻ Оновити</button><button class="btn btn-sm" id="addCrmClient">+ Додати клієнта</button></div>
         </div>
+        <div class="toolbar" style="margin-bottom:12px">
+          <label class="field" style="margin:0">Показати заявки
+            <select id="salesPeriodMode"><option value="current">Поточний місяць</option><option value="all">Увесь час</option><option value="month">Окремий місяць</option><option value="range">Проміжок місяців</option></select>
+          </label>
+          <label class="field" id="salesMonthWrap" style="margin:0;display:none">Місяць<input type="month" id="salesFromMonth"></label>
+          <label class="field" id="salesFromWrap" style="margin:0;display:none">Від місяця<input type="month" id="salesRangeFromMonth"></label>
+          <label class="field" id="salesToWrap" style="margin:0;display:none">До місяця включно<input type="month" id="salesToMonth"></label>
+        </div>
         <div class="stats" id="crmStats"></div>
         <section id="salesMarginReport" data-admin-only style="display:none;background:white;border:1px solid var(--slate-200);border-radius:12px;padding:16px;margin-bottom:20px">
-          <h3 style="margin-bottom:12px">Дохід за маржею · усі успішні продажі</h3>
-          <div class="toolbar">
-            <label class="field" style="margin:0">Від місяця<input type="month" id="salesFromMonth"></label>
-            <label class="field" style="margin:0">До місяця включно<input type="month" id="salesToMonth"></label>
-            <button class="btn-sm btn-ghost" id="salesCurrentMonth">Поточний місяць</button>
-          </div>
+          <h3 style="margin-bottom:12px">Підсумок успішних продажів за періодом</h3>
           <div id="salesMarginTotals" aria-live="polite"></div>
           <p class="muted" style="font-size:12px;margin-top:8px">Маржа = продажі − закупівля, до комісій та інших витрат. Повні календарні місяці за Києвом, за датою успішного продажу; для старих заявок без неї — за датою створення. Допродаж враховується в місяці заявки.</p>
         </section>
