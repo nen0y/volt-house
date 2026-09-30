@@ -473,6 +473,13 @@
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
   }
 
+  function localDateTimeValue(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return "";
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  }
+
   function callbackFields(lead = {}) {
     return `<div class="field" style="padding:12px;background:#eff6ff;border-radius:8px">
       <label for="crm_callback_at">⏰ Передзвонити — дата й час</label>
@@ -940,6 +947,7 @@
     openModal(`<h3>${normalizeLeadStatus(lead.status) === "won" ? "Успішна заявка · редагування та допродаж" : "Редагувати клієнта"}</h3>
       <div class="field"><label>Ім’я *</label><input id="crm_name" value="${esc(lead.name)}"></div>
       <div class="grid2"><div class="field"><label>Телефон *</label><input id="crm_phone" type="tel" value="${esc(lead.phone)}"></div><div class="field"><label>Email</label><input id="crm_email" type="email" value="${esc(lead.email || "")}"></div></div>
+      ${currentAdmin?.role === "admin" ? `<div class="field"><label for="crm_created_at">Дата й час створення заявки</label><input id="crm_created_at" type="datetime-local" value="${localDateTimeValue(lead.createdAt)}"><div class="muted">Час відображається у вашому часовому поясі.</div></div>` : ""}
       <div class="field"><label>Інтерес</label><input id="crm_interest" value="${esc(lead.interest || "")}" placeholder="Що цікавить клієнта"></div>
       <div class="field"><label>Повідомлення</label><textarea id="crm_message" rows="3" placeholder="Повідомлення клієнта">${esc(lead.message || "")}</textarea></div>
       ${crmProductPickerHtml()}
@@ -953,7 +961,8 @@
       <div class="grid2"><div class="field"><label>Оплата</label><select id="crm_payment_status">${statusOptions(PAYMENT_STATUS_LABEL, lead.paymentStatus || "unpaid")}</select></div><div class="field"><label>Доставка</label><select id="crm_delivery_status">${statusOptions(DELIVERY_STATUS_LABEL, lead.deliveryStatus || "not_sent")}</select></div></div>
       <div class="field"><label>Нотатки менеджера</label><textarea id="crm_notes" rows="5" placeholder="Домовленості, наступний крок, бюджет…">${esc(lead.notes || "")}</textarea></div>
       <div class="error" id="crm_error"></div>
-      <div class="modal-actions">${currentAdmin?.role === "admin" ? `<button class="btn btn-danger" id="crm_delete">Видалити заявку</button>` : ""}<button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
+      ${currentAdmin?.role === "admin" ? `<div id="crm_telegram_status" class="muted" role="status" style="margin:8px 0"></div>` : ""}
+      <div class="modal-actions">${currentAdmin?.role === "admin" ? `<button class="btn btn-danger" id="crm_delete">Видалити заявку</button><button class="btn btn-ghost" id="crm_send_telegram">Надіслати в Telegram</button>` : ""}<button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
     setupCallbackFields();
     const updateFinancials = (items, recalculateTotal = true) => {
       if (recalculateTotal) $("crm_total").value = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -982,6 +991,20 @@
     $("crm_status").addEventListener("change", () => updateFinancials(getProducts(), false));
     $("crm_total").addEventListener("input", () => updateFinancials(getProducts(), false));
     $("crm_cancel").addEventListener("click", closeModal);
+    if ($("crm_send_telegram")) $("crm_send_telegram").addEventListener("click", async () => {
+      const button = $("crm_send_telegram");
+      const status = $("crm_telegram_status");
+      button.disabled = true;
+      status.textContent = "Надсилаю заявку…";
+      try {
+        await api(`/api/leads/${encodeURIComponent(lead.id)}/send-telegram`, { method: "POST" });
+        status.textContent = "Заявку надіслано в Telegram.";
+      } catch (err) {
+        status.textContent = err.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
     if ($("crm_delete")) $("crm_delete").addEventListener("click", async () => {
       if (!confirm(`Видалити заявку клієнта «${lead.name}»? Цю дію неможливо скасувати.`)) return;
       try {
@@ -995,6 +1018,10 @@
       const phone = $("crm_phone").value.trim();
       if (!name || phone.length < 3) {
         $("crm_error").textContent = !name ? "Вкажіть ім’я" : "Вкажіть телефон";
+        return;
+      }
+      if (currentAdmin?.role === "admin" && !$("crm_created_at").value) {
+        $("crm_error").textContent = "Вкажіть дату й час створення заявки";
         return;
       }
       try {
@@ -1012,6 +1039,7 @@
           waitingForStock: $("crm_waiting_stock").checked,
           waitingProduct: $("crm_waiting_product").value.trim(),
           notes: $("crm_notes").value,
+          ...(currentAdmin?.role === "admin" ? { createdAt: new Date($("crm_created_at").value).toISOString() } : {}),
           items: getProducts(),
           total: Number($("crm_total").value) || 0,
           ...(currentAdmin?.role === "admin" ? { manualMargin: $("crm_status").value === "won" && !getProducts().length && $("crm_manual_margin").value !== "" ? Number($("crm_manual_margin").value) : null } : {}),

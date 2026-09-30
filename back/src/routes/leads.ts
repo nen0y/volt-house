@@ -274,6 +274,7 @@ leadsRouter.get("/manager-stats", requireAdmin, requireSuperAdmin, async (req, r
 });
 
 const statusSchema = z.object({
+  createdAt: z.string().datetime({ offset: true }).optional(),
   type: z.enum(["order", "consultation", "callback"]).optional(),
   name: z.string().min(1, "Вкажіть ім'я").optional(),
   phone: z.string().min(3, "Вкажіть телефон").optional(),
@@ -296,6 +297,27 @@ const statusSchema = z.object({
   reservedProducts: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive() })).optional(),
 });
 
+// Manually resend a saved lead to the configured Telegram group.
+leadsRouter.post("/:id/send-telegram", requireAdmin, requireSuperAdmin, async (req, res) => {
+  const lead = await prisma.lead.findUnique({ where: { id: req.params.id } });
+  if (!lead) return res.status(404).json({ error: "Заявку не знайдено" });
+  const result = await sendLeadTelegram({
+    id: lead.id,
+    type: lead.type,
+    name: lead.name,
+    phone: lead.phone,
+    email: lead.email,
+    interest: lead.interest,
+    message: lead.message,
+    items: parseItems(lead.items),
+    total: lead.total,
+    createdAt: lead.createdAt,
+  });
+  if (result.skipped) return res.status(503).json({ error: "Telegram не налаштовано на сервері" });
+  if (!result.ok) return res.status(502).json({ error: "Не вдалося надіслати заявку в Telegram" });
+  res.json({ ok: true });
+});
+
 // PATCH /api/leads/:id  (admin) — update CRM fields
 leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
   const parsed = statusSchema.safeParse(req.body);
@@ -305,7 +327,8 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
   try {
     const previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
-    const { items, email, interest, message, managerId, expectedManagerId, total, callbackAt, reservedProducts, manualMargin, ...fields } = parsed.data;
+    const { createdAt, items, email, interest, message, managerId, expectedManagerId, total, callbackAt, reservedProducts, manualMargin, ...fields } = parsed.data;
+    if (createdAt !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Змінювати дату створення може лише адміністратор" });
     const canSetManualMargin = ["won", "done"].includes(fields.status ?? previous.status) && !(items ?? parseItems(previous.items) ?? []).length;
     if (manualMargin !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Ручна маржа доступна лише адміністратору" });
     if (manualMargin != null && !canSetManualMargin) return res.status(400).json({ error: "Ручну маржу можна задати лише в успішній заявці без товарів" });
@@ -339,6 +362,7 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     const salesChanged = items !== undefined && JSON.stringify(items.map(({ id, price, quantity }) => ({ id, price, quantity }))) !== JSON.stringify((parseItems(previous.items) || []).map(({ id, price, quantity }) => ({ id, price, quantity })));
     const data = {
       ...fields,
+      ...(createdAt !== undefined ? { createdAt: new Date(createdAt) } : {}),
       ...(!canSetManualMargin ? { manualMargin: null } : manualMargin !== undefined ? { manualMargin } : {}),
       ...(callbackAt !== undefined && (callbackAt ? new Date(callbackAt).getTime() : null) !== (previous.callbackAt?.getTime() ?? null) ? {
         callbackAt: callbackAt ? new Date(callbackAt) : null, callbackSentAt: null, callbackClaimedAt: null,
