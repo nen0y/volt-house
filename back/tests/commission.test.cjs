@@ -2,7 +2,7 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const {attachCosts, commissionFor} = require('../dist/commission');
 const item = (id, price, quantity = 1) => ({id, name:id, price, quantity});
-const batches = [{id:'batch',productId:'battery',purchasePrice:1630,arrivalDate:null},{id:'panel-batch',productId:'panel',purchasePrice:100,arrivalDate:null}];
+const batches = [{id:'batch',productId:'battery',quantity:2,purchasePrice:1630,arrivalDate:null},{id:'panel-batch',productId:'panel',quantity:5,purchasePrice:100,arrivalDate:null}];
 test('10% is calculated from margin and recalculated for upsell and sale price changes', () => {
   const initial = attachCosts([item('battery',1750)], [], batches);
   assert.equal(commissionFor(initial,1750).commission,12);
@@ -18,10 +18,14 @@ test('snapshot cannot be forged and stays stable when a warehouse batch changes 
   assert.equal(edited[0].purchasePrice,1630);
   assert.equal(commissionFor(edited,1800).commission,17);
 });
-test('ambiguous or missing costs never inflate commission; a selected batch resolves ambiguity', () => {
-  const options = [...batches,{id:'other',productId:'battery',purchasePrice:1500,arrivalDate:null}];
-  assert.equal(commissionFor(attachCosts([item('battery',1750)],[],options),1750).commission,null);
-  assert.equal(commissionFor(attachCosts([{...item('battery',1750),warehouseItemId:'other'}],[],options),1750).commission,25);
+test('the highest in-stock purchase price is used and sold-out batches are ignored', () => {
+  const options = [...batches,{id:'other',productId:'battery',quantity:3,purchasePrice:1500,arrivalDate:null},{id:'sold-out',productId:'battery',quantity:0,purchasePrice:1900,arrivalDate:null}];
+  const automatic = attachCosts([item('battery',1750)],[],options);
+  assert.equal(automatic[0].purchasePrice,1630);
+  assert.equal(commissionFor(automatic,1750).commission,12);
+  const selectedCheaperBatch = attachCosts([{...item('battery',1750),warehouseItemId:'other'}],[],options);
+  assert.equal(selectedCheaperBatch[0].purchasePrice,1630);
+  assert.equal(commissionFor(selectedCheaperBatch,1750).commission,12);
   assert.equal(commissionFor([item('unknown',500)],500).commission,null);
   assert.throws(()=>attachCosts([{...item('battery',1750),warehouseItemId:'panel-batch'}],[],options));
 });

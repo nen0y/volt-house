@@ -242,8 +242,8 @@ leadsRouter.get("/sales-summary", requireAdmin, requireSuperAdmin, async (req, r
     });
     const productIds = [...new Set(leads.flatMap((lead) => (parseItems(lead.items) || []).map((item) => item.id)))];
     const batches = productIds.length ? await prisma.warehouseItem.findMany({
-      where: { productId: { in: productIds }, arrivalDate: null },
-      select: { id: true, productId: true, purchasePrice: true, arrivalDate: true },
+      where: { productId: { in: productIds }, arrivalDate: null, quantity: { gt: 0 } },
+      select: { id: true, productId: true, quantity: true, purchasePrice: true, arrivalDate: true },
     }) : [];
     res.json({ fromMonth: period?.fromMonth ?? null, toMonth: period?.toMonth ?? null, ...summarizeSales(leads, batches) });
   } catch { res.status(500).json({ error: "Не вдалося завантажити підсумок продажів" }); }

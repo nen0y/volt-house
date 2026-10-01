@@ -3,28 +3,28 @@ import type { LeadItem } from "./json";
 
 export const COMMISSION_PERCENT = 10;
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-type CostBatch = { id: string; productId: string; purchasePrice: number | null; arrivalDate: string | null };
+type CostBatch = { id: string; productId: string; quantity: number; purchasePrice: number | null; arrivalDate: string | null };
 
 // Never trust a purchase price submitted by a browser. Preserve the saved sale's
-// cost, or obtain it from the selected warehouse batch. Ambiguous legacy costs
-// stay unknown until an administrator selects the actual batch.
+// cost, or obtain it from received warehouse batches. Always use the highest
+// purchase price so selecting a cheaper batch cannot inflate the margin.
 export function attachCosts(items: LeadItem[], previous: LeadItem[], batches: CostBatch[]): LeadItem[] {
   return items.map((item) => {
     const old = previous.find((p) => p.id === item.id && (p.warehouseItemId || null) === (item.warehouseItemId || null));
     if (old?.purchasePrice != null) return { ...item, purchasePrice: old.purchasePrice, warehouseItemId: old.warehouseItemId };
-    const candidates = batches.filter((b) => b.productId === item.id && !b.arrivalDate && b.purchasePrice != null);
+    const candidates = batches.filter((b) => b.productId === item.id && b.quantity > 0 && !b.arrivalDate && b.purchasePrice != null);
+    const highestPrice = candidates.length ? Math.max(...candidates.map((b) => b.purchasePrice!)) : null;
     if (item.warehouseItemId) {
       const batch = candidates.find((b) => b.id === item.warehouseItemId);
       if (!batch) throw new Error(`Для «${item.name}» оберіть отриману партію з ціною закупівлі.`);
-      return { ...item, purchasePrice: batch.purchasePrice };
+      return { ...item, purchasePrice: highestPrice };
     }
-    const prices = new Set(candidates.map((b) => b.purchasePrice));
-    return { ...item, purchasePrice: prices.size === 1 ? candidates[0].purchasePrice : null };
+    return { ...item, purchasePrice: highestPrice };
   });
 }
 export async function resolveCosts(db: Pick<Prisma.TransactionClient, "warehouseItem">, items: LeadItem[], previous: LeadItem[] = []) {
   if (!items.length) return [];
-  const batches = await db.warehouseItem.findMany({ where: { productId: { in: [...new Set(items.map((i) => i.id))] }, arrivalDate: null }, select: { id: true, productId: true, purchasePrice: true, arrivalDate: true } });
+  const batches = await db.warehouseItem.findMany({ where: { productId: { in: [...new Set(items.map((i) => i.id))] }, arrivalDate: null, quantity: { gt: 0 } }, select: { id: true, productId: true, quantity: true, purchasePrice: true, arrivalDate: true } });
   return attachCosts(items, previous, batches);
 }
 export function commissionFor(items: LeadItem[], total: number | null | undefined, manualMargin?: number | null) {
