@@ -279,6 +279,39 @@
 
   const crmProductPickerHtml = () => `<div class="field"><label>Товари в заявці</label><input id="crm_product_search" type="search" autocomplete="off" placeholder="Пошук товару за назвою або моделлю…" style="margin-bottom:8px"><div class="grid2"><select id="crm_product_select"><option value="">— Оберіть товар —</option></select><input id="crm_product_quantity" type="number" min="1" value="1" placeholder="Кількість"></div><div id="crm_custom_product_wrap" style="display:none;margin-top:8px"><label for="crm_custom_product">Назва товару, якого немає в базі</label><input id="crm_custom_product" placeholder="Наприклад: інвертор Deye 10 кВт"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn-sm btn-ghost" type="button" id="crm_add_product">+ Додати товар</button><button class="btn-sm btn-ghost" type="button" id="crm_add_custom_product">✎ Додати товар вручну</button></div><div id="crm_selected_products" style="margin-top:10px"></div></div>`;
 
+  const installationFields = (lead = {}) => `<div class="field" style="padding:14px;border:1px solid var(--slate-200);border-radius:10px">
+    <label style="display:flex;align-items:center;gap:8px;margin:0"><input id="crm_installation_requested" type="checkbox" style="width:auto" ${lead.installationRequested ? "checked" : ""}> Клієнт замовляє монтаж</label>
+    <div id="crm_installation_fields" style="display:${lead.installationRequested ? "block" : "none"};margin-top:12px">
+      <div class="grid2"><div class="field"><label>Ціна монтажу для клієнта, $</label><input id="crm_installation_price" type="number" min="0" step="0.01" value="${esc(lead.installationPrice ?? "")}" placeholder="0"></div>
+      ${currentAdmin?.role === "admin" ? `<div class="field"><label>Собівартість монтажу, $</label><input id="crm_installation_cost" type="number" min="0" step="0.01" value="${esc(lead.installationCost ?? "")}" placeholder="Оплата монтажникам та витрати"></div>` : ""}</div>
+      ${currentAdmin?.role === "admin" ? `<div id="crm_installation_profit" class="muted"></div>` : ""}
+    </div>
+  </div>`;
+
+  function installationValues() {
+    const requested = $("crm_installation_requested").checked;
+    const price = requested ? Number($("crm_installation_price").value || 0) : 0;
+    const costInput = $("crm_installation_cost");
+    const cost = requested && costInput && costInput.value !== "" ? Number(costInput.value) : null;
+    return { requested, price, cost };
+  }
+
+  function setupInstallationFields(onChange = () => {}) {
+    const update = (notify = true) => {
+      const installation = installationValues();
+      $("crm_installation_fields").style.display = installation.requested ? "block" : "none";
+      if ($("crm_installation_profit")) $("crm_installation_profit").innerHTML = installation.cost == null
+        ? "Вкажіть собівартість, щоб побачити заробіток на монтажі."
+        : `Наш заробіток на монтажі: <strong>${money(installation.price - installation.cost)}</strong>`;
+      if (notify) onChange(installation);
+    };
+    $("crm_installation_requested").addEventListener("change", update);
+    $("crm_installation_price").addEventListener("input", update);
+    $("crm_installation_cost")?.addEventListener("input", update);
+    update(false);
+    return installationValues;
+  }
+
   function setupCrmProductPicker(initialItems = [], onChange = () => {}) {
     const selected = initialItems.map((item) => ({ ...item }));
     const availabilityLabel = (availability) => availability === "in_stock" ? "є в наявності" : availability === "preorder" ? "очікується" : "немає в наявності";
@@ -532,6 +565,10 @@
     }).join("");
   }
 
+  function installationBadge(lead) {
+    return lead.installationRequested ? `<div style="margin-top:4px"><span class="badge" style="background:#dbeafe;color:#1e40af">🛠 Монтаж${lead.installationPrice != null ? ` · ${money(lead.installationPrice)}` : ""}</span></div>` : "";
+  }
+
   async function openNewCrmClient() {
     try { await loadCrmProductOptions(); } catch (err) { return alert(err.message); }
     openModal(`<h3>Новий клієнт</h3>
@@ -539,6 +576,7 @@
       <div class="grid2"><div class="field"><label>Email</label><input id="new_client_email" type="email"></div><div class="field"><label>Тип звернення</label><select id="new_client_type"><option value="consultation">Консультація</option><option value="order">Замовлення</option><option value="callback">Зворотний дзвінок</option></select></div></div>
       <div class="field"><label>Що цікавить</label><input id="new_client_interest" placeholder="Наприклад: комплект для будинку"></div>
       ${crmProductPickerHtml()}
+      ${installationFields()}
       ${stockWaitingFields()}
       ${callbackFields()}
       <div class="field"><label>Сума продажу, $</label><input id="new_client_total" type="number" min="0" step="1" placeholder="Заповниться з товарів автоматично"></div>
@@ -549,11 +587,13 @@
       <div class="error" id="new_client_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="new_client_cancel">Скасувати</button><button class="btn" id="new_client_save">Додати</button></div>`);
     setupCallbackFields();
     const getProducts = setupCrmProductPicker();
+    const getInstallation = setupInstallationFields();
     $("new_client_cancel").addEventListener("click", closeModal);
     $("new_client_save").addEventListener("click", async () => {
       const items = getProducts();
-      const calculatedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const body = { waitingForStock: $("crm_waiting_stock").checked, waitingProduct: $("crm_waiting_product").value.trim(), type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), items, total: $("new_client_total").value === "" ? calculatedTotal : Number($("new_client_total").value), status: $("new_client_status").value, paymentStatus: $("new_client_payment_status").value, deliveryStatus: $("new_client_delivery_status").value, notes: $("new_client_notes").value, ...(currentAdmin?.role === "admin" ? { managerId: $("new_client_manager").value || null } : {}) };
+      const installation = getInstallation();
+      const calculatedTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0) + (installation.requested ? installation.price : 0);
+      const body = { waitingForStock: $("crm_waiting_stock").checked, waitingProduct: $("crm_waiting_product").value.trim(), type: $("new_client_type").value, name: $("new_client_name").value.trim(), phone: $("new_client_phone").value.trim(), email: $("new_client_email").value.trim(), interest: $("new_client_interest").value.trim(), items, total: $("new_client_total").value === "" ? calculatedTotal : Number($("new_client_total").value), installationRequested: installation.requested, installationPrice: installation.requested ? installation.price : null, ...(currentAdmin?.role === "admin" ? { installationCost: installation.requested ? installation.cost : null } : {}), status: $("new_client_status").value, paymentStatus: $("new_client_payment_status").value, deliveryStatus: $("new_client_delivery_status").value, notes: $("new_client_notes").value, ...(currentAdmin?.role === "admin" ? { managerId: $("new_client_manager").value || null } : {}) };
       try { Object.assign(body, callbackPayload()); await api("/api/leads/admin", { method: "POST", body: JSON.stringify(body) }); closeModal(); loadCrm(); }
       catch (err) { $("new_client_error").textContent = err.message; }
     });
@@ -766,6 +806,7 @@
           <h4>${esc(l.name)}</h4>
           ${stockWaitingBadge(l)}
           ${reservationBadge(l)}
+          ${installationBadge(l)}
           ${callbackBadge(l)}
           <div class="lead-meta"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br>${esc(details || "Без деталей")}<br>${dt(l.createdAt)}</div>
           <div style="font-size:12px;font-weight:700;margin-top:7px">${esc(managerLine)}</div>
@@ -909,6 +950,7 @@
           <div class="client-name">${esc(l.name)}${stageHtml}</div>
           ${stockWaitingBadge(l)}
           ${reservationBadge(l)}
+          ${installationBadge(l)}
           ${callbackBadge(l)}
           <a href="tel:${esc(l.phone)}" style="color:var(--blue);font-size:13px">${esc(l.phone)}</a>
         </div>
@@ -951,6 +993,7 @@
       <div class="field"><label>Інтерес</label><input id="crm_interest" value="${esc(lead.interest || "")}" placeholder="Що цікавить клієнта"></div>
       <div class="field"><label>Повідомлення</label><textarea id="crm_message" rows="3" placeholder="Повідомлення клієнта">${esc(lead.message || "")}</textarea></div>
       ${crmProductPickerHtml()}
+      ${installationFields(lead)}
       ${stockWaitingFields(lead)}
       ${callbackFields(lead)}
       ${currentAdmin?.role === "admin" ? `<div id="crm_manual_margin_wrap" class="field" style="display:none"><label for="crm_manual_margin">Маржа вручну, $</label><input id="crm_manual_margin" type="number" step="0.01" min="-1000000000" max="1000000000" value="${esc(lead.manualMargin ?? "")}" placeholder="Наприклад: 120"><div class="muted">Лише для успішної заявки без товарів. Порожнє поле — маржу не задано.</div></div><div id="crm_margin_summary" class="crm-margin-summary"></div>` : ""}<div class="field"><label>Сума продажу, $</label><input id="crm_total" type="number" min="0" step="1" value="${esc(lead.total ?? "")}" placeholder="Потрібна для розрахунку зарплати"></div>
@@ -965,9 +1008,10 @@
       <div class="modal-actions">${currentAdmin?.role === "admin" ? `<button class="btn btn-danger" id="crm_delete">Видалити заявку</button><button class="btn btn-ghost" id="crm_send_telegram">Надіслати в Telegram</button>` : ""}<button class="btn btn-ghost" id="crm_cancel">Закрити</button><button class="btn" id="crm_save">Зберегти</button></div>`);
     setupCallbackFields();
     const updateFinancials = (items, recalculateTotal = true) => {
-      if (recalculateTotal) $("crm_total").value = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const installation = installationValues();
+      if (recalculateTotal) $("crm_total").value = items.reduce((sum, item) => sum + item.price * item.quantity, 0) + (installation.requested ? installation.price : 0);
       if (currentAdmin?.role !== "admin") return;
-      const manualAllowed = $("crm_status").value === "won" && items.length === 0;
+      const manualAllowed = $("crm_status").value === "won" && items.length === 0 && !installation.requested;
       if ($("crm_manual_margin_wrap")) $("crm_manual_margin_wrap").style.display = manualAllowed ? "" : "none";
       if (manualAllowed && $("crm_manual_margin")?.value !== "") {
         const margin = Number($("crm_manual_margin").value);
@@ -980,12 +1024,13 @@
         const price = batches.length ? Math.max(...batches.map((b) => b.purchasePrice)) : null;
         return price == null ? null : price * item.quantity;
       });
-      const complete = items.length && costs.every((cost) => cost != null);
-      const purchase = costs.reduce((sum, cost) => sum + (cost || 0), 0);
+      const complete = (items.length > 0 || installation.requested) && costs.every((cost) => cost != null) && (!installation.requested || installation.cost != null);
+      const purchase = costs.reduce((sum, cost) => sum + (cost || 0), 0) + (installation.cost || 0);
       const margin = Number($("crm_total").value) - purchase;
-      if ($("crm_margin_summary")) $("crm_margin_summary").innerHTML = complete ? `<strong>Закупівля: ${money(purchase)} · Маржа: ${money(margin)}</strong><div>Комісія менеджера (10% від маржі): <strong>${money(Math.round(Math.max(0, margin) * 10) / 100)}</strong></div>` : "Для розрахунку 10% комісії вкажіть складську закупівлю кожного товару.";
+      if ($("crm_margin_summary")) $("crm_margin_summary").innerHTML = complete ? `<strong>Закупівля та монтажні витрати: ${money(purchase)} · Маржа: ${money(margin)}</strong><div>Комісія менеджера (10% від маржі): <strong>${money(Math.round(Math.max(0, margin) * 10) / 100)}</strong></div>` : installation.requested ? "Для розрахунку маржі вкажіть закупівлю кожного товару та собівартість монтажу." : "Для розрахунку маржі вкажіть складську закупівлю кожного товару.";
     };
     const getProducts = setupCrmProductPicker(lead.items || [], updateFinancials);
+    const getInstallation = setupInstallationFields(() => updateFinancials(getProducts()));
     updateFinancials(getProducts(), false);
     $("crm_manual_margin")?.addEventListener("input", () => updateFinancials(getProducts(), false));
     $("crm_status").addEventListener("change", () => updateFinancials(getProducts(), false));
@@ -1025,6 +1070,7 @@
         return;
       }
       try {
+        const installation = getInstallation();
         await api("/api/leads/" + lead.id, { method: "PATCH", body: JSON.stringify({
           ...callbackPayload(lead),
           name,
@@ -1042,7 +1088,10 @@
           ...(currentAdmin?.role === "admin" ? { createdAt: new Date($("crm_created_at").value).toISOString() } : {}),
           items: getProducts(),
           total: Number($("crm_total").value) || 0,
-          ...(currentAdmin?.role === "admin" ? { manualMargin: $("crm_status").value === "won" && !getProducts().length && $("crm_manual_margin").value !== "" ? Number($("crm_manual_margin").value) : null } : {}),
+          installationRequested: installation.requested,
+          installationPrice: installation.requested ? installation.price : null,
+          ...(currentAdmin?.role === "admin" ? { installationCost: installation.requested ? installation.cost : null } : {}),
+          ...(currentAdmin?.role === "admin" ? { manualMargin: $("crm_status").value === "won" && !getProducts().length && !installation.requested && $("crm_manual_margin").value !== "" ? Number($("crm_manual_margin").value) : null } : {}),
           ...(currentAdmin?.role === "admin" && ($("crm_manager").value || null) !== (lead.managerId || null) ? { managerId: $("crm_manager").value || null } : {}),
         }) });
         closeModal();

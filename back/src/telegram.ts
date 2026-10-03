@@ -10,6 +10,8 @@ export interface LeadNotification {
   message?: string | null;
   items?: Array<{ id: string; name: string; price: number; quantity: number; availability?: string; custom?: boolean }> | null;
   total?: number | null;
+  installationRequested?: boolean;
+  installationPrice?: number | null;
   createdAt: Date;
 }
 
@@ -54,8 +56,9 @@ function render(lead: LeadNotification): string {
       if (it.custom || it.availability === "unavailable") lines.push("  ⚠️ <b>Товар потрібно знайти</b>");
       if (it.availability === "preorder") lines.push("  🕒 <b>Товар очікується</b>");
     }
-    lines.push(`<b>Разом: ${money(lead.total)}</b>`);
   }
+  if (lead.installationRequested) lines.push(`🛠 <b>Монтаж:</b> ${money(lead.installationPrice ?? 0)}`);
+  if ((lead.items && lead.items.length) || lead.installationRequested) lines.push(`<b>Разом: ${money(lead.total)}</b>`);
 
   lines.push("");
   lines.push(`🕒 ${esc(lead.createdAt.toLocaleString("uk-UA"))}`);

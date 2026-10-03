@@ -27,15 +27,27 @@ export async function resolveCosts(db: Pick<Prisma.TransactionClient, "warehouse
   const batches = await db.warehouseItem.findMany({ where: { productId: { in: [...new Set(items.map((i) => i.id))] }, arrivalDate: null, quantity: { gt: 0 } }, select: { id: true, productId: true, quantity: true, purchasePrice: true, arrivalDate: true } });
   return attachCosts(items, previous, batches);
 }
-export function commissionFor(items: LeadItem[], total: number | null | undefined, manualMargin?: number | null) {
+export type InstallationFinancials = {
+  requested?: boolean;
+  price?: number | null;
+  cost?: number | null;
+};
+
+export function commissionFor(items: LeadItem[], total: number | null | undefined, manualMargin?: number | null, installation: InstallationFinancials = {}) {
   const salesTotal = round(total ?? items.reduce((sum, item) => sum + item.price * item.quantity, 0));
-  if (!items.length && manualMargin != null) {
+  const installationRequested = installation.requested === true;
+  const installationPrice = installationRequested ? round(installation.price ?? 0) : 0;
+  const installationCost = installationRequested && installation.cost != null ? round(installation.cost) : null;
+  const installationProfit = installationCost == null ? null : round(installationPrice - installationCost);
+  const installationDetails = installationRequested ? { installationPrice, installationCost, installationProfit } : {};
+  if (!items.length && !installationRequested && manualMargin != null) {
     const margin = round(manualMargin);
     return { salesTotal, purchaseTotal: null, margin, commission: round(Math.max(0, margin) * COMMISSION_PERCENT / 100), missingCostCount: 0, commissionPercent: COMMISSION_PERCENT };
   }
-  const missingCostCount = items.filter((item) => item.purchasePrice == null).length;
-  if (!items.length || missingCostCount) return { salesTotal, purchaseTotal: null, margin: null, commission: null, missingCostCount: missingCostCount || 1, commissionPercent: COMMISSION_PERCENT };
-  const purchaseTotal = round(items.reduce((sum, item) => sum + item.purchasePrice! * item.quantity, 0));
+  const missingProductCostCount = items.filter((item) => item.purchasePrice == null).length;
+  const missingCostCount = missingProductCostCount + (installationRequested && installationCost == null ? 1 : 0);
+  if ((!items.length && !installationRequested) || missingCostCount) return { salesTotal, purchaseTotal: null, margin: null, commission: null, missingCostCount: missingCostCount || 1, commissionPercent: COMMISSION_PERCENT, ...installationDetails };
+  const purchaseTotal = round(items.reduce((sum, item) => sum + item.purchasePrice! * item.quantity, 0) + (installationCost ?? 0));
   const margin = round(salesTotal - purchaseTotal);
-  return { salesTotal, purchaseTotal, margin, commission: round(Math.max(0, margin) * COMMISSION_PERCENT / 100), missingCostCount: 0, commissionPercent: COMMISSION_PERCENT };
+  return { salesTotal, purchaseTotal, margin, commission: round(Math.max(0, margin) * COMMISSION_PERCENT / 100), missingCostCount: 0, commissionPercent: COMMISSION_PERCENT, ...installationDetails };
 }

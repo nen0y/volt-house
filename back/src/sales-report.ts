@@ -25,12 +25,13 @@ export function salesPeriod(from: unknown, to: unknown, now = new Date()) {
   const [ty, tm] = toMonth.split("-").map(Number);
   return { fromMonth, toMonth, from: kyivMonthStart(fy, fm - 1), to: kyivMonthStart(ty, tm) };
 }
-export function summarizeSales(leads: Array<{items: unknown; total: number | null; manualMargin?: number | null}>, batches: Parameters<typeof attachCosts>[2]) {
+export function summarizeSales(leads: Array<{items: unknown; total: number | null; manualMargin?: number | null; installationRequested?: boolean; installationPrice?: number | null; installationCost?: number | null}>, batches: Parameters<typeof attachCosts>[2]) {
   const rows = leads.map((lead) => {
     const items = parseItems(lead.items) || [];
+    const installation = { requested: lead.installationRequested, price: lead.installationPrice, cost: lead.installationCost };
     // Invalid/deleted legacy references are unresolved, never zero-cost sales.
-    try { return commissionFor(attachCosts(items, items, batches), lead.total, lead.manualMargin); }
-    catch { return commissionFor(items.map((item) => ({ ...item, purchasePrice: null })), lead.total, lead.manualMargin); }
+    try { return commissionFor(attachCosts(items, items, batches), lead.total, lead.manualMargin, installation); }
+    catch { return commissionFor(items.map((item) => ({ ...item, purchasePrice: null })), lead.total, lead.manualMargin, installation); }
   });
   const sum = (key: "salesTotal" | "purchaseTotal" | "margin") => Math.round(rows.reduce((total, row) => total + (row[key] ?? 0), 0) * 100) / 100;
   return { saleCount: rows.length, salesTotal: sum("salesTotal"), purchaseTotal: sum("purchaseTotal"), margin: sum("margin"), calculatedCount: rows.filter((r) => r.margin != null).length, pendingCostCount: rows.filter((r) => r.margin == null).length };

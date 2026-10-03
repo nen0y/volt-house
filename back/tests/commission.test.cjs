@@ -30,6 +30,34 @@ test('the highest in-stock purchase price is used and sold-out batches are ignor
   assert.throws(()=>attachCosts([{...item('battery',1750),warehouseItemId:'panel-batch'}],[],options));
 });
 
+test('installation revenue and cost are included in sale margin', () => {
+  const product = attachCosts([item('battery',1750)], [], batches);
+  assert.deepEqual(commissionFor(product, 2050, null, {requested:true, price:300, cost:180}), {
+    salesTotal:2050,
+    purchaseTotal:1810,
+    margin:240,
+    commission:24,
+    missingCostCount:0,
+    commissionPercent:10,
+    installationPrice:300,
+    installationCost:180,
+    installationProfit:120,
+  });
+  assert.equal(commissionFor([],300,null,{requested:true,price:300,cost:180}).margin,120);
+  assert.equal(commissionFor(product,2050,null,{requested:true,price:300,cost:null}).margin,null);
+});
+
+test('manager cannot change installation cost through the lead API', async () => {
+  const {prisma} = require('../dist/prisma');
+  const {leadsRouter} = require('../dist/routes/leads');
+  const handler = leadsRouter.stack.find(l=>l.route?.path==='/:id' && l.route.methods.patch).route.stack.at(-1).handle;
+  prisma.lead.findUnique = async()=>({id:'lead',status:'new',managerId:'manager',items:null,total:0,installationRequested:true,installationPrice:300,installationCost:180});
+  const res = {code:200,status(code){this.code=code;return this;},json(body){this.body=body;return this;}};
+  await handler({params:{id:'lead'},admin:{role:'manager',id:'manager'},body:{installationCost:1}},res);
+  assert.equal(res.code,403);
+  assert.match(res.body.error,/адміністратор/);
+});
+
 test('admin can edit a won lead with inactive assigned manager, add a product, and retain credited seller', async () => {
   const {prisma} = require('../dist/prisma');
   const telegram = require('../dist/telegram');

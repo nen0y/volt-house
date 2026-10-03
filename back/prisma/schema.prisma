@@ -85,8 +85,11 @@ model Lead {
   interest  String?
   message   String?
   items     String? // JSON-encoded [{ id, name, price, quantity }]
-  total     Int?
+  total     Float?
   manualMargin Float?
+  installationRequested Boolean @default(false)
+  installationPrice Float?
+  installationCost Float?
   status    String   @default("new") // new | no_answer | contacted | sourcing | proposal | won | lost
   paymentStatus  String   @default("unpaid") // unpaid | partial | paid
   deliveryStatus String   @default("not_sent") // not_sent | preparing | sent | received | returned

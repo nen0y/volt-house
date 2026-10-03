@@ -16,10 +16,11 @@ export const leadsRouter = Router();
 
 // items is stored as a JSON string (SQLite) — expose it as an array to clients.
 function toDto(l: any, isAdmin = true) {
-  const { reservations, manualMargin, ...rest } = l;
+  const { reservations, manualMargin, installationCost, ...rest } = l;
   const items = parseItems(l.items) || [];
   const safeItems = isAdmin ? items : items.map(({ purchasePrice, warehouseItemId, ...item }) => item);
-  return { ...rest, items: safeItems, ...(isAdmin ? { manualMargin } : {}), financials: isAdmin ? commissionFor(items, l.total, ["won", "done"].includes(l.status) ? manualMargin : null) : null, reservations: reservations || [] };
+  const installation = { requested: l.installationRequested, price: l.installationPrice, cost: installationCost };
+  return { ...rest, items: safeItems, ...(isAdmin ? { manualMargin, installationCost } : {}), financials: isAdmin ? commissionFor(items, l.total, ["won", "done"].includes(l.status) ? manualMargin : null, installation) : null, reservations: reservations || [] };
 }
 
 const itemSchema = z.object({
@@ -164,6 +165,9 @@ const manualLeadSchema = leadSchema.extend({
   waitingProduct: z.string().trim().max(500).default(""),
   notes: z.string().max(5000).default(""),
   managerId: z.string().nullable().optional(),
+  installationRequested: z.boolean().default(false),
+  installationPrice: z.number().finite().nonnegative().nullable().optional(),
+  installationCost: z.number().finite().nonnegative().nullable().optional(),
 });
 
 // POST /api/leads/admin — create a client manually in CRM.
@@ -171,6 +175,7 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
   const parsed = manualLeadSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Некоректні дані", details: parsed.error.flatten() });
   const d = parsed.data;
+  if (req.admin!.role !== "admin" && d.installationCost != null) return res.status(403).json({ error: "Собівартість монтажу може вказувати лише адміністратор" });
   if (d.callbackAt && new Date(d.callbackAt).getTime() <= Date.now()) return res.status(400).json({ error: "Оберіть майбутню дату й час передзвону" });
   if (d.managerId && req.admin!.role !== "admin") return res.status(403).json({ error: "Менеджера може призначати лише адміністратор" });
   if (d.managerId) {
@@ -198,6 +203,9 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
       callbackNote: d.callbackNote,
       waitingForStock: d.waitingForStock,
       waitingProduct: d.waitingProduct,
+      installationRequested: d.installationRequested,
+      installationPrice: d.installationRequested ? (d.installationPrice ?? 0) : null,
+      installationCost: d.installationRequested ? (d.installationCost ?? null) : null,
       managerId: req.admin!.role === "manager" ? req.admin!.id : (d.managerId || null),
       ...(d.status === "won" ? { soldById: d.managerId || req.admin!.id, wonAt: new Date() } : {}),
     },
@@ -216,6 +224,8 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
     message: lead.message,
     items: d.items?.length ? d.items : null,
     total: d.total ?? null,
+    installationRequested: d.installationRequested,
+    installationPrice: d.installationPrice ?? null,
     createdAt: lead.createdAt,
   });
 
@@ -238,7 +248,7 @@ leadsRouter.get("/sales-summary", requireAdmin, requireSuperAdmin, async (req, r
     const dates = period ? { gte: period.from, lt: period.to } : undefined;
     const leads = await prisma.lead.findMany({
       where: { status: { in: ["won", "done"] }, ...(dates ? { OR: [{ wonAt: dates }, { wonAt: null, createdAt: dates }] } : {}) },
-      select: { items: true, total: true, manualMargin: true },
+      select: { items: true, total: true, manualMargin: true, installationRequested: true, installationPrice: true, installationCost: true },
     });
     const productIds = [...new Set(leads.flatMap((lead) => (parseItems(lead.items) || []).map((item) => item.id)))];
     const batches = productIds.length ? await prisma.warehouseItem.findMany({
@@ -258,14 +268,14 @@ leadsRouter.get("/manager-stats", requireAdmin, requireSuperAdmin, async (req, r
     where: { role: "manager" },
     select: {
       id: true, name: true, email: true, active: true, commissionPercent: true,
-      soldLeads: { where: { status: "won", wonAt: { gte: from, lt: to } }, select: { total: true, items: true, manualMargin: true } },
+      soldLeads: { where: { status: "won", wonAt: { gte: from, lt: to } }, select: { total: true, items: true, manualMargin: true, installationRequested: true, installationPrice: true, installationCost: true } },
     },
     orderBy: { name: "asc" },
   });
   const result = await Promise.all(managers.map(async ({ soldLeads, ...manager }) => {
     const values = await Promise.all(soldLeads.map(async (lead) => {
       const items = parseItems(lead.items) || [];
-      return commissionFor(await resolveCosts(prisma, items, items), lead.total, lead.manualMargin);
+      return commissionFor(await resolveCosts(prisma, items, items), lead.total, lead.manualMargin, { requested: lead.installationRequested, price: lead.installationPrice, cost: lead.installationCost });
     }));
     const sum = (key: "salesTotal" | "purchaseTotal" | "margin" | "commission") => Math.round(values.reduce((total, row) => total + (row[key] ?? 0), 0) * 100) / 100;
     return { ...manager, commissionPercent: COMMISSION_PERCENT, wonCount: soldLeads.length, salesTotal: sum("salesTotal"), purchaseTotal: sum("purchaseTotal"), margin: sum("margin"), salary: sum("commission"), pendingCostCount: values.filter((row) => row.commission == null).length };
@@ -294,6 +304,9 @@ const statusSchema = z.object({
   expectedManagerId: z.string().nullable().optional(),
   total: z.number().min(0).optional(),
   manualMargin: z.number().finite().min(-1000000000).max(1000000000).nullable().optional(),
+  installationRequested: z.boolean().optional(),
+  installationPrice: z.number().finite().nonnegative().nullable().optional(),
+  installationCost: z.number().finite().nonnegative().nullable().optional(),
   reservedProducts: z.array(z.object({ productId: z.string(), quantity: z.number().int().positive() })).optional(),
 });
 
@@ -311,6 +324,8 @@ leadsRouter.post("/:id/send-telegram", requireAdmin, requireSuperAdmin, async (r
     message: lead.message,
     items: parseItems(lead.items),
     total: lead.total,
+    installationRequested: lead.installationRequested,
+    installationPrice: lead.installationPrice,
     createdAt: lead.createdAt,
   });
   if (result.skipped) return res.status(503).json({ error: "Telegram не налаштовано на сервері" });
@@ -327,10 +342,13 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
   try {
     const previous = await prisma.lead.findUnique({ where: { id: req.params.id } });
     if (!previous) return res.status(404).json({ error: "Заявку не знайдено" });
-    const { createdAt, items, email, interest, message, managerId, expectedManagerId, total, callbackAt, reservedProducts, manualMargin, ...fields } = parsed.data;
+    const { createdAt, items, email, interest, message, managerId, expectedManagerId, total, callbackAt, reservedProducts, manualMargin, installationRequested, installationPrice, installationCost, ...fields } = parsed.data;
     if (createdAt !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Змінювати дату створення може лише адміністратор" });
-    const canSetManualMargin = ["won", "done"].includes(fields.status ?? previous.status) && !(items ?? parseItems(previous.items) ?? []).length;
+    const effectiveInstallationRequested = installationRequested ?? previous.installationRequested;
+    const effectiveInstallationPrice = effectiveInstallationRequested ? (installationPrice ?? previous.installationPrice ?? 0) : 0;
+    const canSetManualMargin = ["won", "done"].includes(fields.status ?? previous.status) && !(items ?? parseItems(previous.items) ?? []).length && !effectiveInstallationRequested;
     if (manualMargin !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Ручна маржа доступна лише адміністратору" });
+    if (installationCost !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Собівартість монтажу може змінювати лише адміністратор" });
     if (manualMargin != null && !canSetManualMargin) return res.status(400).json({ error: "Ручну маржу можна задати лише в успішній заявці без товарів" });
     if (callbackAt && new Date(callbackAt).getTime() !== previous.callbackAt?.getTime() && new Date(callbackAt).getTime() <= Date.now()) return res.status(400).json({ error: "Оберіть майбутню дату й час передзвону" });
     if (req.admin!.role === "manager") {
@@ -360,6 +378,11 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     const enteringWon = fields.status === "won" && previous.status !== "won";
     const correctingWonSeller = req.admin!.role === "admin" && previous.status === "won" && managerId !== undefined && managerId !== previous.managerId && !!managerId;
     const salesChanged = items !== undefined && JSON.stringify(items.map(({ id, price, quantity }) => ({ id, price, quantity }))) !== JSON.stringify((parseItems(previous.items) || []).map(({ id, price, quantity }) => ({ id, price, quantity })));
+    const installationSaleChanged = (installationRequested !== undefined && installationRequested !== previous.installationRequested) || (installationPrice !== undefined && installationPrice !== previous.installationPrice);
+    const previousInstallationPrice = previous.installationRequested ? (previous.installationPrice ?? 0) : 0;
+    const calculatedTotal = items !== undefined
+      ? items.reduce((sum, item) => sum + item.price * item.quantity, 0) + effectiveInstallationPrice
+      : Math.max(0, (previous.total ?? previousInstallationPrice) - previousInstallationPrice + effectiveInstallationPrice);
     const data = {
       ...fields,
       ...(createdAt !== undefined ? { createdAt: new Date(createdAt) } : {}),
@@ -373,10 +396,18 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
       ...(email !== undefined ? { email: email || null } : {}),
       ...(interest !== undefined ? { interest: interest || null } : {}),
       ...(message !== undefined ? { message: message || null } : {}),
+      ...(installationRequested !== undefined ? {
+        installationRequested,
+        installationPrice: installationRequested ? (installationPrice ?? previous.installationPrice ?? 0) : null,
+        installationCost: installationRequested ? (installationCost !== undefined ? installationCost : previous.installationCost) : null,
+      } : {
+        ...(installationPrice !== undefined ? { installationPrice: effectiveInstallationRequested ? installationPrice : null } : {}),
+        ...(installationCost !== undefined ? { installationCost: effectiveInstallationRequested ? installationCost : null } : {}),
+      }),
       ...(items !== undefined ? {
         items: items.length ? JSON.stringify(items) : null,
       } : {}),
-      ...(total !== undefined && !(salesChanged && total === previous.total) ? { total } : items !== undefined ? { total: items.reduce((sum, item) => sum + item.price * item.quantity, 0) } : {}),
+      ...(total !== undefined && !((salesChanged || installationSaleChanged) && total === previous.total) ? { total } : salesChanged || installationSaleChanged ? { total: calculatedTotal } : {}),
     };
     // Compare ownership in the write itself so a former manager cannot save
     // a stale card after another manager has taken it over.
@@ -468,9 +499,9 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     const previousItems = parseItems(previous.items) || [];
     const productsChanged = items !== undefined && JSON.stringify(previousItems) !== JSON.stringify(items);
 
-    // When products are added or changed on an existing CRM card, send the
-    // refreshed entry to Telegram. Other edits (status, notes, etc.) stay quiet.
-    if (productsChanged) {
+    // When products or installation details change, send the refreshed entry
+    // to Telegram. Other edits (status, notes, etc.) stay quiet.
+    if (productsChanged || installationSaleChanged) {
       await sendLeadTelegram({
         id: updated.id,
         type: updated.type,
@@ -479,8 +510,10 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
         email: updated.email,
         interest: updated.interest,
         message: updated.message,
-        items: items.length ? items : null,
+        items: parseItems(updated.items),
         total: updated.total,
+        installationRequested: updated.installationRequested,
+        installationPrice: updated.installationPrice,
         createdAt: updated.createdAt,
       });
     }
