@@ -6,7 +6,7 @@ import { sendLeadTelegram, sendUnavailableProductTelegram } from "../telegram";
 import { leadsLimiter } from "../middleware/rateLimit";
 import { parseItems } from "../json";
 
-import { stockInclude, productStock, deductedStock, takeReceivedStock, restoreReceivedStock } from "../stock";
+import { stockInclude, productStock, deductedStock, takeReceivedStock, restoreReceivedStock, addedSaleStock } from "../stock";
 
 import { resolveCosts, commissionFor, COMMISSION_PERCENT } from "../commission";
 
@@ -182,34 +182,45 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
     const manager = await prisma.adminUser.findFirst({ where: { id: d.managerId, role: "manager", active: true } });
     if (!manager) return res.status(400).json({ error: "Оберіть активного менеджера" });
   }
-  let costedItems;
-  try { costedItems = await resolveCosts(prisma, d.items || []); }
-  catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : "Перевірте складську партію" }); }
-  const lead = await prisma.lead.create({
-    data: {
-      type: d.type,
-      name: d.name,
-      phone: d.phone,
-      email: d.email || null,
-      interest: d.interest || null,
-      message: d.message || null,
-      items: costedItems.length ? JSON.stringify(costedItems) : null,
-      total: d.total ?? null,
-      status: d.status,
-      paymentStatus: d.paymentStatus,
-      deliveryStatus: d.deliveryStatus,
-      notes: d.notes,
-      callbackAt: d.callbackAt ? new Date(d.callbackAt) : null,
-      callbackNote: d.callbackNote,
-      waitingForStock: d.waitingForStock,
-      waitingProduct: d.waitingProduct,
-      installationRequested: d.installationRequested,
-      installationPrice: d.installationRequested ? (d.installationPrice ?? 0) : null,
-      installationCost: d.installationRequested ? (d.installationCost ?? null) : null,
-      managerId: req.admin!.role === "manager" ? req.admin!.id : (d.managerId || null),
-      ...(d.status === "won" ? { soldById: d.managerId || req.admin!.id, wonAt: new Date() } : {}),
-    },
-  });
+  let lead;
+  try {
+    lead = await prisma.$transaction(async (tx) => {
+      const costedItems = await resolveCosts(tx, d.items || []);
+      const created = await tx.lead.create({
+        data: {
+          type: d.type,
+          name: d.name,
+          phone: d.phone,
+          email: d.email || null,
+          interest: d.interest || null,
+          message: d.message || null,
+          items: costedItems.length ? JSON.stringify(costedItems) : null,
+          total: d.total ?? null,
+          status: d.status,
+          paymentStatus: d.paymentStatus,
+          deliveryStatus: d.deliveryStatus,
+          notes: d.notes,
+          callbackAt: d.callbackAt ? new Date(d.callbackAt) : null,
+          callbackNote: d.callbackNote,
+          waitingForStock: d.waitingForStock,
+          waitingProduct: d.waitingProduct,
+          installationRequested: d.installationRequested,
+          installationPrice: d.installationRequested ? (d.installationPrice ?? 0) : null,
+          installationCost: d.installationRequested ? (d.installationCost ?? null) : null,
+          managerId: req.admin!.role === "manager" ? req.admin!.id : (d.managerId || null),
+          ...(d.status === "won" ? { soldById: d.managerId || req.admin!.id, wonAt: new Date() } : {}),
+        },
+      });
+      if (d.status === "won") {
+        for (const item of costedItems) {
+          if (!item.custom) await takeReceivedStock(tx, item.id, item.quantity);
+        }
+      }
+      return created;
+    }, { isolationLevel: "Serializable" });
+  } catch (error) {
+    return res.status(400).json({ error: error instanceof Error ? error.message : "Перевірте складську партію" });
+  }
 
   // Manual CRM entries use a separate endpoint from storefront leads, so notify
   // Telegram for every type here as well. Delivery failures must not roll back
@@ -490,6 +501,14 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
             await restoreReceivedStock(tx, r);
           }
         });
+      }
+    }
+
+    // A won lead has already consumed its saved quantities. If its product list
+    // is edited later, consume only newly added units instead of the full list.
+    if (previous.status === "won" && (fields.status ?? previous.status) === "won" && items !== undefined) {
+      for (const added of addedSaleStock(parseItems(previous.items) || [], items)) {
+        await takeReceivedStock(tx, added.productId, added.quantity);
       }
     }
 

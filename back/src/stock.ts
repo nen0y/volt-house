@@ -25,6 +25,7 @@ export function productStock(product: { warehouseItems?: Batch[]; reservations?:
 }
 
 import type { Prisma } from "@prisma/client";
+import type { LeadItem } from "./json";
 
 // Consume received stock across batches; expected arrivals are never consumed.
 export async function takeReceivedStock(tx: Prisma.TransactionClient, productId: string, quantity: number) {
@@ -38,6 +39,24 @@ export async function takeReceivedStock(tx: Prisma.TransactionClient, productId:
     remaining -= take;
   }
   return quantity - remaining;
+}
+
+// Return only the extra catalogue units added to an already completed sale.
+// Price, serial-number and other metadata edits must not consume stock again.
+export function addedSaleStock(previousItems: LeadItem[], nextItems: LeadItem[]) {
+  const quantities = (items: LeadItem[]) => {
+    const result = new Map<string, number>();
+    for (const item of items) {
+      if (item.custom) continue;
+      result.set(item.id, (result.get(item.id) || 0) + item.quantity);
+    }
+    return result;
+  };
+  const previous = quantities(previousItems);
+  return [...quantities(nextItems)].flatMap(([productId, quantity]) => {
+    const added = quantity - (previous.get(productId) || 0);
+    return added > 0 ? [{ productId, quantity: added }] : [];
+  });
 }
 
 export async function restoreReceivedStock(tx: Prisma.TransactionClient, reservation: ReservationStock & { productId: string }) {

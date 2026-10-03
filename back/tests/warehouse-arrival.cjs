@@ -42,7 +42,7 @@ test('blocks closing a sale of an expected-only product before updating the lead
   assert.equal(res.code, 409);
 });
 
-const { stockSummary, takeReceivedStock, restoreReceivedStock } = require('../dist/stock');
+const { stockSummary, takeReceivedStock, restoreReceivedStock, addedSaleStock } = require('../dist/stock');
 test('already deducted reserves are not subtracted twice; expected reserves do not invent stock', () => {
   const stock = stockSummary([{quantity: 4, arrivalDate: null}], [{quantity: 1, status: 'active', deductedQty: 1}]);
   assert.equal(stock.totalQty, 5);
@@ -78,4 +78,31 @@ test('stock is consumed across batches, never below zero', async () => {
 });
 test('cancelling an expected reservation does not add fictitious stock', async () => {
   await restoreReceivedStock({ warehouseItem: { findFirst: async () => assert.fail('Nothing to restore') } }, { productId:'p', quantity:3, status:'active', deductedQty:0 });
+});
+
+test('successful sale edits consume only added catalogue quantities', () => {
+  const previous = [{id:'p',name:'Product',price:100,quantity:1},{id:'custom',name:'Custom',price:1,quantity:1,custom:true}];
+  const next = [{...previous[0],price:120,quantity:3},{...previous[1],quantity:5},{id:'q',name:'Other',price:50,quantity:2}];
+  assert.deepEqual(addedSaleStock(previous,next),[{productId:'p',quantity:2},{productId:'q',quantity:2}]);
+  assert.deepEqual(addedSaleStock(next,next.map(item=>({...item,price:item.price+1}))),[]);
+});
+
+test('creating a lead directly as won consumes its catalogue items in the same transaction', async () => {
+  const telegram = require('../dist/telegram');
+  telegram.sendLeadTelegram = async () => ({skipped:true});
+  telegram.sendUnavailableProductTelegram = async () => ({skipped:true});
+  const create = handler(leadsRouter, '/admin', 'post');
+  const deductions = [];
+  const created = {id:'won-lead',type:'order',name:'Buyer',phone:'123',email:null,interest:null,message:null,createdAt:new Date(),status:'won'};
+  prisma.$transaction = async (fn) => fn(prisma);
+  prisma.warehouseItem.findMany = async ({where}) => where.productId && typeof where.productId === 'string'
+    ? [{id:'batch',productId:where.productId,quantity:5,purchasePrice:10,arrivalDate:null}]
+    : [{id:'batch',productId:'p',quantity:5,purchasePrice:10,arrivalDate:null}];
+  prisma.warehouseItem.updateMany = async ({where,data}) => { deductions.push([where.id,data.quantity.decrement]); return {count:1}; };
+  prisma.lead.create = async () => created;
+  prisma.lead.findUnique = async () => ({...created,items:JSON.stringify([{id:'p',name:'Product',price:20,quantity:2,purchasePrice:10}]),reservations:[]});
+  const res = response();
+  await create({admin:{id:'admin',role:'admin'},body:{type:'order',name:'Buyer',phone:'123',status:'won',items:[{id:'p',name:'Product',price:20,quantity:2},{id:'custom',name:'Custom',price:5,quantity:4,custom:true}]}},res);
+  assert.equal(res.code,201);
+  assert.deepEqual(deductions,[['batch',2]]);
 });

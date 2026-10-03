@@ -69,7 +69,9 @@ test('admin can edit a won lead with inactive assigned manager, add a product, a
   prisma.$transaction = async(fn)=>fn(prisma);
   prisma.lead.findUnique = async()=>previous;
   prisma.lead.findUniqueOrThrow = async()=>previous;
-  prisma.warehouseItem.findMany = async()=>batches;
+  prisma.warehouseItem.findMany = async({where})=>where.productId && typeof where.productId === 'string' ? batches.filter(batch=>batch.productId===where.productId) : batches;
+  const deductions=[];
+  prisma.warehouseItem.updateMany = async({where,data})=>{deductions.push([where.id,data.quantity.decrement]);return {count:1};};
   prisma.adminUser.findFirst = async()=>assert.fail('Unchanged inactive manager must not block sale editing');
   let written;
   prisma.lead.updateMany = async({data})=>{written=data;previous={...previous,...data};return {count:1};};
@@ -82,11 +84,13 @@ test('admin can edit a won lead with inactive assigned manager, add a product, a
   assert.equal(res.body.items[0].serialNumber,'SN-001');
   assert.equal(res.body.items[0].purchaseLocation,'Склад у Києві');
   assert.equal(JSON.parse(written.items)[1].serialNumber,'P-001\nP-002');
+  assert.deepEqual(deductions,[['panel-batch',2]]);
   await handler({params:{id:'lead'},admin:{role:'admin',id:'admin'},body:{items:res.body.items.map(i=>({...i,serialNumber:'',purchaseLocation:''})),total:2050}},res);
   assert.equal(res.code,200);
   assert.equal(res.body.items[0].serialNumber,'');
   assert.equal(res.body.items[0].purchaseLocation,'');
   assert.equal(res.body.financials.commission,22);
+  assert.deepEqual(deductions,[['panel-batch',2]]);
 
 });
 
