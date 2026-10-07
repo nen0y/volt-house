@@ -35,6 +35,10 @@ const itemSchema = z.object({
   custom: z.boolean().optional(),
 });
 
+const adminItemSchema = itemSchema.extend({
+  purchasePrice: z.number().finite().nonnegative().nullable().optional(),
+});
+
 const leadSchema = z.object({
   type: z.enum(["order", "consultation", "callback"]),
   name: z.string().min(1, "Вкажіть ім'я"),
@@ -156,6 +160,7 @@ leadsRouter.get("/managers", requireAdmin, async (_req, res) => {
 });
 
 const manualLeadSchema = leadSchema.extend({
+  items: z.array(adminItemSchema).optional(),
   status: z.enum(["new", "no_answer", "contacted", "sourcing", "proposal", "won", "lost"]).default("new"),
   paymentStatus: z.enum(["unpaid", "partial", "paid"]).default("unpaid"),
   deliveryStatus: z.enum(["not_sent", "preparing", "sent", "received", "returned"]).default("not_sent"),
@@ -176,6 +181,7 @@ leadsRouter.post("/admin", requireAdmin, async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Некоректні дані", details: parsed.error.flatten() });
   const d = parsed.data;
   if (req.admin!.role !== "admin" && d.installationCost != null) return res.status(403).json({ error: "Собівартість монтажу може вказувати лише адміністратор" });
+  if (req.admin!.role !== "admin" && d.items?.some((item) => Object.prototype.hasOwnProperty.call(item, "purchasePrice"))) return res.status(403).json({ error: "Закупівельну ціну може вказувати лише адміністратор" });
   if (d.callbackAt && new Date(d.callbackAt).getTime() <= Date.now()) return res.status(400).json({ error: "Оберіть майбутню дату й час передзвону" });
   if (d.managerId && req.admin!.role !== "admin") return res.status(403).json({ error: "Менеджера може призначати лише адміністратор" });
   if (d.managerId) {
@@ -310,7 +316,7 @@ const statusSchema = z.object({
   waitingForStock: z.boolean().optional(),
   waitingProduct: z.string().trim().max(500).optional(),
   notes: z.string().max(5000).optional(),
-  items: z.array(itemSchema).optional(),
+  items: z.array(adminItemSchema).optional(),
   managerId: z.string().nullable().optional(),
   expectedManagerId: z.string().nullable().optional(),
   total: z.number().min(0).optional(),
@@ -360,6 +366,7 @@ leadsRouter.patch("/:id", requireAdmin, async (req: AuthedRequest, res) => {
     const canSetManualMargin = ["won", "done"].includes(fields.status ?? previous.status) && !(items ?? parseItems(previous.items) ?? []).length && !effectiveInstallationRequested;
     if (manualMargin !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Ручна маржа доступна лише адміністратору" });
     if (installationCost !== undefined && req.admin!.role !== "admin") return res.status(403).json({ error: "Собівартість монтажу може змінювати лише адміністратор" });
+    if (items !== undefined && req.admin!.role !== "admin" && items.some((item) => Object.prototype.hasOwnProperty.call(item, "purchasePrice"))) return res.status(403).json({ error: "Закупівельну ціну може змінювати лише адміністратор" });
     if (manualMargin != null && !canSetManualMargin) return res.status(400).json({ error: "Ручну маржу можна задати лише в успішній заявці без товарів" });
     if (callbackAt && new Date(callbackAt).getTime() !== previous.callbackAt?.getTime() && new Date(callbackAt).getTime() <= Date.now()) return res.status(400).json({ error: "Оберіть майбутню дату й час передзвону" });
     if (req.admin!.role === "manager") {

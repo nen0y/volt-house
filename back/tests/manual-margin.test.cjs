@@ -44,3 +44,14 @@ test('manual margin requires admin and successful order without products', async
   await patch({status:'new'});
   assert.equal(previous.manualMargin,null);
 });
+
+test('manager cannot submit a custom purchase price', async () => {
+  const {prisma} = require('../dist/prisma');
+  const {leadsRouter} = require('../dist/routes/leads');
+  const handler = leadsRouter.stack.find(l=>l.route?.path==='/:id' && l.route.methods.patch).route.stack.at(-1).handle;
+  prisma.lead.findUnique=async()=>({id:'lead',status:'new',managerId:'manager',items:null,total:0,installationRequested:false});
+  const res={code:200,status(code){this.code=code;return this},json(body){this.body=body;return this}};
+  await handler({params:{id:'lead'},admin:{role:'manager',id:'manager'},body:{items:[{id:'custom-1',name:'Manual',price:500,quantity:1,custom:true,purchasePrice:350}]}},res);
+  assert.equal(res.code,403);
+  assert.match(res.body.error,/адміністратор/);
+});

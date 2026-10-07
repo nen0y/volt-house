@@ -30,6 +30,16 @@ test('the highest in-stock purchase price is used and sold-out batches are ignor
   assert.throws(()=>attachCosts([{...item('battery',1750),warehouseItemId:'panel-batch'}],[],options));
 });
 
+test('custom item uses its manual purchase price and preserves it when a manager edits other fields', () => {
+  const custom = {...item('custom-1', 500, 2), custom:true, purchasePrice:350};
+  const saved = attachCosts([custom], [], []);
+  assert.deepEqual(commissionFor(saved, 1000), {salesTotal:1000,purchaseTotal:700,margin:300,commission:30,missingCostCount:0,commissionPercent:10});
+  const managerEdit = attachCosts([{...item('custom-1', 550, 2), custom:true}], saved, []);
+  assert.equal(managerEdit[0].purchasePrice, 350);
+  const adminEdit = attachCosts([{...item('custom-1', 550, 2), custom:true, purchasePrice:375}], saved, []);
+  assert.equal(adminEdit[0].purchasePrice, 375);
+});
+
 test('installation revenue and cost are included in sale margin', () => {
   const product = attachCosts([item('battery',1750)], [], batches);
   assert.deepEqual(commissionFor(product, 2050, null, {requested:true, price:300, cost:180}), {

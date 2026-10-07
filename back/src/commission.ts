@@ -5,12 +5,16 @@ export const COMMISSION_PERCENT = 10;
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 type CostBatch = { id: string; productId: string; quantity: number; purchasePrice: number | null; arrivalDate: string | null };
 
-// Never trust a purchase price submitted by a browser. Preserve the saved sale's
-// cost, or obtain it from received warehouse batches. Always use the highest
-// purchase price so selecting a cheaper batch cannot inflate the margin.
+// Catalogue costs always come from received warehouse batches. A custom item has
+// no warehouse record, so its explicitly entered cost is kept as a sale snapshot.
+// Route authorization ensures that only an administrator can submit that cost.
 export function attachCosts(items: LeadItem[], previous: LeadItem[], batches: CostBatch[]): LeadItem[] {
   return items.map((item) => {
     const old = previous.find((p) => p.id === item.id && (p.warehouseItemId || null) === (item.warehouseItemId || null));
+    if (item.custom) {
+      const submitted = Object.prototype.hasOwnProperty.call(item, "purchasePrice");
+      return { ...item, warehouseItemId: null, purchasePrice: submitted ? (item.purchasePrice ?? null) : (old?.purchasePrice ?? null) };
+    }
     if (old?.purchasePrice != null) return { ...item, purchasePrice: old.purchasePrice, warehouseItemId: old.warehouseItemId };
     const candidates = batches.filter((b) => b.productId === item.id && b.quantity > 0 && !b.arrivalDate && b.purchasePrice != null);
     const highestPrice = candidates.length ? Math.max(...candidates.map((b) => b.purchasePrice!)) : null;
