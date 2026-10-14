@@ -248,6 +248,7 @@ model WarehouseItem {
   supplier      Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   arrivalDate   String?   // YYYY-MM-DD; null means received, otherwise reservation only
   purchasePrice Int?
+  serialNumber  String    @default("")
   notes         String    @default("")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

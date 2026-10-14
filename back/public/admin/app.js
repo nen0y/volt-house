@@ -2690,7 +2690,7 @@
         </tr>${expanded ? `<tr class="wh-detail-row"><td colspan="7"><div class="wh-detail">
           <div class="wh-detail-head"><div><strong>Партії · ${esc(p.name)}</strong><div class="muted">Залишок партії — кількість без уже виділених резервів.</div></div>${isAdmin ? `<div class="row-actions"><button class="btn-sm" data-wh-add="${esc(p.id)}">+ Додати партію</button><button class="btn-sm btn-ghost" data-wh-product="${esc(p.id)}">Картка товару</button></div>` : ""}</div>
           ${row.warehouseItems.length ? `<div class="wh-batches">${row.warehouseItems.map((item) => `<div class="wh-batch ${item.quantity === 0 ? "wh-batch-empty" : ""}">
-            <div><strong>${esc(item.supplier?.name || "Без постачальника")}</strong><div class="muted">Додано ${warehouseDate(item.createdAt)}${item.notes ? ` · ${esc(item.notes)}` : ""}</div></div>
+            <div><strong>${esc(item.supplier?.name || "Без постачальника")}</strong><div class="muted">Додано ${warehouseDate(item.createdAt)}${item.notes ? ` · ${esc(item.notes)}` : ""}</div>${item.serialNumber ? `<div class="muted">С/Н: <strong>${esc(item.serialNumber)}</strong></div>` : ""}</div>
             <div><strong>${item.quantity} шт.</strong>${isAdmin ? `<div class="muted">${item.purchasePrice != null ? `Закупівля ${money(item.purchasePrice)}` : "Ціну закупівлі не задано"}</div>` : ""}</div>
             <div>${item.arrivalDate ? `<span class="wh-stock-expected">Очікуємо ${warehouseDate(item.arrivalDate)}</span><div class="muted">Лише бронювання</div>` : item.quantity > 0 ? `<span class="wh-stock-ready">На складі</span>` : `<span class="muted">Порожня партія</span>`}</div>
             ${isAdmin ? `<div class="row-actions">${item.arrivalDate && item.quantity > 0 ? `<button class="btn-sm" data-wh-receive="${esc(item.id)}">Прийняти на склад</button>` : ""}<button class="btn-sm btn-ghost" data-wh-item="${esc(item.id)}">Редагувати</button><button class="btn-sm btn-danger" data-wh-delete="${esc(item.id)}">Видалити</button></div>` : ""}
@@ -2744,6 +2744,7 @@
         ${currentAdmin?.role === "admin" ? `<div class="field"><label>Ціна закупівлі ($)</label><input id="wh_edit_price" type="number" min="0" step="1" value="${item.purchasePrice ?? ""}"></div>` : ""}</div>
         <div class="field"><label>Постачальник</label><select id="wh_edit_supplier"><option value="">Без постачальника</option>${supplierCache.filter((s) => s.active || s.id === item.supplierId).map((s) => `<option value="${esc(s.id)}" ${s.id === item.supplierId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div>
         <div class="field"><label for="wh_edit_arrival">Очікувана дата надходження · лише бронювання</label><input id="wh_edit_arrival" type="date" value="${esc(item.arrivalDate || "")}"><div class="muted">Для підтвердження надходження скористайтеся кнопкою «Прийняти на склад» у списку партій.</div></div>
+        <div class="field"><label for="wh_edit_serial">Серійний номер</label><textarea id="wh_edit_serial" rows="2" maxlength="1000" placeholder="Для кількох одиниць — кожен номер з нового рядка">${esc(item.serialNumber || "")}</textarea></div>
         <div class="field"><label>Нотатки</label><textarea id="wh_edit_notes" maxlength="500">${esc(item.notes)}</textarea></div>
         <div class="error" id="wh_edit_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="wh_edit_cancel">Скасувати</button><button class="btn" id="wh_edit_save">Зберегти</button></div>`);
       $("wh_edit_cancel").addEventListener("click", closeModal);
@@ -2757,7 +2758,7 @@
         const button = $("wh_edit_save");
         button.disabled = true;
         try {
-          await api("/api/warehouse/balance/" + encodeURIComponent(item.id), { method: "PUT", body: JSON.stringify({ quantity, purchasePrice, arrivalDate: $("wh_edit_arrival").value || null, supplierId: $("wh_edit_supplier").value || null, notes: $("wh_edit_notes").value.trim() }) });
+          await api("/api/warehouse/balance/" + encodeURIComponent(item.id), { method: "PUT", body: JSON.stringify({ quantity, purchasePrice, arrivalDate: $("wh_edit_arrival").value || null, supplierId: $("wh_edit_supplier").value || null, serialNumber: $("wh_edit_serial").value.trim(), notes: $("wh_edit_notes").value.trim() }) });
           closeModal();
           await refreshWarehouseStock();
         } catch (err) { $("wh_edit_error").textContent = err.message; button.disabled = false; }
@@ -2843,7 +2844,8 @@
         </div>
         <div class="field"><label>Постачальник</label><select id="wh_supplier" style="width:100%;padding:10px;border:1px solid var(--slate-200);border-radius:8px;font-family:inherit;font-size:14px"><option value="">— Не вибрано —</option>${supplierCache.filter((s) => s.active).map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("")}</select></div>
         <div class="field"><label for="wh_arrival">Очікувана дата надходження · лише бронювання</label><input id="wh_arrival" type="date"><div class="muted">З датою — очікувана партія, доступна лише для бронювання. Без дати — товар уже на складі.</div></div>
-        <div class="field"><label>Нотатки</label><input id="wh_notes" placeholder="Опис партії, серійний номер…"></div>
+        <div class="field"><label for="wh_serial">Серійний номер *</label><textarea id="wh_serial" rows="2" maxlength="1000" placeholder="Для кількох одиниць — кожен номер з нового рядка"></textarea></div>
+        <div class="field"><label>Нотатки</label><input id="wh_notes" placeholder="Опис партії…"></div>
         <div class="error" id="wh_error"></div>
         <div class="modal-actions"><button class="btn btn-ghost" id="wh_cancel">Скасувати</button><button class="btn" id="wh_save">Додати на склад</button></div>`);
       const renderProductOpts = (q = "") => {
@@ -2856,9 +2858,11 @@
       $("wh_save").addEventListener("click", async () => {
         const productId = $("wh_product_select").value;
         const quantity = parseInt($("wh_quantity").value, 10);
+        const serialNumber = $("wh_serial").value.trim();
         if (!productId || !quantity || quantity < 1) return ($("wh_error").textContent = "Оберіть товар та вкажіть кількість");
+        if (!serialNumber) return ($("wh_error").textContent = "Серійний номер обовʼязковий");
         try {
-          await api("/api/warehouse/balance", { method: "POST", body: JSON.stringify({ productId, quantity, arrivalDate: $("wh_arrival").value || null, supplierId: $("wh_supplier").value || null, purchasePrice: $("wh_price") ? (parseInt($("wh_price").value, 10) || null) : null, notes: $("wh_notes").value.trim() }) });
+          await api("/api/warehouse/balance", { method: "POST", body: JSON.stringify({ productId, quantity, arrivalDate: $("wh_arrival").value || null, supplierId: $("wh_supplier").value || null, purchasePrice: $("wh_price") ? (parseInt($("wh_price").value, 10) || null) : null, serialNumber, notes: $("wh_notes").value.trim() }) });
           closeModal(); await refreshWarehouseStock();
         } catch (err) { $("wh_error").textContent = err.message; }
       });

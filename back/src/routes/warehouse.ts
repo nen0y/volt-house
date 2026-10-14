@@ -16,14 +16,17 @@ warehouseRouter.get("/balance", requireAdmin, async (req: AuthedRequest, res) =>
   const products = await prisma.product.findMany({
     where: {
 
-      ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+      ...(search ? { OR: [
+        { name: { contains: search, mode: "insensitive" } },
+        { warehouseItems: { some: { serialNumber: { contains: search, mode: "insensitive" } } } },
+      ] } : {}),
       ...(brand ? { brandSlug: brand } : {}),
       ...(category ? { categoryLinks: { some: { categoryKey: category } } } : {}),
     },
     select: {
       id: true, name: true, category: true, image: true, brandSlug: true, price: true, enabled: true,
       brand: { select: { name: true } },
-      warehouseItems: { select: { id: true, quantity: true, arrivalDate: true, supplierId: true, purchasePrice: true, notes: true, createdAt: true, supplier: { select: { id: true, name: true } } } },
+      warehouseItems: { select: { id: true, quantity: true, arrivalDate: true, supplierId: true, purchasePrice: true, serialNumber: true, notes: true, createdAt: true, supplier: { select: { id: true, name: true } } } },
       reservations: {
         where: { status: { in: ["active", "found"] } },
         select: { id: true, leadId: true, quantity: true, status: true, deductedQty: true, lead: { select: { name: true, phone: true } }, product: { select: { id: true, name: true } } },
@@ -54,15 +57,16 @@ warehouseRouter.post("/balance", requireAdmin, requireSuperAdmin, async (req: Au
     arrivalDate: z.string().date().nullable().optional(),
     supplierId: z.string().optional().nullable(),
     purchasePrice: z.number().int().min(0).optional().nullable(),
+    serialNumber: z.string().trim().max(1000).min(1, "Серійний номер обовʼязковий"),
     notes: z.string().max(500).default(""),
   });
   const parsed = schema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Некоректні дані" });
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || "Некоректні дані" });
   const d = parsed.data;
   const product = await prisma.product.findUnique({ where: { id: d.productId } });
   if (!product) return res.status(404).json({ error: "Товар не знайдено" });
   const item = await prisma.warehouseItem.create({
-    data: { productId: d.productId, quantity: d.quantity, arrivalDate: d.arrivalDate ?? null, supplierId: d.supplierId || null, purchasePrice: d.purchasePrice ?? null, notes: d.notes },
+    data: { productId: d.productId, quantity: d.quantity, arrivalDate: d.arrivalDate ?? null, supplierId: d.supplierId || null, purchasePrice: d.purchasePrice ?? null, serialNumber: d.serialNumber, notes: d.notes },
     include: { product: { select: { id: true, name: true } }, supplier: { select: { id: true, name: true } } },
   });
   res.status(201).json(item);
@@ -75,6 +79,7 @@ warehouseRouter.put("/balance/:id", requireAdmin, requireSuperAdmin, async (req,
     arrivalDate: z.string().date().nullable().optional(),
     supplierId: z.string().optional().nullable(),
     purchasePrice: z.number().int().min(0).optional().nullable(),
+    serialNumber: z.string().trim().max(1000).optional(),
     notes: z.string().max(500).optional(),
   });
   const parsed = schema.safeParse(req.body);
