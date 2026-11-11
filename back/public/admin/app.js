@@ -579,6 +579,18 @@
     return lead.installationRequested ? `<div style="margin-top:4px"><span class="badge" style="background:#dbeafe;color:#1e40af">🛠 Монтаж${lead.installationPrice != null ? ` · ${money(lead.installationPrice)}` : ""}</span></div>` : "";
   }
 
+  function missingPurchaseNames(lead) {
+    const names = (lead.items || []).filter((item) => item.purchasePrice == null).map((item) => item.name || "Товар без назви");
+    if (lead.installationRequested && lead.installationCost == null) names.push("собівартість монтажу");
+    return [...new Set(names)];
+  }
+
+  function purchaseWarningHtml(lead) {
+    if (currentAdmin?.role !== "admin") return "";
+    const missing = missingPurchaseNames(lead);
+    return missing.length ? `<div class="purchase-warning"><strong>⚠ Немає закупівельної ціни:</strong> ${esc(missing.join(", "))}</div>` : "";
+  }
+
   async function openNewCrmClient() {
     try { await loadCrmProductOptions(); } catch (err) { return alert(err.message); }
     openModal(`<h3>Новий клієнт</h3>
@@ -811,13 +823,15 @@
         const details = l.interest || (l.items && l.items.length ? `${l.items.length} товар(и)` : TYPE_LABEL[l.type] || l.type);
         const managerLine = status === "won" ? `Продаж: ${l.soldBy?.name || l.soldBy?.email || "не вказано"}` : `Менеджер: ${l.manager?.name || l.manager?.email || "не призначено"}`;
         const canMove = currentAdmin?.role === "admin" || l.managerId === currentAdmin?.id;
-        return `<article class="lead-card" draggable="${canMove ? "true" : "false"}" data-lead-id="${esc(l.id)}">
+        const missingPurchase = currentAdmin?.role === "admin" && missingPurchaseNames(l).length > 0;
+        return `<article class="lead-card${missingPurchase ? " has-missing-purchase" : ""}" draggable="${canMove ? "true" : "false"}" data-lead-id="${esc(l.id)}">
           <span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span>
           <h4>${esc(l.name)}</h4>
           ${stockWaitingBadge(l)}
           ${reservationBadge(l)}
           ${installationBadge(l)}
           ${callbackBadge(l)}
+          ${purchaseWarningHtml(l)}
           <div class="lead-meta"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br>${esc(details || "Без деталей")}<br>${dt(l.createdAt)}</div>
           <div style="font-size:12px;font-weight:700;margin-top:7px">${esc(managerLine)}</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"><span class="badge s-${esc(l.paymentStatus || "unpaid")}">${esc(PAYMENT_STATUS_LABEL[l.paymentStatus] || PAYMENT_STATUS_LABEL.unpaid)}</span><span class="badge s-${esc(l.deliveryStatus || "not_sent")}">${esc(DELIVERY_STATUS_LABEL[l.deliveryStatus] || DELIVERY_STATUS_LABEL.not_sent)}</span></div>
@@ -954,7 +968,8 @@
           : `<div class="notes-clamp">${esc(l.notes)}</div>`)
         : canEdit ? `<button class="add-notes-btn" data-add-notes="${esc(l.id)}">Додати опис</button>` : `<span class="muted">Немає нотаток</span>`;
       const managerName = stage === "won" ? (l.soldBy?.name || l.soldBy?.email || "Не вказано") : (l.manager?.name || l.manager?.email || "Не призначено");
-      return `<div class="crm-row">
+      const missingPurchase = currentAdmin?.role === "admin" && missingPurchaseNames(l).length > 0;
+      return `<div class="crm-row${missingPurchase ? " has-missing-purchase" : ""}">
         <div>
           <div><span class="badge b-${esc(l.type)}">${esc(TYPE_LABEL[l.type] || l.type)}</span></div>
           <div class="client-name">${esc(l.name)}${stageHtml}</div>
@@ -962,6 +977,7 @@
           ${reservationBadge(l)}
           ${installationBadge(l)}
           ${callbackBadge(l)}
+          ${purchaseWarningHtml(l)}
           <a href="tel:${esc(l.phone)}" style="color:var(--blue);font-size:13px">${esc(l.phone)}</a>
         </div>
         <div>
@@ -997,6 +1013,7 @@
     if (!lead) return;
     try { await loadCrmProductOptions(); } catch (err) { return alert(err.message); }
     openModal(`<h3>${normalizeLeadStatus(lead.status) === "won" ? "Успішна заявка · редагування та допродаж" : "Редагувати клієнта"}</h3>
+      ${currentAdmin?.role === "admin" ? `<div id="crm_purchase_warning"></div>` : ""}
       <div class="field"><label>Ім’я *</label><input id="crm_name" value="${esc(lead.name)}"></div>
       <div class="grid2"><div class="field"><label>Телефон *</label><input id="crm_phone" type="tel" value="${esc(lead.phone)}"></div><div class="field"><label>Email</label><input id="crm_email" type="email" value="${esc(lead.email || "")}"></div></div>
       ${currentAdmin?.role === "admin" ? `<div class="field"><label for="crm_created_at">Дата й час створення заявки</label><input id="crm_created_at" type="datetime-local" value="${localDateTimeValue(lead.createdAt)}"><div class="muted">Час відображається у вашому часовому поясі.</div></div>` : ""}
@@ -1021,6 +1038,8 @@
       const installation = installationValues();
       if (recalculateTotal) $("crm_total").value = items.reduce((sum, item) => sum + item.price * item.quantity, 0) + (installation.requested ? installation.price : 0);
       if (currentAdmin?.role !== "admin") return;
+      const missing = missingPurchaseNames({ items, installationRequested: installation.requested, installationCost: installation.cost });
+      if ($("crm_purchase_warning")) $("crm_purchase_warning").innerHTML = missing.length ? `<div class="purchase-warning" style="margin:0 0 12px"><strong>⚠ Немає закупівельної ціни:</strong> ${esc(missing.join(", "))}</div>` : "";
       const manualAllowed = $("crm_status").value === "won" && items.length === 0 && !installation.requested;
       if ($("crm_manual_margin_wrap")) $("crm_manual_margin_wrap").style.display = manualAllowed ? "" : "none";
       if (manualAllowed && $("crm_manual_margin")?.value !== "") {
@@ -1037,7 +1056,7 @@
       const complete = (items.length > 0 || installation.requested) && costs.every((cost) => cost != null) && (!installation.requested || installation.cost != null);
       const purchase = costs.reduce((sum, cost) => sum + (cost || 0), 0) + (installation.cost || 0);
       const margin = Number($("crm_total").value) - purchase;
-      if ($("crm_margin_summary")) $("crm_margin_summary").innerHTML = complete ? `<strong>Закупівля та монтажні витрати: ${money(purchase)} · Маржа: ${money(margin)}</strong><div>Комісія менеджера (10% від маржі): <strong>${money(Math.round(Math.max(0, margin) * 10) / 100)}</strong></div>` : installation.requested ? "Для розрахунку маржі вкажіть закупівлю кожного товару та собівартість монтажу." : "Для розрахунку маржі вкажіть складську закупівлю кожного товару.";
+      if ($("crm_margin_summary")) $("crm_margin_summary").innerHTML = complete ? `<strong>Закупівля та монтажні витрати: ${money(purchase)} · Маржа: ${money(margin)}</strong><div>Комісія менеджера (10% від маржі): <strong>${money(Math.round(Math.max(0, margin) * 10) / 100)}</strong></div>` : missing.length ? `Маржа не рахується. Немає закупівельної ціни для: <strong>${esc(missing.join(", "))}</strong>.` : "Маржа не рахується: додайте товари або задайте її вручну для успішної заявки.";
     };
     const getProducts = setupCrmProductPicker(lead.items || [], updateFinancials);
     const getInstallation = setupInstallationFields(() => updateFinancials(getProducts()));
