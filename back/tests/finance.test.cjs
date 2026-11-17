@@ -12,19 +12,19 @@ test('legacy finance ledger receives safe defaults without losing expenses', asy
   prisma.setting.findUnique = async () => ({ value: JSON.stringify(legacyCurrent) });
   const res = response();
   await handler('/', 'get')({}, res);
-  assert.deepEqual(res.body.commissionManagerIds, []);
+  assert.deepEqual(res.body.managerPayroll, []);
   assert.equal(res.body.expenses[0].category, 'other');
   assert.equal(res.body.expenses[0].purpose, 'Facebook');
 });
 
-test('selected managers and advertising category are persisted', async () => {
-  let stored = { participants, commissionManagerIds: [], incomes: [], expenses: [], transfers: [] };
+test('monthly manager salary, commission and advertising category are persisted', async () => {
+  let stored = { participants, managerPayroll: [], incomes: [], expenses: [], transfers: [] };
   prisma.setting.findUnique = async () => ({ value: JSON.stringify(stored) });
   prisma.setting.upsert = async ({ update }) => { stored = JSON.parse(update.value); return stored; };
   prisma.adminUser.findMany = async () => [{ id: 'manager-1' }];
   const managers = response();
-  await handler('/commission-managers', 'put')({ body: { managerIds: ['manager-1'] } }, managers);
-  assert.deepEqual(stored.commissionManagerIds, ['manager-1']);
+  await handler('/manager-payroll/:month', 'put')({ params: { month: '2026-11' }, body: { rows: [{ managerId: 'manager-1', includeCommission: true, baseSalary: 300 }] } }, managers);
+  assert.deepEqual(stored.managerPayroll, [{ month: '2026-11', managerId: 'manager-1', includeCommission: true, baseSalary: 300 }]);
 
   const expense = response();
   await handler('/expenses', 'post')({ body: { participantId: 'person-2', category: 'advertising', purpose: 'Facebook ads', amount: 528, currency: 'UAH', exchangeRate: 44, date: '2026-11-11', notes: '' } }, expense);

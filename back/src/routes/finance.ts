@@ -41,9 +41,13 @@ const transferInputSchema = z.object({
   method: z.enum(["cash", "card", "account"]).default("card"), notes: z.string().max(1000).default(""),
   ...currencyFields,
 });
+const managerPayrollSchema = z.object({
+  month: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/), managerId: z.string().min(1),
+  includeCommission: z.boolean().default(false), baseSalary: z.number().nonnegative().finite().default(0),
+});
 const ledgerSchema = z.object({
   participants: z.array(participantSchema).length(3),
-  commissionManagerIds: z.array(z.string().min(1)).max(100).default([]),
+  managerPayroll: z.array(managerPayrollSchema).max(5000).default([]),
   incomes: z.array(incomeInputSchema.extend({ id: z.string().min(1) })).max(5000),
   expenses: z.array(expenseInputSchema.extend({ id: z.string().min(1) })).max(5000),
   transfers: z.array(transferInputSchema.extend({ id: z.string().min(1) })).max(5000).default([]),
@@ -51,7 +55,7 @@ const ledgerSchema = z.object({
 type Ledger = z.infer<typeof ledgerSchema>;
 
 const emptyLedger = (): Ledger => ({
-  participants: ["Юра", "Міша", "Коля"].map((name, index) => ({ id: `person-${index + 1}`, name })), commissionManagerIds: [], incomes: [], expenses: [], transfers: [],
+  participants: ["Юра", "Міша", "Коля"].map((name, index) => ({ id: `person-${index + 1}`, name })), managerPayroll: [], incomes: [], expenses: [], transfers: [],
 });
 
 function migrateLedger(value: unknown): Ledger {
@@ -61,7 +65,7 @@ function migrateLedger(value: unknown): Ledger {
   if (!legacy || !Array.isArray(legacy.participants) || !Array.isArray(legacy.sales)) return emptyLedger();
   const migrated = {
     participants: legacy.participants,
-    commissionManagerIds: [],
+    managerPayroll: [],
     incomes: legacy.sales.map((sale: any) => ({ id: sale.id, purpose: sale.item, customer: sale.customer || "", amount: Number(sale.revenue), date: sale.soldAt, notes: sale.notes || "", shares: sale.shares, paymentStatus: "received", paymentMethod: "card", heldBy: null, receipts: [] })),
     expenses: legacy.sales.flatMap((sale: any) => (sale.expenses || []).map((expense: any) => ({ id: expense.id || randomUUID(), participantId: expense.participantId, purpose: expense.purpose, amount: Number(expense.amount), date: sale.soldAt, notes: `Перенесено з надходження: ${sale.item}` }))),
     transfers: [],
@@ -105,15 +109,18 @@ financeRouter.put("/participants", async (req, res) => {
   res.json(ledger);
 });
 
-financeRouter.put("/commission-managers", async (req, res) => {
-  const parsed = z.object({ managerIds: z.array(z.string().min(1)).max(100) }).safeParse(req.body);
-  if (!parsed.success || new Set(parsed.data.managerIds).size !== parsed.data.managerIds.length) return res.status(400).json({ error: "Оберіть менеджерів без повторів" });
-  const managers = await prisma.adminUser.findMany({ where: { role: "manager", id: { in: parsed.data.managerIds } }, select: { id: true } });
-  if (managers.length !== parsed.data.managerIds.length) return res.status(400).json({ error: "Один із вибраних менеджерів не існує" });
+financeRouter.put("/manager-payroll/:month", async (req, res) => {
+  const month = req.params.month;
+  const parsed = z.object({ rows: z.array(z.object({ managerId: z.string().min(1), includeCommission: z.boolean(), baseSalary: z.number().nonnegative().finite() })).max(100) }).safeParse(req.body);
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month) || !parsed.success || new Set(parsed.data.rows.map((row) => row.managerId)).size !== parsed.data.rows.length) return res.status(400).json({ error: "Перевірте зарплати менеджерів" });
+  const ids = parsed.data.rows.map((row) => row.managerId);
+  const managers = await prisma.adminUser.findMany({ where: { role: "manager", id: { in: ids } }, select: { id: true } });
+  if (managers.length !== ids.length) return res.status(400).json({ error: "Один із вибраних менеджерів не існує" });
   const ledger = await readLedger();
-  ledger.commissionManagerIds = parsed.data.managerIds;
+  ledger.managerPayroll = ledger.managerPayroll.filter((row) => row.month !== month);
+  ledger.managerPayroll.push(...parsed.data.rows.filter((row) => row.includeCommission || row.baseSalary > 0).map((row) => ({ ...row, month })));
   await writeLedger(ledger);
-  res.json({ commissionManagerIds: ledger.commissionManagerIds });
+  res.json({ month, rows: ledger.managerPayroll.filter((row) => row.month === month) });
 });
 
 financeRouter.post("/incomes", async (req, res) => {
