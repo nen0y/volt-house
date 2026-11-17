@@ -28,6 +28,8 @@
   let financeManagerStats = { managers: [] };
   let financeManagerStatsByMonth = {};
   let financeSalesReport = { margin: 0, pendingCostCount: 0 };
+  let financeAllTimeReport = { margin: 0, pendingCostCount: 0 };
+  let financePartnerMonthReport = { margin: 0, pendingCostCount: 0 };
   let adminEmail = "";
   let currentAdmin = null;
   let managerCache = [];
@@ -1142,23 +1144,19 @@
     try {
       financeCache = await api("/api/finance");
       financeManagerStatsByMonth = {};
-      if (mode === "all") {
-        const commissionMonths = [...new Set((financeCache.managerPayroll || []).filter((row) => row.includeCommission).map((row) => row.month))];
-        const [managerList, report, ...monthlyStats] = await Promise.all([
-          api("/api/leads/manager-stats?month=" + encodeURIComponent(currentMonth)),
-          api("/api/leads/sales-summary?all=true"),
-          ...commissionMonths.map((value) => api("/api/leads/manager-stats?month=" + encodeURIComponent(value))),
-        ]);
-        financeManagerStats = managerList;
-        financeSalesReport = report;
-        commissionMonths.forEach((value, index) => { financeManagerStatsByMonth[value] = monthlyStats[index]; });
-      } else {
-        [financeManagerStats, financeSalesReport] = await Promise.all([
-          api("/api/leads/manager-stats?month=" + encodeURIComponent(month)),
-          api(`/api/leads/sales-summary?fromMonth=${encodeURIComponent(month)}&toMonth=${encodeURIComponent(month)}`),
-        ]);
-        financeManagerStatsByMonth[month] = financeManagerStats;
-      }
+      const partnerMonth = mode === "selected" ? month : currentMonth;
+      const commissionMonths = [...new Set([partnerMonth, ...(financeCache.managerPayroll || []).filter((row) => row.includeCommission).map((row) => row.month)])];
+      const periodReportUrl = mode === "all" ? "/api/leads/sales-summary?all=true" : `/api/leads/sales-summary?fromMonth=${encodeURIComponent(month)}&toMonth=${encodeURIComponent(month)}`;
+      const partnerMonthReportUrl = `/api/leads/sales-summary?fromMonth=${encodeURIComponent(partnerMonth)}&toMonth=${encodeURIComponent(partnerMonth)}`;
+      const [periodReport, allTimeReport, partnerReport, ...monthlyStats] = await Promise.all([
+        api(periodReportUrl), api("/api/leads/sales-summary?all=true"), api(partnerMonthReportUrl),
+        ...commissionMonths.map((value) => api("/api/leads/manager-stats?month=" + encodeURIComponent(value))),
+      ]);
+      financeSalesReport = periodReport;
+      financeAllTimeReport = allTimeReport;
+      financePartnerMonthReport = partnerReport;
+      commissionMonths.forEach((value, index) => { financeManagerStatsByMonth[value] = monthlyStats[index]; });
+      financeManagerStats = financeManagerStatsByMonth[partnerMonth] || { managers: [] };
       renderFinanceLedger();
     }
     catch (err) { $("financeExpenseBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
@@ -1194,14 +1192,31 @@
     $("financeProfitStats").innerHTML = [["Маржа продажів", money(financeSalesReport.margin || 0)], ["Реклама", money(advertisingTotal)], ["Інші витрати", money(otherExpenseTotal)], ["Фіксовані зарплати", money(baseSalaryTotal)], ["Відсотки менеджерів", money(managerCommissionTotal)], ["Чистий прибуток", money(netProfit)]].map(([label, value], index) => `<div class="stat" style="${index === 5 ? "border:2px solid #16a34a" : ""}"><div class="n" style="font-size:22px">${esc(value)}</div><div class="l">${esc(label)}</div></div>`).join("");
     $("financeProfitWarning").innerHTML = financeSalesReport.pendingCostCount ? `<div class="purchase-warning"><strong>⚠ Підсумок неповний:</strong> ${financeSalesReport.pendingCostCount} успішних замовлень без закупівельної ціни.</div>` : "";
 
-    const withdrawals = mode === "all" ? (financeCache.partnerWithdrawals || []) : (financeCache.partnerWithdrawals || []).filter((row) => row.month === month);
-    const withdrawnByPartner = Object.fromEntries(financeCache.participants.map((person) => [person.id, withdrawals.filter((row) => row.participantId === person.id).reduce((sum, row) => sum + Number(row.amount), 0)]));
-    const partnerShare = netProfit / 3;
-    $("saveFinancePartners").style.display = mode === "all" ? "none" : "";
+    const partnerMonth = mode === "selected" ? month : currentMonth;
+    const totalsFor = (allTime, value, report) => {
+      const expenses = allTime ? financeCache.expenses : financeCache.expenses.filter((expense) => expense.date.startsWith(value));
+      const payroll = allTime ? (financeCache.managerPayroll || []) : (financeCache.managerPayroll || []).filter((row) => row.month === value);
+      const costs = expenses.reduce((sum, expense) => sum + financeUsd(expense), 0);
+      const fixed = payroll.reduce((sum, row) => sum + Number(row.baseSalary || 0), 0);
+      const commissions = payroll.filter((row) => row.includeCommission).reduce((sum, row) => sum + Number(commissionForRow(row)), 0);
+      return Number(report.margin || 0) - costs - fixed - commissions;
+    };
+    const monthNetProfit = totalsFor(false, partnerMonth, financePartnerMonthReport);
+    const allTimeNetProfit = totalsFor(true, "", financeAllTimeReport);
+    const monthWithdrawals = (financeCache.partnerWithdrawals || []).filter((row) => row.month === partnerMonth);
+    const allWithdrawals = financeCache.partnerWithdrawals || [];
+    const withdrawnFor = (rows, participantId) => rows.filter((row) => row.participantId === participantId).reduce((sum, row) => sum + Number(row.amount), 0);
+    const roundFinance = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
+    const monthShare = roundFinance(monthNetProfit / 3);
+    const allTimeShare = roundFinance(allTimeNetProfit / 3);
+    $("saveFinancePartners").style.display = "";
     $("financePartnerShares").innerHTML = financeCache.participants.map((person) => {
-      const withdrawn = withdrawnByPartner[person.id] || 0;
-      const remaining = partnerShare - withdrawn;
-      return `<div style="padding:14px;border:1px solid var(--slate-200);border-radius:9px"><strong style="font-size:16px">${esc(person.name)}</strong><div class="muted" style="margin-top:5px">Частка 1/3: <strong>${money(partnerShare)}</strong></div>${mode === "all" ? `<div class="muted">Вже забрав: <strong>${money(withdrawn)}</strong></div>` : `<label class="field" style="margin:10px 0 0"><span>Вже забрав, $</span><input type="number" min="0" step="0.01" data-partner-withdrawal="${esc(person.id)}" value="${esc(withdrawn)}"></label>`}<div style="margin-top:7px;font-weight:800;color:${remaining >= 0 ? "#166534" : "#b91c1c"}">${remaining >= 0 ? "Залишилось отримати" : "Забрав понад частку"}: ${money(Math.abs(remaining))}</div></div>`;
+      const monthWithdrawn = withdrawnFor(monthWithdrawals, person.id);
+      const totalWithdrawn = withdrawnFor(allWithdrawals, person.id);
+      const monthRemaining = roundFinance(monthShare - monthWithdrawn);
+      const totalRemaining = roundFinance(allTimeShare - totalWithdrawn);
+      const balance = (remaining, label) => `<div style="margin-top:5px;font-weight:800;color:${remaining >= 0 ? "#166534" : "#b91c1c"}">${remaining >= 0 ? label : "Забрав понад частку"}: ${money(Math.abs(remaining))}</div>`;
+      return `<div style="padding:14px;border:1px solid var(--slate-200);border-radius:9px"><strong style="font-size:17px">${esc(person.name)}</strong><div style="margin-top:12px;font-weight:700">За ${esc(partnerMonth)}</div><div class="muted">Частка 1/3: <strong>${money(monthShare)}</strong></div><label class="field" style="margin:8px 0 0"><span>Забрав за цей місяць, $</span><input type="number" min="0" step="0.01" data-partner-withdrawal="${esc(person.id)}" value="${esc(monthWithdrawn)}"></label>${balance(monthRemaining, "Залишилось за місяць")}<div style="border-top:1px solid var(--slate-200);margin:14px 0 10px"></div><div style="font-weight:700">За весь час</div><div class="muted">Загальна частка: <strong>${money(allTimeShare)}</strong></div><div class="muted">Всього забрав: <strong>${money(totalWithdrawn)}</strong></div>${balance(totalRemaining, "Залишилось усього")}</div>`;
     }).join("");
 
     if (mode === "all") {
@@ -1317,7 +1332,7 @@
   });
   if ($("saveFinancePartners")) $("saveFinancePartners").addEventListener("click", async () => {
     const mode = $("financePeriodMode").value;
-    const month = mode === "current" ? todayInKyiv().slice(0, 7) : $("financeMonth").value;
+    const month = mode === "selected" ? $("financeMonth").value : todayInKyiv().slice(0, 7);
     const rows = [...document.querySelectorAll("[data-partner-withdrawal]")].map((input) => ({ participantId: input.dataset.partnerWithdrawal, amount: Number(input.value || 0) }));
     try { await api("/api/finance/partner-withdrawals/" + encodeURIComponent(month), { method: "PUT", body: JSON.stringify({ rows }) }); await loadFinanceLedger(); }
     catch (err) { alert(err.message); }
