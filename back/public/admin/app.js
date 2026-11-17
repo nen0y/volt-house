@@ -24,7 +24,7 @@
   let warehouseResCache = [];
   let warehouseFilters = { search: "", category: "all", brand: "all" };
   let warehouseResFilter = "all";
-  let financeCache = { participants: [], managerPayroll: [], incomes: [], expenses: [], transfers: [] };
+  let financeCache = { participants: [], managerPayroll: [], partnerWithdrawals: [], incomes: [], expenses: [], transfers: [] };
   let financeManagerStats = { managers: [] };
   let financeManagerStatsByMonth = {};
   let financeSalesReport = { margin: 0, pendingCostCount: 0 };
@@ -1194,6 +1194,16 @@
     $("financeProfitStats").innerHTML = [["Маржа продажів", money(financeSalesReport.margin || 0)], ["Реклама", money(advertisingTotal)], ["Інші витрати", money(otherExpenseTotal)], ["Фіксовані зарплати", money(baseSalaryTotal)], ["Відсотки менеджерів", money(managerCommissionTotal)], ["Чистий прибуток", money(netProfit)]].map(([label, value], index) => `<div class="stat" style="${index === 5 ? "border:2px solid #16a34a" : ""}"><div class="n" style="font-size:22px">${esc(value)}</div><div class="l">${esc(label)}</div></div>`).join("");
     $("financeProfitWarning").innerHTML = financeSalesReport.pendingCostCount ? `<div class="purchase-warning"><strong>⚠ Підсумок неповний:</strong> ${financeSalesReport.pendingCostCount} успішних замовлень без закупівельної ціни.</div>` : "";
 
+    const withdrawals = mode === "all" ? (financeCache.partnerWithdrawals || []) : (financeCache.partnerWithdrawals || []).filter((row) => row.month === month);
+    const withdrawnByPartner = Object.fromEntries(financeCache.participants.map((person) => [person.id, withdrawals.filter((row) => row.participantId === person.id).reduce((sum, row) => sum + Number(row.amount), 0)]));
+    const partnerShare = netProfit / 3;
+    $("saveFinancePartners").style.display = mode === "all" ? "none" : "";
+    $("financePartnerShares").innerHTML = financeCache.participants.map((person) => {
+      const withdrawn = withdrawnByPartner[person.id] || 0;
+      const remaining = partnerShare - withdrawn;
+      return `<div style="padding:14px;border:1px solid var(--slate-200);border-radius:9px"><strong style="font-size:16px">${esc(person.name)}</strong><div class="muted" style="margin-top:5px">Частка 1/3: <strong>${money(partnerShare)}</strong></div>${mode === "all" ? `<div class="muted">Вже забрав: <strong>${money(withdrawn)}</strong></div>` : `<label class="field" style="margin:10px 0 0"><span>Вже забрав, $</span><input type="number" min="0" step="0.01" data-partner-withdrawal="${esc(person.id)}" value="${esc(withdrawn)}"></label>`}<div style="margin-top:7px;font-weight:800;color:${remaining >= 0 ? "#166534" : "#b91c1c"}">${remaining >= 0 ? "Залишилось отримати" : "Забрав понад частку"}: ${money(Math.abs(remaining))}</div></div>`;
+    }).join("");
+
     if (mode === "all") {
       const totalsByManager = Object.fromEntries(financeManagerStats.managers.map((manager) => [manager.id, { base: 0, commission: 0 }]));
       payrollRows.forEach((row) => { if (!totalsByManager[row.managerId]) totalsByManager[row.managerId] = { base: 0, commission: 0 }; totalsByManager[row.managerId].base += Number(row.baseSalary || 0); if (row.includeCommission) totalsByManager[row.managerId].commission += Number(commissionForRow(row)); });
@@ -1303,6 +1313,13 @@
     const month = mode === "current" ? todayInKyiv().slice(0, 7) : $("financeMonth").value;
     const rows = [...document.querySelectorAll("[data-finance-base-salary]")].map((input) => ({ managerId: input.dataset.financeBaseSalary, baseSalary: Number(input.value || 0), includeCommission: !!document.querySelector(`[data-finance-manager="${input.dataset.financeBaseSalary}"]`)?.checked }));
     try { await api("/api/finance/manager-payroll/" + encodeURIComponent(month), { method: "PUT", body: JSON.stringify({ rows }) }); await loadFinanceLedger(); }
+    catch (err) { alert(err.message); }
+  });
+  if ($("saveFinancePartners")) $("saveFinancePartners").addEventListener("click", async () => {
+    const mode = $("financePeriodMode").value;
+    const month = mode === "current" ? todayInKyiv().slice(0, 7) : $("financeMonth").value;
+    const rows = [...document.querySelectorAll("[data-partner-withdrawal]")].map((input) => ({ participantId: input.dataset.partnerWithdrawal, amount: Number(input.value || 0) }));
+    try { await api("/api/finance/partner-withdrawals/" + encodeURIComponent(month), { method: "PUT", body: JSON.stringify({ rows }) }); await loadFinanceLedger(); }
     catch (err) { alert(err.message); }
   });
 

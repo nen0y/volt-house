@@ -45,9 +45,14 @@ const managerPayrollSchema = z.object({
   month: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/), managerId: z.string().min(1),
   includeCommission: z.boolean().default(false), baseSalary: z.number().nonnegative().finite().default(0),
 });
+const partnerWithdrawalSchema = z.object({
+  month: z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/), participantId: z.string().min(1),
+  amount: z.number().nonnegative().finite(),
+});
 const ledgerSchema = z.object({
   participants: z.array(participantSchema).length(3),
   managerPayroll: z.array(managerPayrollSchema).max(5000).default([]),
+  partnerWithdrawals: z.array(partnerWithdrawalSchema).max(5000).default([]),
   incomes: z.array(incomeInputSchema.extend({ id: z.string().min(1) })).max(5000),
   expenses: z.array(expenseInputSchema.extend({ id: z.string().min(1) })).max(5000),
   transfers: z.array(transferInputSchema.extend({ id: z.string().min(1) })).max(5000).default([]),
@@ -55,7 +60,7 @@ const ledgerSchema = z.object({
 type Ledger = z.infer<typeof ledgerSchema>;
 
 const emptyLedger = (): Ledger => ({
-  participants: ["Юра", "Міша", "Коля"].map((name, index) => ({ id: `person-${index + 1}`, name })), managerPayroll: [], incomes: [], expenses: [], transfers: [],
+  participants: ["Юра", "Міша", "Коля"].map((name, index) => ({ id: `person-${index + 1}`, name })), managerPayroll: [], partnerWithdrawals: [], incomes: [], expenses: [], transfers: [],
 });
 
 function migrateLedger(value: unknown): Ledger {
@@ -66,6 +71,7 @@ function migrateLedger(value: unknown): Ledger {
   const migrated = {
     participants: legacy.participants,
     managerPayroll: [],
+    partnerWithdrawals: [],
     incomes: legacy.sales.map((sale: any) => ({ id: sale.id, purpose: sale.item, customer: sale.customer || "", amount: Number(sale.revenue), date: sale.soldAt, notes: sale.notes || "", shares: sale.shares, paymentStatus: "received", paymentMethod: "card", heldBy: null, receipts: [] })),
     expenses: legacy.sales.flatMap((sale: any) => (sale.expenses || []).map((expense: any) => ({ id: expense.id || randomUUID(), participantId: expense.participantId, purpose: expense.purpose, amount: Number(expense.amount), date: sale.soldAt, notes: `Перенесено з надходження: ${sale.item}` }))),
     transfers: [],
@@ -121,6 +127,19 @@ financeRouter.put("/manager-payroll/:month", async (req, res) => {
   ledger.managerPayroll.push(...parsed.data.rows.filter((row) => row.includeCommission || row.baseSalary > 0).map((row) => ({ ...row, month })));
   await writeLedger(ledger);
   res.json({ month, rows: ledger.managerPayroll.filter((row) => row.month === month) });
+});
+
+financeRouter.put("/partner-withdrawals/:month", async (req, res) => {
+  const month = req.params.month;
+  const parsed = z.object({ rows: z.array(z.object({ participantId: z.string().min(1), amount: z.number().nonnegative().finite() })).length(3) }).safeParse(req.body);
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month) || !parsed.success || new Set(parsed.data.rows.map((row) => row.participantId)).size !== 3) return res.status(400).json({ error: "Перевірте суми, які забрали партнери" });
+  const ledger = await readLedger();
+  const participantIds = new Set(ledger.participants.map((person) => person.id));
+  if (parsed.data.rows.some((row) => !participantIds.has(row.participantId))) return res.status(400).json({ error: "Некоректний партнер" });
+  ledger.partnerWithdrawals = ledger.partnerWithdrawals.filter((row) => row.month !== month);
+  ledger.partnerWithdrawals.push(...parsed.data.rows.filter((row) => row.amount > 0).map((row) => ({ ...row, month })));
+  await writeLedger(ledger);
+  res.json({ month, rows: ledger.partnerWithdrawals.filter((row) => row.month === month) });
 });
 
 financeRouter.post("/incomes", async (req, res) => {

@@ -13,12 +13,13 @@ test('legacy finance ledger receives safe defaults without losing expenses', asy
   const res = response();
   await handler('/', 'get')({}, res);
   assert.deepEqual(res.body.managerPayroll, []);
+  assert.deepEqual(res.body.partnerWithdrawals, []);
   assert.equal(res.body.expenses[0].category, 'other');
   assert.equal(res.body.expenses[0].purpose, 'Facebook');
 });
 
 test('monthly manager salary, commission and advertising category are persisted', async () => {
-  let stored = { participants, managerPayroll: [], incomes: [], expenses: [], transfers: [] };
+  let stored = { participants, managerPayroll: [], partnerWithdrawals: [], incomes: [], expenses: [], transfers: [] };
   prisma.setting.findUnique = async () => ({ value: JSON.stringify(stored) });
   prisma.setting.upsert = async ({ update }) => { stored = JSON.parse(update.value); return stored; };
   prisma.adminUser.findMany = async () => [{ id: 'manager-1' }];
@@ -30,4 +31,8 @@ test('monthly manager salary, commission and advertising category are persisted'
   await handler('/expenses', 'post')({ body: { participantId: 'person-2', category: 'advertising', purpose: 'Facebook ads', amount: 528, currency: 'UAH', exchangeRate: 44, date: '2026-11-11', notes: '' } }, expense);
   assert.equal(expense.code, 201);
   assert.equal(stored.expenses[0].category, 'advertising');
+
+  const withdrawals = response();
+  await handler('/partner-withdrawals/:month', 'put')({ params: { month: '2026-11' }, body: { rows: [{ participantId: 'person-1', amount: 100 }, { participantId: 'person-2', amount: 200 }, { participantId: 'person-3', amount: 0 }] } }, withdrawals);
+  assert.deepEqual(stored.partnerWithdrawals, [{ month: '2026-11', participantId: 'person-1', amount: 100 }, { month: '2026-11', participantId: 'person-2', amount: 200 }]);
 });
