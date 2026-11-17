@@ -24,7 +24,9 @@
   let warehouseResCache = [];
   let warehouseFilters = { search: "", category: "all", brand: "all" };
   let warehouseResFilter = "all";
-  let financeCache = { participants: [], sales: [] };
+  let financeCache = { participants: [], commissionManagerIds: [], incomes: [], expenses: [], transfers: [] };
+  let financeManagerStats = { managers: [] };
+  let financeSalesReport = { margin: 0, pendingCostCount: 0 };
   let adminEmail = "";
   let currentAdmin = null;
   let managerCache = [];
@@ -145,7 +147,7 @@
   $("logout").addEventListener("click", logout);
 
   // ── tabs ──────────────────────────────────────────────────────────────────
-  const ALL_TABS = ["crm", "warehouse", "installers", "suppliers", "pricing", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
+  const ALL_TABS = ["crm", "warehouse", "installers", "suppliers", "pricing", "finance", "products", "brands", "categories", "home", "testimonials", "content", "calculator", "security"];
   const MANAGER_TABS = ["crm", "warehouse", "installers", "pricing"];
 
   function activateTab(tab) {
@@ -163,6 +165,7 @@
     if (tab === "installers") loadInstallers();
     if (tab === "suppliers") loadSuppliers();
     if (tab === "pricing") loadPricing();
+    if (tab === "finance") loadFinanceLedger();
     if (tab === "products") loadProducts();
     if (tab === "brands") loadBrands();
     if (tab === "categories") loadCategories();
@@ -1248,7 +1251,16 @@
   }
 
   async function loadFinanceLedger() {
-    try { financeCache = await api("/api/finance"); renderFinanceLedger(); }
+    const month = $("financeMonth")?.value || todayInKyiv().slice(0, 7);
+    if ($("financeMonth") && !$("financeMonth").value) $("financeMonth").value = month;
+    try {
+      [financeCache, financeManagerStats, financeSalesReport] = await Promise.all([
+        api("/api/finance"),
+        api("/api/leads/manager-stats?month=" + encodeURIComponent(month)),
+        api(`/api/leads/sales-summary?fromMonth=${encodeURIComponent(month)}&toMonth=${encodeURIComponent(month)}`),
+      ]);
+      renderFinanceLedger();
+    }
     catch (err) { $("financeIncomeBody").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
   }
 
@@ -1273,6 +1285,13 @@
     const receivedTotal = fundedIncomes.reduce((sum, income) => sum + financeUsd(income, collectedAmount(income)), 0);
     const unassignedTotal = fundedIncomes.filter((income) => !income.receipts?.length && !income.heldBy).reduce((sum, income) => sum + financeUsd(income, collectedAmount(income)), 0);
     const expenseTotal = financeCache.expenses.reduce((sum, expense) => sum + financeUsd(expense), 0);
+    const month = $("financeMonth").value;
+    const monthExpenses = financeCache.expenses.filter((expense) => expense.date.startsWith(month));
+    const monthExpenseTotal = monthExpenses.reduce((sum, expense) => sum + financeUsd(expense), 0);
+    const advertisingTotal = monthExpenses.filter((expense) => expense.category === "advertising").reduce((sum, expense) => sum + financeUsd(expense), 0);
+    const selectedManagerIds = new Set(financeCache.commissionManagerIds || []);
+    const managerCommissionTotal = financeManagerStats.managers.filter((manager) => selectedManagerIds.has(manager.id)).reduce((sum, manager) => sum + Number(manager.salary || 0), 0);
+    const netProfit = Number(financeSalesReport.margin || 0) - monthExpenseTotal - managerCommissionTotal;
     fundedIncomes.forEach((income) => {
       const collected = financeUsd(income, collectedAmount(income));
       income.shares.forEach((share) => { incomeShares[share.participantId] += collected * Number(share.percent) / 100; });
@@ -1284,6 +1303,9 @@
     const target = Object.fromEntries(financeCache.participants.map((person) => [person.id, incomeShares[person.id] - expenseTotal / 3]));
     const difference = Object.fromEntries(financeCache.participants.map((person) => [person.id, target[person.id] - actual[person.id]]));
     $("financeStats").innerHTML = [["Записано надходжень", money(incomeTotal)], ["Фактично отримано", money(receivedTotal)], ["Витрати", money(expenseTotal)], ["Грошей у команді", money(receivedTotal - expenseTotal)]].map(([label, value]) => `<div class="stat"><div class="n" style="font-size:22px">${esc(value)}</div><div class="l">${esc(label)}</div></div>`).join("");
+    $("financeProfitStats").innerHTML = [["Маржа продажів", money(financeSalesReport.margin || 0)], ["Реклама", money(advertisingTotal)], ["Інші витрати", money(monthExpenseTotal - advertisingTotal)], ["Комісії менеджерів", money(managerCommissionTotal)], ["Чистий прибуток", money(netProfit)]].map(([label, value], index) => `<div class="stat" style="${index === 4 ? "border:2px solid #16a34a" : ""}"><div class="n" style="font-size:22px">${esc(value)}</div><div class="l">${esc(label)}</div></div>`).join("");
+    $("financeProfitWarning").innerHTML = financeSalesReport.pendingCostCount ? `<div class="purchase-warning"><strong>⚠ Підсумок неповний:</strong> ${financeSalesReport.pendingCostCount} успішних замовлень без закупівельної ціни.</div>` : "";
+    $("financeManagerCommissions").innerHTML = financeManagerStats.managers.length ? financeManagerStats.managers.map((manager) => `<label style="display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid var(--slate-200);border-radius:8px"><input type="checkbox" data-finance-manager="${esc(manager.id)}" style="width:auto;margin-top:2px" ${selectedManagerIds.has(manager.id) ? "checked" : ""}><span><strong>${esc(manager.name || manager.email)}</strong><span class="muted" style="display:block">${manager.commissionPercent}% від маржі · до віднімання ${money(manager.salary)}${manager.pendingCostCount ? ` · ${manager.pendingCostCount} без закупівлі` : ""}</span></span></label>`).join("") : `<div class="muted">Менеджерів ще немає</div>`;
 
     const name = (id) => financeCache.participants.find((person) => person.id === id)?.name || "—";
     const statusLabel = { expected: "Очікуємо оплату", post: "На пошті", partial: "Отримано частково", received: "Отримано" };
@@ -1294,7 +1316,8 @@
     debtors.forEach((debtor) => { creditors.forEach((creditor) => { const amount = Math.min(debtor.amount, creditor.amount); if (amount > 0.005) { steps.push(`${debtor.person.name} передає ${creditor.person.name} ${money(amount)}`); debtor.amount -= amount; creditor.amount -= amount; } }); });
     $("financeSettlement").innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px">${financeCache.participants.map((person) => `<div style="padding:12px;border:1px solid #e2e8f0;border-radius:9px"><strong>${esc(person.name)}</strong><div class="muted">Фактично: ${money(actual[person.id])}</div><div class="muted">Має бути: ${money(target[person.id])}</div><div style="margin-top:5px;font-weight:700;color:${difference[person.id] >= 0 ? "#166534" : "#b91c1c"}">${difference[person.id] >= 0 ? "Отримати" : "Передати"}: ${money(Math.abs(difference[person.id]))}</div></div>`).join("")}</div>${unassignedTotal > 0 ? `<div style="padding:10px 12px;background:#fff7ed;border-radius:8px;color:#9a3412;font-weight:700">! Для отриманих ${money(unassignedTotal)} не вказано, у кого гроші. Відкрийте надходження та оберіть учасника.</div>` : steps.length ? steps.map((step) => `<div style="padding:10px 12px;margin-top:7px;background:#eff6ff;border-radius:8px;font-weight:700">→ ${esc(step)}</div>`).join("") : `<div style="padding:10px 12px;background:#ecfdf5;border-radius:8px;color:#166534;font-weight:700">✓ Передавати кошти між учасниками зараз не потрібно</div>`}`;
     $("financeIncomeBody").innerHTML = financeCache.incomes.length ? `<table><thead><tr><th>Дата</th><th>За що отримано</th><th>Сума</th><th>Стан грошей</th><th>Частки</th><th></th></tr></thead><tbody>${financeCache.incomes.map((income) => `<tr><td class="nowrap">${esc(uaDate(income.date))}</td><td><strong>${esc(income.purpose)}</strong>${income.customer ? `<div class="muted">Клієнт: ${esc(income.customer)}</div>` : ""}${income.notes ? `<div class="muted">${esc(income.notes)}</div>` : ""}</td><td><strong>${financeAmount(income)}</strong>${income.currency === "UAH" ? `<div class="muted">курс ${Number(income.exchangeRate).toLocaleString("uk-UA")} ₴/$</div>` : ""}${collectedAmount(income) < Number(income.amount) ? `<div class="muted">отримано ${financeAmount(income, collectedAmount(income))}</div>` : ""}</td><td><span class="badge ${income.paymentStatus === "received" ? "s-done" : "s-new"}">${esc(statusLabel[income.paymentStatus])}</span><div class="muted" style="margin-top:5px">${income.receipts?.length ? income.receipts.map((receipt) => `${esc(name(receipt.participantId))}: ${financeAmount(income, receipt.amount)} · ${esc(methodLabel[receipt.method])}`).join("<br>") : income.paymentStatus === "received" ? `${esc(name(income.heldBy))} · ${esc(methodLabel[income.paymentMethod])}` : esc(methodLabel[income.paymentMethod])}</div></td><td class="muted">${income.shares.map((share) => `${esc(name(share.participantId))}: ${Number(share.percent).toLocaleString("uk-UA")}%`).join("<br>")}</td><td><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-income="${esc(income.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-income="${esc(income.id)}">Видалити</button></div></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Надходжень ще немає</div>`;
-    $("financeExpenseBody").innerHTML = financeCache.expenses.length ? `<table><thead><tr><th>Дата</th><th>На що витрачено</th><th>Хто платив</th><th>Сума</th><th></th></tr></thead><tbody>${financeCache.expenses.map((expense) => `<tr><td class="nowrap">${esc(uaDate(expense.date))}</td><td><strong>${esc(expense.purpose)}</strong>${expense.notes ? `<div class="muted">${esc(expense.notes)}</div>` : ""}</td><td>${esc(name(expense.participantId))}</td><td><strong>${financeAmount(expense)}</strong>${expense.currency === "UAH" ? `<div class="muted">курс ${Number(expense.exchangeRate).toLocaleString("uk-UA")} ₴/$</div>` : ""}</td><td><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-expense="${esc(expense.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-expense="${esc(expense.id)}">Видалити</button></div></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Витрат ще немає</div>`;
+    const expenseCategoryLabel = { advertising: "Реклама", salary: "Зарплата", delivery: "Доставка", taxes: "Податки", other: "Інше" };
+    $("financeExpenseBody").innerHTML = financeCache.expenses.length ? `<table><thead><tr><th>Дата</th><th>Категорія</th><th>На що витрачено</th><th>Хто платив</th><th>Сума</th><th></th></tr></thead><tbody>${financeCache.expenses.map((expense) => `<tr><td class="nowrap">${esc(uaDate(expense.date))}</td><td><span class="badge">${esc(expenseCategoryLabel[expense.category] || "Інше")}</span></td><td><strong>${esc(expense.purpose)}</strong>${expense.notes ? `<div class="muted">${esc(expense.notes)}</div>` : ""}</td><td>${esc(name(expense.participantId))}</td><td><strong>${financeAmount(expense)}</strong>${expense.currency === "UAH" ? `<div class="muted">курс ${Number(expense.exchangeRate).toLocaleString("uk-UA")} ₴/$</div>` : ""}</td><td><div class="row-actions"><button class="btn-sm btn-ghost" data-edit-expense="${esc(expense.id)}">Редагувати</button><button class="btn-sm btn-danger" data-del-expense="${esc(expense.id)}">Видалити</button></div></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Витрат ще немає</div>`;
     $("financeTransferBody").innerHTML = (financeCache.transfers || []).length ? `<table><thead><tr><th>Дата</th><th>Хто передав</th><th>Кому</th><th>Сума</th><th>Спосіб</th><th></th></tr></thead><tbody>${financeCache.transfers.map((transfer) => `<tr><td>${esc(uaDate(transfer.date))}</td><td>${esc(name(transfer.fromParticipantId))}</td><td>${esc(name(transfer.toParticipantId))}</td><td><strong>${financeAmount(transfer)}</strong></td><td>${esc(methodLabel[transfer.method])}${transfer.notes ? `<div class="muted">${esc(transfer.notes)}</div>` : ""}</td><td><button class="btn-sm btn-danger" data-del-transfer="${esc(transfer.id)}">Видалити</button></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Передач між учасниками ще не було</div>`;
     document.querySelectorAll("[data-edit-income]").forEach((button) => button.addEventListener("click", () => financeIncomeModal(financeCache.incomes.find((item) => item.id === button.dataset.editIncome))));
     document.querySelectorAll("[data-edit-expense]").forEach((button) => button.addEventListener("click", () => financeExpenseModal(financeCache.expenses.find((item) => item.id === button.dataset.editExpense))));
@@ -1355,12 +1378,12 @@
   }
 
   function financeExpenseModal(existing) {
-    const item = existing || { participantId: financeCache.participants[0].id, purpose: "", amount: "", currency: "USD", exchangeRate: 1, date: todayInKyiv(), notes: "" };
-    openModal(`<h3>${existing ? "Редагувати витрату" : "Нова витрата"}</h3><div class="field"><label>На що витрачено *</label><input id="fin_expense_purpose" value="${esc(item.purpose)}" placeholder="Наприклад: оплата сайту або реклама"></div><div class="grid2"><div class="field"><label>Хто заплатив</label><select id="fin_expense_person">${financeCache.participants.map((person) => `<option value="${esc(person.id)}" ${person.id === item.participantId ? "selected" : ""}>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>Дата</label><input id="fin_expense_date" type="date" value="${esc(item.date)}"></div></div><div class="field"><label>Сума, $ *</label><input id="fin_expense_amount" type="number" min="0" step="0.01" value="${esc(item.amount)}"></div><div class="field"><label>Нотатки</label><textarea id="fin_expense_notes" rows="3">${esc(item.notes)}</textarea></div><div class="error" id="fin_expense_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="fin_expense_cancel">Скасувати</button><button class="btn" id="fin_expense_save">Зберегти</button></div>`);
+    const item = existing || { participantId: financeCache.participants[0].id, category: "other", purpose: "", amount: "", currency: "USD", exchangeRate: 1, date: todayInKyiv(), notes: "" };
+    openModal(`<h3>${existing ? "Редагувати витрату" : "Нова витрата"}</h3><div class="field"><label>Категорія</label><select id="fin_expense_category"><option value="advertising" ${item.category === "advertising" ? "selected" : ""}>Реклама</option><option value="salary" ${item.category === "salary" ? "selected" : ""}>Зарплата / виплата</option><option value="delivery" ${item.category === "delivery" ? "selected" : ""}>Доставка</option><option value="taxes" ${item.category === "taxes" ? "selected" : ""}>Податки</option><option value="other" ${!item.category || item.category === "other" ? "selected" : ""}>Інше</option></select></div><div class="field"><label>На що витрачено *</label><input id="fin_expense_purpose" value="${esc(item.purpose)}" placeholder="Наприклад: реклама Facebook за листопад"></div><div class="grid2"><div class="field"><label>Хто заплатив</label><select id="fin_expense_person">${financeCache.participants.map((person) => `<option value="${esc(person.id)}" ${person.id === item.participantId ? "selected" : ""}>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>Дата</label><input id="fin_expense_date" type="date" value="${esc(item.date)}"></div></div><div class="field"><label>Сума, $ *</label><input id="fin_expense_amount" type="number" min="0" step="0.01" value="${esc(item.amount)}"></div><div class="field"><label>Нотатки</label><textarea id="fin_expense_notes" rows="3">${esc(item.notes)}</textarea></div><div class="error" id="fin_expense_error"></div><div class="modal-actions"><button class="btn btn-ghost" id="fin_expense_cancel">Скасувати</button><button class="btn" id="fin_expense_save">Зберегти</button></div>`);
     addFinanceCurrencyFields("fin_expense", item);
     $("fin_expense_cancel").addEventListener("click", closeModal);
     $("fin_expense_save").addEventListener("click", async () => {
-      const body = { participantId: $("fin_expense_person").value, purpose: $("fin_expense_purpose").value.trim(), amount: Number($("fin_expense_amount").value), currency: $("fin_expense_currency").value, exchangeRate: $("fin_expense_currency").value === "UAH" ? Number($("fin_expense_rate").value) : 1, date: $("fin_expense_date").value, notes: $("fin_expense_notes").value };
+      const body = { participantId: $("fin_expense_person").value, category: $("fin_expense_category").value, purpose: $("fin_expense_purpose").value.trim(), amount: Number($("fin_expense_amount").value), currency: $("fin_expense_currency").value, exchangeRate: $("fin_expense_currency").value === "UAH" ? Number($("fin_expense_rate").value) : 1, date: $("fin_expense_date").value, notes: $("fin_expense_notes").value };
       if (!body.purpose || !body.date || $("fin_expense_amount").value === "") return $("fin_expense_error").textContent = "Заповніть призначення, дату і суму";
       if (body.currency === "UAH" && !body.exchangeRate) return $("fin_expense_error").textContent = "Вкажіть курс гривні до долара";
       try { await api(existing ? `/api/finance/expenses/${existing.id}` : "/api/finance/expenses", { method: existing ? "PUT" : "POST", body: JSON.stringify(body) }); closeModal(); loadFinanceLedger(); } catch (err) { $("fin_expense_error").textContent = err.message; }
@@ -1384,6 +1407,12 @@
   if ($("addFinanceIncome")) $("addFinanceIncome").addEventListener("click", () => financeIncomeModal(null));
   if ($("addFinanceExpense")) $("addFinanceExpense").addEventListener("click", () => financeExpenseModal(null));
   if ($("addFinanceTransfer")) $("addFinanceTransfer").addEventListener("click", financeTransferModal);
+  if ($("financeMonth")) $("financeMonth").addEventListener("change", loadFinanceLedger);
+  if ($("saveFinanceManagers")) $("saveFinanceManagers").addEventListener("click", async () => {
+    const managerIds = [...document.querySelectorAll("[data-finance-manager]:checked")].map((input) => input.dataset.financeManager);
+    try { await api("/api/finance/commission-managers", { method: "PUT", body: JSON.stringify({ managerIds }) }); await loadFinanceLedger(); }
+    catch (err) { alert(err.message); }
+  });
 
   // ── Installers ────────────────────────────────────────────────────────────
   $("addInstaller").addEventListener("click", () => installerModal(null));
