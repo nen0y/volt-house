@@ -8,6 +8,7 @@ import HomeSections from "@/components/HomeSections";
 import HowItWorks from "@/components/HowItWorks";
 import Testimonials from "@/components/Testimonials";
 import { testimonials } from "@/lib/data";
+import MobileLeadBar from "@/components/MobileLeadBar";
 
 const Contact = dynamic(() => import("@/components/Contact"));
 const Footer = dynamic(() => import("@/components/Footer"));
@@ -40,6 +41,7 @@ export default function Home() {
         <Contact />
       </main>
       <Footer />
+      <MobileLeadBar />
     </>
   );
 }

@@ -13,9 +13,7 @@ import { fetchTestimonials } from "@/lib/api";
 
 const navLinks = [
   { label: "Товари",         href: "/products" },
-  { label: "Категорії",      href: "/#categories" },
   { label: "Як це працює",   href: "/#how-it-works" },
-  { label: "Відгуки",        href: "/#reviews" },
   { label: "Контакти",       href: "/#contact" },
 ];
 
@@ -45,6 +43,12 @@ export default function Navbar() {
       window.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(rafId);
     };
+  }, []);
+
+  useEffect(() => {
+    const openConsultation = () => setConsultOpen(true);
+    window.addEventListener("e-kit:open-consultation", openConsultation);
+    return () => window.removeEventListener("e-kit:open-consultation", openConsultation);
   }, []);
 
   useEffect(() => {
@@ -101,7 +105,7 @@ export default function Navbar() {
                 <svg viewBox="0 0 16 16" fill="none" className="w-[13px] h-[13px]">
                   <path d="M3 3.5c0 5 4.5 9.5 9.5 9.5l1-2.2-2.6-1-1 1a7 7 0 01-3.2-3.2l1-1L6.7 3.5H4.5A1.5 1.5 0 003 3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                 </svg>
-                Зворотний дзвінок
+                Залишити заявку
               </button>
               <button
                 onClick={() => setCalcOpen(true)}
@@ -111,7 +115,7 @@ export default function Navbar() {
                   <rect x="2" y="1" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="1.4" />
                   <path d="M5 5h6M5 8h6M5 11h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                 </svg>
-                Підібрати систему
+                Безкоштовний підбір
               </button>
             </div>
 
@@ -178,13 +182,13 @@ export default function Navbar() {
                 onClick={() => { setMenuOpen(false); setCalcOpen(true); }}
                 className="flex items-center gap-[8px] text-[15px] font-semibold text-gray-900 cursor-pointer text-left"
               >
-                ⚡ Підібрати систему
+                ⚡ Безкоштовний підбір
               </button>
               <button
                 onClick={() => { setMenuOpen(false); setConsultOpen(true); }}
                 className="flex items-center gap-[8px] text-[15px] font-semibold text-gray-900 cursor-pointer text-left"
               >
-                📞 Зворотний дзвінок
+                📞 Залишити заявку
               </button>
             </div>
           )}

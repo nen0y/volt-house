@@ -43,7 +43,7 @@ export default function ConsultationModal({
     setError("");
     setSubmitting(true);
     try {
-      await submitLead({ type: "callback", name: form.name, phone: form.phone });
+      await submitLead({ type: "callback", name: form.name.trim() || "Клієнт із сайту", phone: form.phone });
       setSubmitted(true);
     } catch {
       setError("Не вдалося надіслати. Спробуйте ще раз.");
@@ -105,16 +105,15 @@ export default function ConsultationModal({
             >
               <div>
                 <label className="block text-[12px] font-semibold text-gray-700 mb-[6px] uppercase tracking-wide">
-                  Повне ім&apos;я *
+                  Як до вас звертатися
                 </label>
                 <input
                   type="text"
-                  required
                   autoFocus
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className={inputClass}
-                  placeholder="Іван Петренко"
+                  placeholder="Ваше ім’я (необов’язково)"
                 />
               </div>
               <div>

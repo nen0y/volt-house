@@ -20,12 +20,14 @@ function formatPhone(raw: string): string {
 }
 
 export default function PhoneInput({
+  id,
   value,
   onChange,
   className,
   required,
   autoFocus,
 }: {
+  id?: string;
   value: string;
   onChange: (val: string) => void;
   className?: string;
@@ -34,8 +36,10 @@ export default function PhoneInput({
 }) {
   return (
     <input
+      id={id}
       type="tel"
       inputMode="numeric"
+      autoComplete="tel"
       value={value}
       onChange={(e) => onChange(formatPhone(e.target.value))}
       onFocus={(e) => {
@@ -43,6 +47,8 @@ export default function PhoneInput({
       }}
       className={className}
       required={required}
+      pattern="\+380 \([0-9]{2}\) [0-9]{3}-[0-9]{2}-[0-9]{2}"
+      title="Введіть повний номер у форматі +380 (XX) XXX-XX-XX"
       autoFocus={autoFocus}
       placeholder="+380 (XX) XXX-XX-XX"
     />

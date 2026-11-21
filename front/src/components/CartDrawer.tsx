@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useCart } from "@/context/CartContext";
 import PhoneInput from "./PhoneInput";
 import { submitLead } from "@/lib/api";
@@ -30,21 +30,7 @@ export default function CartDrawer({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen]);
-
-  // Reset to cart view whenever drawer re-opens
-  useEffect(() => {
-    if (isOpen) setStep("cart");
-  }, [isOpen]);
-
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     onClose();
     // Delay reset so animation finishes
     setTimeout(() => {
@@ -52,7 +38,16 @@ export default function CartDrawer({
       setForm({ name: "", phone: "" });
       setError("");
     }, 300);
-  };
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleClose, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +56,7 @@ export default function CartDrawer({
     try {
       await submitLead({
         type: "order",
-        name: form.name,
+        name: form.name.trim() || "Клієнт із сайту",
         phone: form.phone,
         total,
         items: items.map(({ product, quantity }) => ({
@@ -260,15 +255,14 @@ export default function CartDrawer({
             >
               <div>
                 <label className="block text-[12px] font-semibold text-gray-700 mb-[6px] uppercase tracking-wide">
-                  Повне ім&apos;я *
+                  Як до вас звертатися
                 </label>
                 <input
                   type="text"
-                  required
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className={inputClass}
-                  placeholder="Іван Петренко"
+                  placeholder="Ваше ім’я (необов’язково)"
                   autoFocus
                 />
               </div>
